@@ -1,0 +1,14 @@
+{
+  "files": {
+    "main.css": "/p/static/css/main.31cba778.css",
+    "main.js": "/p/static/js/main.08efb24d.js",
+    "static/media/brotli_wasm_bg.wasm": "/p/static/media/brotli_wasm_bg.0679dcc7b534fcfcac29.wasm",
+    "index.html": "/p/index.html",
+    "main.31cba778.css.map": "/p/static/css/main.31cba778.css.map",
+    "main.08efb24d.js.map": "/p/static/js/main.08efb24d.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.31cba778.css",
+    "static/js/main.08efb24d.js"
+  ]
+}

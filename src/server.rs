@@ -9,11 +9,12 @@ use std::sync::Mutex;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    response::{IntoResponse, Redirect, Response},
+    response::{Html, IntoResponse, Redirect, Response},
     Router,
     routing::get,
 };
 use clap::Parser;
+use include_dir::{Dir, include_dir};
 use pflow_metamodel::compression::unzip_encoded;
 use pflow_metamodel::oid;
 use pflow_metamodel::petri_net::PetriNet;
@@ -160,6 +161,22 @@ async fn index_handler(
     return index_response(zblob.ipfs_cid, zblob.base64_zipped).into_response();
 }
 
+const STATIC_DIR: Dir = include_dir!("static");
+async fn serve_static(filepath: Path<String>) -> impl IntoResponse {
+    let filepath = if filepath.as_str().is_empty() {
+        "index.html".to_string()
+    } else {
+        (*filepath).clone()
+    };
+
+    tracing::info!("Serving static file: {:?}", filepath);
+
+    match STATIC_DIR.get_file(&filepath) {
+        Some(file) => Html::<axum::body::Body>(file.contents_utf8().unwrap().into()),
+        None => Html::<axum::body::Body>("404 Not Found".into()),
+    }
+}
+
 pub fn app() -> Router {
     let store = Storage::new("pflow.db").unwrap();
     store.create_tables().unwrap();
@@ -167,6 +184,7 @@ pub fn app() -> Router {
 
     // Build route service
     Router::new()
+        .route("/p/:filepath", get(serve_static)) // serve static files
         .route("/img/:ipfs_cid.svg", get(img_handler))
         .route("/src/:ipfs_cid.json", get(src_handler))
         .route("/p/:ipfs_cid/", get(model_handler))
