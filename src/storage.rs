@@ -4,7 +4,7 @@ use rusqlite::{Connection, params, Result};
 use serde::{Serialize, Serializer};
 
 use pflow_metamodel::oid::Oid;
-use pflow_metamodel::compression::encode_zip;
+use pflow_metamodel::compression::decompress_brotli_decode;
 use pflow_metamodel::petri_net::PetriNet;
 
 #[derive(Debug, Clone, Serialize)]
@@ -22,7 +22,11 @@ pub struct Zblob {
 impl Default for Zblob {
     fn default() -> Self {
         let net = serde_json::to_string(&PetriNet::new()).unwrap();
-        let data = encode_zip(&net, "model.json");
+        let decoded = decompress_brotli_decode(&net);
+        let data = match decoded {
+            Some(data) => data,
+            None => net,
+        };
         Self {
             id: 0,
             ipfs_cid: Oid::new(data.as_bytes()).unwrap().to_string(),

@@ -15,7 +15,7 @@ use axum::{
 };
 use clap::Parser;
 use include_dir::{Dir, include_dir};
-use pflow_metamodel::compression::unzip_encoded;
+use pflow_metamodel::compression::decompress_brotli_decode;
 use pflow_metamodel::oid;
 use pflow_metamodel::petri_net::PetriNet;
 use tower_http::trace::TraceLayer;
@@ -33,7 +33,7 @@ async fn src_handler(
         .unwrap_or(Zblob::default());
 
     let encoded_str = zblob.base64_zipped;
-    let data = unzip_encoded(&*encoded_str, "model.json").unwrap_or("".to_string());
+    let data = decompress_brotli_decode(&*encoded_str).unwrap_or("".to_string());
     let content_type = "application/json charset=utf-8";
     let status = StatusCode::OK;
     Response::builder()
@@ -52,7 +52,7 @@ async fn img_handler(
         .unwrap_or(Option::from(Zblob::default()))
         .unwrap_or(Zblob::default());
 
-    let data = unzip_encoded(&zblob.base64_zipped, "model.json").unwrap_or("".to_string());
+    let data = decompress_brotli_decode(&zblob.base64_zipped).unwrap_or("".to_string());
     let content_type = "application/json charset=utf-8";
     let status = StatusCode::OK;
     Response::builder()
