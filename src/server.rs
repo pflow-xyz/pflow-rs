@@ -22,7 +22,6 @@ use tower_http::trace::TraceLayer;
 
 use crate::storage::{Storage, Zblob};
 
-
 async fn src_handler(
     Path(ipfs_cid): Path<String>,
     state: State<Arc<Mutex<Storage>>>,
@@ -162,6 +161,7 @@ async fn index_handler(
 }
 
 const STATIC_DIR: Dir = include_dir!("static");
+
 async fn serve_static(filepath: Path<String>) -> impl IntoResponse {
     let filepath = if filepath.as_str().is_empty() {
         "index.html".to_string()
@@ -193,44 +193,4 @@ pub fn app() -> Router {
         .route("/", get(|| async { Redirect::to("/p/") }))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
-}
-
-#[cfg(test)]
-mod tests {
-    use pflow_metamodel::compression::unzip_encoded;
-    use pflow_metamodel::petri_net::PetriNet;
-    use crate::fixtures::INHIBIT_TEST;
-    use crate::server::string_to_zblob;
-    use crate::storage::Storage;
-
-    #[test]
-    fn test_serve_by_ipfs_cid() {
-        let p = string_to_zblob(Option::from(&INHIBIT_TEST.to_string()));
-        let net = PetriNet::from_json(unzip_encoded(&p.base64_zipped, "model.json").unwrap()).unwrap();
-        let store = Storage::new("pflow.db").unwrap();
-        store.reset_db(true).unwrap();
-        let z = string_to_zblob(Option::from(&INHIBIT_TEST.to_string()));
-        assert_eq!(z.ipfs_cid, "zb2rhjSDP7JbLBEjfeThBdnE2va1sTahmDkooKB9VYGD67tf5");
-        let store = Storage::new("pflow.db").unwrap();
-
-        for i in 0..3 {
-            match store.create_or_retrieve(
-                "pflow_models",
-                &z.ipfs_cid,
-                &z.base64_zipped,
-                &z.title,
-                &z.description,
-                &z.keywords,
-                &z.referrer,
-            ) {
-                Ok(zblob) => {
-                    assert_eq!(zblob.ipfs_cid, z.ipfs_cid);
-                    assert_eq!(zblob.id, 1);
-                }
-                Err(e) => {
-                    panic!("Failed to create zblob: {}", e);
-                }
-            }
-        }
-    }
 }

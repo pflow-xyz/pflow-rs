@@ -1,11 +1,10 @@
 use std::str;
 
+use pflow_metamodel::compression::decompress_brotli_decode;
+use pflow_metamodel::oid::Oid;
+use pflow_metamodel::petri_net::PetriNet;
 use rusqlite::{Connection, params, Result};
 use serde::{Serialize, Serializer};
-
-use pflow_metamodel::oid::Oid;
-use pflow_metamodel::compression::decompress_brotli_decode;
-use pflow_metamodel::petri_net::PetriNet;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Zblob {
