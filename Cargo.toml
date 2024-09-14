@@ -1,0 +1,6 @@
+[workspace]
+members = ["app", "crates"]
+resolver = "2"
+
+[workspace.dependencies]
+foundry-contracts = { path = "crates" }
