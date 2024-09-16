@@ -1,13 +1,8 @@
 OVERVIEW
 --------
 
-This is the local UX for p2p users - should be oriented toward private usage.
+We're building a generalized intent framework.
 
-For example, whenever we encounter a compatible contract address,
-we will index that contract and provide a user interface to interact with it.
-
-TODO: probably keep everything in sqlite!!!
-this is an end-user tool, not a developer tool (think courtesy node)
 
 STATUS
 ------
@@ -20,6 +15,8 @@ advance the design to be read/write in the same UX
 
 WIP
 ---
+- [ ] integrate w/ Alloy APIs for interaction w/ Optimism
+
 - [ ] refer to contracts by address *ONLY* in URLs
 - [ ] should we support loading models from contracts (YES!)
 - [ ] optimism.pflow.xyz/contract/0x1234

@@ -7,3 +7,7 @@ clippy:
 .PHONY: test
 test:
 	cargo test --all
+
+.PHONY: run
+run:
+	cargo run --bin pflow

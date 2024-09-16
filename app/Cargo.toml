@@ -5,11 +5,7 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
-alloy = { git = "https://github.com/alloy-rs/alloy", features = [
-    "providers",
-    "node-bindings",
-] }
-#foundry-contracts.workspace = true
+foundry-contracts.workspace = true
 thiserror = "=1.0.56"
 axum = "0.7"
 axum-server = "0.6.0"
@@ -27,12 +23,14 @@ tower-http = {  version = "0.5", features = ["util", "timeout", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 pflow-metamodel = "0.2.0"
-webbrowser = "0.8.12"
+webbrowser = "0.8"
 lazy_static = "1.5.0"
 rocksdb = "0.22.0"
-async-recursion = "1.1.1"
 rusqlite = "0.32.1"
 futures-util = "0.3.30"
+alloy = { version = "0.3", features = ["network", "providers", "transports", "transport-http", "rpc", "rpc-types", "rpc-client", "contract", "sol-types", "signers"] }
+reqwest = "0.12.7"
+log = "0.4.22"
 
 
 [[bin]]
