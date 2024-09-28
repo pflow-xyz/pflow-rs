@@ -1,0 +1,31 @@
+[package]
+name = "pflow-cli"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[dependencies]
+axum = "0.7"
+axum-server = "0.7.1"
+clap = { version = "4.4.4", features = ["derive"] }
+futures-util = "0.3.30"
+lazy_static = "1.5.0"
+libipld = "0.16.0"
+log = "0.4.22"
+multibase = "0.9.1"
+pflow-metamodel = { git = "https://github.com/pflow-xyz/metamodel-rs.git", rev = "92c7545885d7d5cc6df44329ab870fe29a25fc3d" }
+rusqlite = "0.32.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "=1.0.56"
+tokio = { version = "1.32.0", features = ["full"] }
+webbrowser = "1.0.2"
+
+
+[[bin]]
+name = "pflow"
+path = "src/main.rs"
+
+[lib]
+name = "pflow_cli"
+path = "src/lib.rs"
