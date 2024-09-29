@@ -1,6 +1,6 @@
 [package]
 name = "pflow-cli"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -13,7 +13,7 @@ lazy_static = "1.5.0"
 libipld = "0.16.0"
 log = "0.4.22"
 multibase = "0.9.1"
-pflow-metamodel = { git = "https://github.com/pflow-xyz/metamodel-rs.git", rev = "6d764fb7bc2e2bccf15c0cc92a44d89d609b423c" }
+pflow-metamodel = { git = "https://github.com/pflow-xyz/metamodel-rs.git", rev = "55e54607455fb16a941bd71363275372870ed6ef" }
 rusqlite = "0.32.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

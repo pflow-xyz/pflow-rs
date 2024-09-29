@@ -34,7 +34,7 @@ impl State for CoffeeMachine {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Context {
     pub msg: String,
 }
@@ -72,7 +72,8 @@ impl Process<Context> for CoffeeMachine {
         let mut current_seq = seq.unwrap_or(0) + 1;
 
         while let Some(ref action) = current_action {
-            if let Some(transaction) = self.process_action(action, current_seq) {
+            let context = event_log.last().expect("last event").data.clone();
+            if let Some(transaction) = self.process_action(action, current_seq, context) {
                 event_log.push(transaction);
             } else {
                 break;
@@ -93,9 +94,11 @@ impl Process<Context> for CoffeeMachine {
 
     /// calculate the next action to be executed based on the current state
     /// transform state before calling execute_action
-    fn process_action(&self, action: &str, seq: u64) -> Option<Event<Context>> {
+    fn process_action(&self, action: &str, seq: u64, ctx: Context) -> Option<Event<Context>> {
         let mut state = self.state.lock().expect("lock failed");
         let res = self.model.vm.transform(&state, action, 1);
+        let mut data = ctx.clone();
+        data.msg = format!("{action}::{res:?}");
 
         if res.is_ok() {
             *state = res.output;
@@ -103,7 +106,7 @@ impl Process<Context> for CoffeeMachine {
                 action: action.to_string(),
                 seq,
                 state: state.clone(),
-                data: Context { msg: format!("completed! #{seq}: {action}") },
+                data,
             };
             let transaction = self.execute_action(evt);
 

@@ -26,7 +26,7 @@ petri_net!( TicTacToe {
             "X20": { "offset":  6, "role": "x", "x": 400, "y": 262 },
             "X21": { "offset":  7, "role": "x", "x": 480, "y": 262 },
             "X22": { "offset":  8, "role": "x", "x": 560, "y": 262 },
-            "000": { "offset":  9, "role": "o", "x": 80,  "y": 422 },
+            "O00": { "offset":  9, "role": "o", "x": 80,  "y": 422 },
             "O01": { "offset": 10, "role": "o", "x": 160, "y": 422 },
             "O02": { "offset": 11, "role": "o", "x": 240, "y": 422 },
             "O10": { "offset": 12, "role": "o", "x": 80,  "y": 502 },
@@ -55,8 +55,8 @@ petri_net!( TicTacToe {
             { "source": "X21",  "target": "next" },
             { "source": "22",   "target": "X22"  },
             { "source": "X22",  "target": "next" },
-            { "source": "00",   "target": "000"  },
-            { "source": "next", "target": "000"  },
+            { "source": "00",   "target": "O00"  },
+            { "source": "next", "target": "O00"  },
             { "source": "01",   "target": "O01"  },
             { "source": "next", "target": "O01"  },
             { "source": "02",   "target": "O02"  },
@@ -77,9 +77,70 @@ petri_net!( TicTacToe {
     }
 });
 
-#[derive(Debug)]
+const WIN_SETS: [[&str; 3]; 8] = [
+    ["00", "01", "02"],
+    ["10", "11", "12"],
+    ["20", "21", "22"],
+    ["00", "10", "20"],
+    ["01", "11", "21"],
+    ["02", "12", "22"],
+    ["00", "11", "22"],
+    ["20", "11", "02"],
+];
+
+#[derive(Debug, Clone)]
 struct Context {
     pub msg: String,
+    pub board: std::collections::HashMap<String, Option<String>>,
+    pub game_over: bool,
+    pub winner: Option<String>,
+}
+
+impl Default for Context {
+    fn default() -> Self {
+        Context::new("TicTacToe game started".to_string())
+    }
+}
+
+impl Context {
+    fn new(msg: String) -> Self {
+        Self {
+            msg,
+            board: [
+                ("00".to_string(), None), ("01".to_string(), None), ("02".to_string(), None),
+                ("10".to_string(), None), ("11".to_string(), None), ("12".to_string(), None),
+                ("20".to_string(), None), ("21".to_string(), None), ("22".to_string(), None),
+            ].iter().cloned().collect(),
+            game_over: false,
+            winner: None,
+        }
+    }
+
+    fn move_player(&mut self, player: &str, cell: &str) -> Result<(), String> {
+        if self.board.contains_key(cell) {
+            if self.board[cell].is_none() {
+                self.board.insert(cell.to_string(), Some(player.to_string()));
+                if self.is_winner(player) {
+                    self.game_over = true;
+                    self.winner = Some(player.to_string());
+                }
+                Ok(())
+            } else {
+                Err(format!("Cell {} is already taken", cell))
+            }
+        } else {
+            Err(format!("Invalid cell: {}", cell))
+        }
+    }
+
+    fn is_winner(&self, player: &str) -> bool {
+        for win_set in WIN_SETS {
+            if win_set.iter().all(|cell| self.board[&cell.to_string()].as_deref() == Some(player)) {
+               return true;
+            }
+        }
+        false
+    }
 }
 
 impl State for TicTacToe {
@@ -133,36 +194,43 @@ impl Process<Context> for TicTacToe {
         let mut current_seq = seq.unwrap_or(0) + 1;
 
         while let Some(ref action) = current_action {
-            if let Some(transaction) = self.process_action(action, current_seq) {
+            let ctx = event_log.last().expect("last event").data.clone();
+            if let Some(transaction) = self.process_action(action, current_seq, ctx) {
                 event_log.push(transaction);
+                if event_log.last().expect("last event").data.game_over {
+                    break;
+                }
             } else {
                 break;
             }
             current_action = self.next_action().first().cloned();
             current_seq += 1;
         }
+        let data = event_log.last().expect("last event").data.clone();
 
         let evt = Event {
             action: "__end__".to_string(),
             seq: current_seq + 1,
             state: self.state.lock().expect("lock failed").clone(),
-            data: Context { msg: "TicTacToe game stopped".to_string() },
+            data,
         };
         event_log.push(evt);
         event_log
     }
 
-    fn process_action(&self, action: &str, seq: u64) -> Option<Event<Context>> {
+    fn process_action(&self, action: &str, seq: u64, ctx: Context) -> Option<Event<Context>> {
         let mut state = self.state.lock().expect("lock failed");
         let res = self.model.vm.transform(&state, action, 1);
 
         if res.is_ok() {
+            let mut data = ctx.clone();
+            data.msg = format!("Player {} moved to {}", action.chars().nth(0).unwrap(), &action[1..]);
             *state = res.output;
             let evt = Event {
                 action: action.to_string(),
                 seq,
                 state: state.clone(),
-                data: Context { msg: format!("completed! #{seq}: {action}") },
+                data,
             };
             let transaction = self.execute_action(evt);
 
@@ -172,7 +240,7 @@ impl Process<Context> for TicTacToe {
                         action: format!("__error__::{action}::{e:?}"),
                         seq,
                         state: state.clone(),
-                        data: Context { msg: "Action failed".to_string() },
+                        data: ctx,
                     };
                     Some(evt)
                 }
@@ -199,7 +267,21 @@ impl Process<Context> for TicTacToe {
         println!("{} - Executing action: {}", event.seq, event.action);
         match event.action.as_str() {
             "X00" | "X01" | "X02" | "X10" | "X11" | "X12" | "X20" | "X21" | "X22" |
-            "000" | "O01" | "O02" | "O10" | "O11" | "O12" | "O20" | "O21" | "O22" => Ok(event),
+            "O00" | "O01" | "O02" | "O10" | "O11" | "O12" | "O20" | "O21" | "O22" => {
+                let (player, coord) = if event.action.starts_with("X") {
+                    ("X", &event.action[1..])
+                } else {
+                    ("O", &event.action[1..])
+                };
+                let mut ctx = event.data.clone();
+                ctx.move_player(player, coord).expect("move failed");
+                Ok(Event {
+                    action: event.action.clone(),
+                    seq: event.seq,
+                    state: event.state.clone(),
+                    data: ctx,
+                })
+            },
             _ => Err(StateMachineError::InvalidAction),
         }
     }
@@ -213,7 +295,7 @@ mod tests {
     fn test_tic_tac_toe() {
         let ttt = TicTacToe::new();
         println!("https://pflow.dev/?z={}", ttt.model.net.to_zblob().base64_zipped);
-        for event in ttt.run(Context { msg: "Start".to_string() }) {
+        for event in ttt.run(Context::new("Start".to_string())) {
             println!("{event:?}");
         }
     }

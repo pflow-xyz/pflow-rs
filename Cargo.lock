@@ -1128,9 +1128,12 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.19.0"
+version = "1.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
+checksum = "82881c4be219ab5faaf2ad5e5e5ecdff8c66bd7402ca3160975c93b24961afd1"
+dependencies = [
+ "portable-atomic",
+]
 
 [[package]]
 name = "parking_lot"
@@ -1163,7 +1166,7 @@ checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
 
 [[package]]
 name = "pflow-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "axum-server",
@@ -1185,8 +1188,8 @@ dependencies = [
 
 [[package]]
 name = "pflow-metamodel"
-version = "0.4.1"
-source = "git+https://github.com/pflow-xyz/metamodel-rs.git?rev=6d764fb7bc2e2bccf15c0cc92a44d89d609b423c#6d764fb7bc2e2bccf15c0cc92a44d89d609b423c"
+version = "0.5.0"
+source = "git+https://github.com/pflow-xyz/metamodel-rs.git?rev=55e54607455fb16a941bd71363275372870ed6ef#55e54607455fb16a941bd71363275372870ed6ef"
 dependencies = [
  "base64 0.22.1",
  "brotli",
@@ -1235,6 +1238,12 @@ name = "pkg-config"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "953ec861398dccce10c670dfeaf3ec4911ca479e9c02154b3a215178c5f566f2"
+
+[[package]]
+name = "portable-atomic"
+version = "1.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc9c68a3f6da06753e9335d63e27f6b9754dd1920d941135b7ea8224f141adb2"
 
 [[package]]
 name = "ppv-lite86"

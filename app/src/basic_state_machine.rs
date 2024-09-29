@@ -1,6 +1,6 @@
 use pflow_metamodel::*;
 
-state_machine!( SimpleStateMachine {
+state_machine!( BasicStateMachine {
     Crash --> [*];
     Moving --> Crash;
     Moving --> Still;
@@ -9,14 +9,14 @@ state_machine!( SimpleStateMachine {
     [*] --> Still;
 });
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Context {
     pub msg: String,
 }
 
 // REVIEW: State implementation for SimpleStateMachine could be left out entirely
 // workflow start with empty state and don't need to evaluate resources
-impl State for SimpleStateMachine {
+impl State for BasicStateMachine {
     fn evaluate_preconditions(&self) -> Result<bool, StateMachineError> {
         Ok(true) // no preconditions: workflow start with empty state
     }
@@ -26,7 +26,7 @@ impl State for SimpleStateMachine {
     }
 }
 
-impl Process<Context> for SimpleStateMachine {
+impl Process<Context> for BasicStateMachine {
     fn run(&self, context: Context) -> Vec<Event<Context>> {
         let action = self.next_action();
         if action.is_empty() || !self.evaluate_preconditions().unwrap_or(false) {
@@ -52,7 +52,8 @@ impl Process<Context> for SimpleStateMachine {
         let mut current_seq = seq.unwrap_or(0) + 1;
 
         while let Some(ref action) = current_action {
-            if let Some(transaction) = self.process_action(action, current_seq) {
+            let context = event_log.last().expect("last event").data.clone();
+            if let Some(transaction) = self.process_action(action, current_seq, context) {
                 event_log.push(transaction);
             } else {
                 break;
@@ -79,7 +80,7 @@ impl Process<Context> for SimpleStateMachine {
         event_log
     }
 
-    fn process_action(&self, action: &str, seq: u64) -> Option<Event<Context>> {
+    fn process_action(&self, action: &str, seq: u64, ctx: Context) -> Option<Event<Context>> {
         let mut state = self.state.lock().expect("lock failed");
         let res = self.model.vm.transform(&state, action, 1);
 
@@ -143,7 +144,7 @@ mod tests {
 
     #[test]
     fn test_simple_state_machine() {
-        let sm = SimpleStateMachine::new();
+        let sm = BasicStateMachine::new();
         println!("https://pflow.dev/?z={}", sm.model.net.to_zblob().base64_zipped);
         for event in sm.run(Context { msg: "Start".to_string() }) {
             println!("{event:?}");
