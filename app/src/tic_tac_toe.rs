@@ -1,4 +1,9 @@
-use pflow_metamodel::*;
+use pflow_metamodel::{
+    pflow_json, petri_net, model, vasm,
+    Event, Model, Process, State, StateMachineError, Vasm, Vector,
+};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 petri_net!(TicTacToe {
     {
@@ -88,7 +93,7 @@ const WIN_SETS: [[&str; 3]; 8] = [
     ["20", "11", "02"],
 ];
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct GameContext {
     pub msg: String,
     pub board: std::collections::HashMap<String, Option<String>>,
@@ -108,6 +113,21 @@ impl GameContext {
             game_over: false,
             winner: None,
         }
+    }
+
+    #[allow(unused)]
+    fn from_json(value: &Value) -> Self {
+        serde_json::from_value(value.clone()).expect("deserialization failed")
+    }
+
+    #[allow(unused)]
+    fn to_json(&self) -> Value {
+        serde_json::json!({
+            "msg": self.msg,
+            "board": self.board,
+            "game_over": self.game_over,
+            "winner": self.winner,
+        })
     }
 
     fn move_player(&mut self, player: &str, cell: &str) -> Result<(), String> {
@@ -201,7 +221,16 @@ impl Process<GameContext> for TicTacToe {
             current_action = self.next_action().first().cloned();
             current_seq += 1;
         }
-        let data = event_log.last().expect("last event").data.clone();
+        let mut data = event_log.last().expect("last event").data.clone();
+        data.msg = if data.game_over {
+            if data.winner.is_none() {
+                "It's a draw!".to_string()
+            } else {
+                format!("Player {} wins!", data.winner.clone().unwrap())
+            }
+        } else {
+            "Game over".to_string()
+        };
         let evt = Event {
             action: "__end__".to_string(),
             seq: current_seq + 1,
@@ -265,7 +294,7 @@ impl Process<GameContext> for TicTacToe {
                     ("O", &event.action[1..])
                 };
                 let mut ctx = event.data.clone();
-                ctx.move_player(player, coord).map_err(|e| StateMachineError::InvalidAction)?;
+                ctx.move_player(player, coord).map_err(|_| StateMachineError::InvalidAction)?;
                 Ok(Event {
                     action: event.action.clone(),
                     seq: event.seq,
@@ -287,7 +316,7 @@ mod tests {
         let ttt = TicTacToe::new();
         println!("https://pflow.dev/?z={}", ttt.model.net.to_zblob().base64_zipped);
         for event in ttt.run(GameContext::new("Start".to_string())) {
-            println!("{event:?}");
+            println!("{:?}", event);
         }
     }
 }

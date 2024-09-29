@@ -1,4 +1,7 @@
-use pflow_metamodel::*;
+use pflow_metamodel::{
+    pflow_diagram, state_machine,
+    Event, Model, Process, State, StateMachineError, Vasm, Vector,
+};
 
 state_machine!( CoffeeMachine {
     ModelType::PetriNet;

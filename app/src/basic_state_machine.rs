@@ -1,4 +1,7 @@
-use pflow_metamodel::*;
+use pflow_metamodel::{
+    pflow_diagram, state_machine,
+    Event, Model, Process, State, StateMachineError, Vasm, Vector,
+};
 
 state_machine!( BasicStateMachine {
     Crash --> [*];
@@ -83,6 +86,9 @@ impl Process<Context> for BasicStateMachine {
     fn process_action(&self, action: &str, seq: u64, ctx: Context) -> Option<Event<Context>> {
         let mut state = self.state.lock().expect("lock failed");
         let res = self.model.vm.transform(&state, action, 1);
+        let mut data = ctx.clone();
+        data.msg = format!("completed! #{seq}: {action}");
+
 
         if res.is_ok() {
             *state = res.output;
@@ -90,7 +96,7 @@ impl Process<Context> for BasicStateMachine {
                 action: action.to_string(),
                 seq,
                 state: state.clone(),
-                data: Context { msg: format!("completed! #{seq}: {action}") },
+                data,
             };
             let transaction = self.execute_action(evt);
 
