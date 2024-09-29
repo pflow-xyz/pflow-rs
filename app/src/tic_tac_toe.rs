@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use pflow_metamodel::{
     pflow_json, petri_net, model, vasm,
     Event, Model, Process, State, StateMachineError, Vasm, Vector,
@@ -154,6 +155,22 @@ impl GameContext {
             }
         }
         false
+    }
+}
+
+impl Display for GameContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut board = String::new();
+        board.push_str("+---+---+---+\n");
+        for row in ["00", "10", "20"] {
+            for col in ["0", "1", "2"] {
+                let cell = format!("{}{}", &row[0..1], col);
+                let value = self.board.get(&cell).and_then(|v| v.as_deref()).unwrap_or(" ");
+                board.push_str(&format!("| {} ", value));
+            }
+            board.push_str("|\n+---+---+---+\n");
+        }
+        write!(f, "{}{}\n", board, self.msg)
     }
 }
 
@@ -316,7 +333,7 @@ mod tests {
         let ttt = TicTacToe::new();
         println!("https://pflow.dev/?z={}", ttt.model.net.to_zblob().base64_zipped);
         for event in ttt.run(GameContext::new("Start".to_string())) {
-            println!("{:?}", event);
+            println!("{}", event.data);
         }
     }
 }
