@@ -1,10 +1,10 @@
-use std::fmt::Display;
 use pflow_metamodel::{
-    pflow_json, petri_net, model, vasm,
+    model, petri_net, pflow_json, vasm,
     Event, Model, Process, State, StateMachineError, Vasm, Vector,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::fmt::Display;
 
 petri_net!(TicTacToe {
     {
@@ -190,12 +190,11 @@ impl State for TicTacToe {
     }
 
     /// NOTE: this is a dummy implementation for the sake of the example
-    /// since initial values are already set in the model
     fn evaluate_resource(&self, label: &str) -> Result<i32, StateMachineError> {
-        println!("Measuring resource: {label}");
-        match label {
-            "10" | "11" | "12" | "20" | "21" | "22" | "00" | "01" | "02" => Ok(1),
-            _ => Ok(0),
+        if self.model.net.places.contains_key(label) {
+            Ok(1)
+        } else {
+            Ok(0)
         }
     }
 }
@@ -301,25 +300,22 @@ impl Process<GameContext> for TicTacToe {
     }
 
     fn execute_action(&self, event: Event<GameContext>) -> Result<Event<GameContext>, StateMachineError> {
-        println!("{} - Executing action: {}", event.seq, event.action);
-        match event.action.as_str() {
-            "X00" | "X01" | "X02" | "X10" | "X11" | "X12" | "X20" | "X21" | "X22" |
-            "O00" | "O01" | "O02" | "O10" | "O11" | "O12" | "O20" | "O21" | "O22" => {
-                let (player, coord) = if event.action.starts_with("X") {
-                    ("X", &event.action[1..])
-                } else {
-                    ("O", &event.action[1..])
-                };
-                let mut ctx = event.data.clone();
-                ctx.move_player(player, coord).map_err(|_| StateMachineError::InvalidAction)?;
-                Ok(Event {
-                    action: event.action.clone(),
-                    seq: event.seq,
-                    state: event.state.clone(),
-                    data: ctx,
-                })
-            }
-            _ => Err(StateMachineError::InvalidAction),
+        if self.model.vm.transitions.contains_key(&event.action) {
+            let (player, coord) = if event.action.starts_with("X") {
+                ("X", &event.action[1..])
+            } else {
+                ("O", &event.action[1..])
+            };
+            let mut ctx = event.data.clone();
+            ctx.move_player(player, coord).map_err(|_| StateMachineError::InvalidAction)?;
+            Ok(Event {
+                action: event.action.clone(),
+                seq: event.seq,
+                state: event.state.clone(),
+                data: ctx,
+            })
+        } else {
+            Err(StateMachineError::InvalidAction)
         }
     }
 }
