@@ -183,8 +183,8 @@ impl Process<Context> for TicTacToe {
         }
     }
 
-    /// Notice: this simulation plays both sides of the game randomly
-    /// because the transition heys are not deterministic
+    /// NOTE: this simulation plays both sides of the game randomly
+    /// because the transition key order is not deterministic
     fn next_action(&self) -> Vec<String> {
         let state = self.state.lock().expect("lock failed");
         for action in self.model.vm.transitions.keys() {

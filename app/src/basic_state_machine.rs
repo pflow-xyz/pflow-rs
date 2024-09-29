@@ -14,13 +14,15 @@ struct Context {
     pub msg: String,
 }
 
+// REVIEW: State implementation for SimpleStateMachine could be left out entirely
+// workflow start with empty state and don't need to evaluate resources
 impl State for SimpleStateMachine {
     fn evaluate_preconditions(&self) -> Result<bool, StateMachineError> {
-        Ok(true)
+        Ok(true) // no preconditions: workflow start with empty state
     }
 
     fn evaluate_resource(&self, _label: &str) -> Result<i32, StateMachineError> {
-        Ok(0)
+        Ok(-1) // no resources to evaluate: workflows don't need resources
     }
 }
 

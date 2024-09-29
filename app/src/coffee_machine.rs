@@ -1,50 +1,26 @@
 use pflow_metamodel::*;
 
-petri_net!( CoffeeMachine {
-    {
-        "modelType": "petriNet",
-        "version": "v0",
-        "places": {
-            "Water":        { "offset": 0, "initial": 1, "capacity": 1, "x": 100, "y": 200 },
-            "BoiledWater":  { "offset": 1, "initial": 0, "capacity": 1, "x": 260, "y": 200 },
-            "CoffeeBeans":  { "offset": 2, "initial": 1, "capacity": 1, "x": 376, "y": 434 },
-            "GroundCoffee": { "offset": 3, "initial": 0, "capacity": 1, "x": 541, "y": 469 },
-            "Filter":       { "offset": 4, "initial": 1, "capacity": 1, "x": 660, "y": 200 },
-            "CoffeeInPot":  { "offset": 5, "initial": 0, "capacity": 1, "x": 740, "y": 200 },
-            "Cup":          { "offset": 6, "initial": 1, "capacity": 1, "x": 900, "y": 200 }
-        },
-        "transitions": {
-            "boil_water":  { "offset": 0, "role": "default", "x": 191, "y": 489 },
-            "brew_coffee": { "offset": 1, "role": "default", "x": 548, "y": 118 },
-            "grind_beans": { "offset": 2, "role": "default", "x": 420, "y": 200 },
-            "pour_coffee": { "offset": 3, "role": "default", "x": 820, "y": 200 }
-        },
-        "arcs": [
-            { "source": "Water",        "target": "boil_water",   "weight": 1 },
-            { "source": "boil_water",   "target": "BoiledWater",  "weight": 1 },
-            { "source": "CoffeeBeans",  "target": "grind_beans",  "weight": 1 },
-            { "source": "grind_beans",  "target": "GroundCoffee", "weight": 1 },
-            { "source": "BoiledWater",  "target": "brew_coffee",  "weight": 1 },
-            { "source": "GroundCoffee", "target": "brew_coffee",  "weight": 1 },
-            { "source": "Filter",       "target": "brew_coffee",  "weight": 1 },
-            { "source": "brew_coffee",  "target": "CoffeeInPot",  "weight": 1 },
-            { "source": "CoffeeInPot",  "target": "pour_coffee",  "weight": 1 },
-            { "source": "Cup",          "target": "pour_coffee",  "weight": 1 }
-        ]
-    }
+state_machine!( CoffeeMachine {
+    ModelType::PetriNet;
+    Water --> boil_water;
+    boil_water --> BoiledWater;
+    CoffeeBeans --> grind_beans;
+    grind_beans --> GroundCoffee;
+    BoiledWater --> brew_coffee;
+    GroundCoffee --> brew_coffee;
+    Filter --> brew_coffee;
+    brew_coffee --> CoffeeInPot;
+    CoffeeInPot --> pour_coffee;
+    Cup --> pour_coffee;
 });
 
 impl State for CoffeeMachine {
     fn evaluate_preconditions(&self) -> Result<bool, StateMachineError> {
         let mut state = self.state.lock().expect("lock failed");
         for (label, place) in &self.model.net.places {
-            if let Some(initial) = place.initial {
-                if initial != 0 {
-                    let measurement = self.evaluate_resource(label)?;
-                    let offset = usize::try_from(place.offset).expect("offset conversion failed");
-                    state[offset] = measurement;
-                }
-            }
+            let measurement = self.evaluate_resource(label)?;
+            let offset = usize::try_from(place.offset).expect("offset conversion failed");
+            state[offset] = measurement;
         }
         Ok(true)
     }
@@ -65,9 +41,16 @@ struct Context {
 
 impl Process<Context> for CoffeeMachine {
     fn run(&self, context: Context) -> Vec<Event<Context>> {
+        let precheck_ok = self.evaluate_preconditions().unwrap_or(false);
         let action = self.next_action();
-        if action.is_empty() || !self.evaluate_preconditions().unwrap_or(false) {
-            vec![]
+
+        if action.is_empty() || !precheck_ok {
+            vec![Event {
+                action: "__error__".to_string(),
+                seq: 0,
+                state: self.state.lock().expect("lock failed").clone(),
+                data: Context { msg: format!("precheck_ok: {precheck_ok} {:?}", action) },
+            }]
         } else {
             let evt = Event {
                 action: "__begin__".to_string(),
