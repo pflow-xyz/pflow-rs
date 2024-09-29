@@ -5,13 +5,13 @@ petri_net!( TicTacToe {
         "modelType": "petriNet",
         "version": "v0",
         "places": {
-            "10": { "offset": 0, "initial": 1, "capacity": 1, "x": 80, "y": 182  },
+            "10": { "offset": 0, "initial": 1, "capacity": 1, "x": 80,  "y": 182 },
             "11": { "offset": 1, "initial": 1, "capacity": 1, "x": 160, "y": 182 },
             "12": { "offset": 2, "initial": 1, "capacity": 1, "x": 240, "y": 182 },
-            "20": { "offset": 3, "initial": 1, "capacity": 1, "x": 80, "y": 262  },
+            "20": { "offset": 3, "initial": 1, "capacity": 1, "x": 80,  "y": 262 },
             "21": { "offset": 4, "initial": 1, "capacity": 1, "x": 160, "y": 262 },
             "22": { "offset": 5, "initial": 1, "capacity": 1, "x": 240, "y": 262 },
-            "00": { "offset": 6, "initial": 1, "capacity": 1, "x": 80, "y": 102  },
+            "00": { "offset": 6, "initial": 1, "capacity": 1, "x": 80,  "y": 102 },
             "01": { "offset": 7, "initial": 1, "capacity": 1, "x": 160, "y": 102 },
             "02": { "offset": 8, "initial": 1, "capacity": 1, "x": 240, "y": 102 },
             "next": { "offset": 9, "capacity": 1, "x": 480, "y": 502 }

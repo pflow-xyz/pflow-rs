@@ -13,13 +13,14 @@ lazy_static = "1.5.0"
 libipld = "0.16.0"
 log = "0.4.22"
 multibase = "0.9.1"
-pflow-metamodel = { git = "https://github.com/pflow-xyz/metamodel-rs.git", rev = "92c7545885d7d5cc6df44329ab870fe29a25fc3d" }
+pflow-metamodel = { git = "https://github.com/pflow-xyz/metamodel-rs.git", rev = "6d764fb7bc2e2bccf15c0cc92a44d89d609b423c" }
 rusqlite = "0.32.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "=1.0.56"
 tokio = { version = "1.32.0", features = ["full"] }
 webbrowser = "1.0.2"
+rand = "0.9.0-alpha.2"
 
 
 [[bin]]
