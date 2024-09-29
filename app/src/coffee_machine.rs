@@ -84,7 +84,7 @@ impl Process<Context> for CoffeeMachine {
 
         let evt = Event {
             action: "__end__".to_string(),
-            seq: current_seq + 1,
+            seq: current_seq,
             state: self.state.lock().expect("lock failed").clone(),
             data: Context { msg: "Coffee machine stopped".to_string() },
         };

@@ -1,6 +1,6 @@
 use pflow_metamodel::*;
 
-petri_net!( TicTacToe {
+petri_net!(TicTacToe {
     {
         "modelType": "petriNet",
         "version": "v0",
@@ -89,20 +89,14 @@ const WIN_SETS: [[&str; 3]; 8] = [
 ];
 
 #[derive(Debug, Clone)]
-struct Context {
+struct GameContext {
     pub msg: String,
     pub board: std::collections::HashMap<String, Option<String>>,
     pub game_over: bool,
     pub winner: Option<String>,
 }
 
-impl Default for Context {
-    fn default() -> Self {
-        Context::new("TicTacToe game started".to_string())
-    }
-}
-
-impl Context {
+impl GameContext {
     fn new(msg: String) -> Self {
         Self {
             msg,
@@ -136,7 +130,7 @@ impl Context {
     fn is_winner(&self, player: &str) -> bool {
         for win_set in WIN_SETS {
             if win_set.iter().all(|cell| self.board[&cell.to_string()].as_deref() == Some(player)) {
-               return true;
+                return true;
             }
         }
         false
@@ -158,7 +152,8 @@ impl State for TicTacToe {
         Ok(true)
     }
 
-    /// This is a dummy implementation that always returns 1
+    /// NOTE: this is a dummy implementation for the sake of the example
+    /// since initial values are already set in the model
     fn evaluate_resource(&self, label: &str) -> Result<i32, StateMachineError> {
         println!("Measuring resource: {label}");
         match label {
@@ -168,8 +163,8 @@ impl State for TicTacToe {
     }
 }
 
-impl Process<Context> for TicTacToe {
-    fn run(&self, context: Context) -> Vec<Event<Context>> {
+impl Process<GameContext> for TicTacToe {
+    fn run(&self, context: GameContext) -> Vec<Event<GameContext>> {
         let action = self.next_action();
         if action.is_empty() || !self.evaluate_preconditions().unwrap_or(false) {
             vec![]
@@ -188,8 +183,8 @@ impl Process<Context> for TicTacToe {
         &self,
         action: Option<&str>,
         seq: Option<u64>,
-        mut event_log: Vec<Event<Context>>,
-    ) -> Vec<Event<Context>> {
+        mut event_log: Vec<Event<GameContext>>,
+    ) -> Vec<Event<GameContext>> {
         let mut current_action = action.map(ToString::to_string);
         let mut current_seq = seq.unwrap_or(0) + 1;
 
@@ -207,7 +202,6 @@ impl Process<Context> for TicTacToe {
             current_seq += 1;
         }
         let data = event_log.last().expect("last event").data.clone();
-
         let evt = Event {
             action: "__end__".to_string(),
             seq: current_seq + 1,
@@ -218,7 +212,7 @@ impl Process<Context> for TicTacToe {
         event_log
     }
 
-    fn process_action(&self, action: &str, seq: u64, ctx: Context) -> Option<Event<Context>> {
+    fn process_action(&self, action: &str, seq: u64, ctx: GameContext) -> Option<Event<GameContext>> {
         let mut state = self.state.lock().expect("lock failed");
         let res = self.model.vm.transform(&state, action, 1);
 
@@ -233,7 +227,6 @@ impl Process<Context> for TicTacToe {
                 data,
             };
             let transaction = self.execute_action(evt);
-
             match transaction {
                 Err(e) => {
                     let evt = Event {
@@ -251,8 +244,6 @@ impl Process<Context> for TicTacToe {
         }
     }
 
-    /// NOTE: this simulation plays both sides of the game randomly
-    /// because the transition key order is not deterministic
     fn next_action(&self) -> Vec<String> {
         let state = self.state.lock().expect("lock failed");
         for action in self.model.vm.transitions.keys() {
@@ -263,7 +254,7 @@ impl Process<Context> for TicTacToe {
         vec![]
     }
 
-    fn execute_action(&self, event: Event<Context>) -> Result<Event<Context>, StateMachineError> {
+    fn execute_action(&self, event: Event<GameContext>) -> Result<Event<GameContext>, StateMachineError> {
         println!("{} - Executing action: {}", event.seq, event.action);
         match event.action.as_str() {
             "X00" | "X01" | "X02" | "X10" | "X11" | "X12" | "X20" | "X21" | "X22" |
@@ -274,14 +265,14 @@ impl Process<Context> for TicTacToe {
                     ("O", &event.action[1..])
                 };
                 let mut ctx = event.data.clone();
-                ctx.move_player(player, coord).expect("move failed");
+                ctx.move_player(player, coord).map_err(|e| StateMachineError::InvalidAction)?;
                 Ok(Event {
                     action: event.action.clone(),
                     seq: event.seq,
                     state: event.state.clone(),
                     data: ctx,
                 })
-            },
+            }
             _ => Err(StateMachineError::InvalidAction),
         }
     }
@@ -295,7 +286,7 @@ mod tests {
     fn test_tic_tac_toe() {
         let ttt = TicTacToe::new();
         println!("https://pflow.dev/?z={}", ttt.model.net.to_zblob().base64_zipped);
-        for event in ttt.run(Context::new("Start".to_string())) {
+        for event in ttt.run(GameContext::new("Start".to_string())) {
             println!("{event:?}");
         }
     }

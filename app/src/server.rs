@@ -57,7 +57,7 @@ async fn _img_handler(
 }
 
 fn index_response(cid: String, data: String) -> impl IntoResponse {
-    let html = format!( r#"<!DOCTYPE html>
+    let html = format!(r#"<!DOCTYPE html>
         <html lang="en">
         <head>
             <meta charset="utf-8"/>
@@ -75,7 +75,7 @@ fn index_response(cid: String, data: String) -> impl IntoResponse {
             <div id="root"></div>
         </body></html>
         "#,
-        cid, data
+                       cid, data
     );
 
     Response::builder()
