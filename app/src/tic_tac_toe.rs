@@ -1,6 +1,6 @@
 use pflow_metamodel::{
-    model, petri_net, pflow_json, vasm,
-    Event, Model, Process, State, StateMachineError, Vasm, Vector,
+    model, petri_net, pflow_json, vasm, Event, Model, Process, State, StateMachineError, Vasm,
+    Vector,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -107,10 +107,19 @@ impl GameContext {
         Self {
             msg,
             board: [
-                ("00".to_string(), None), ("01".to_string(), None), ("02".to_string(), None),
-                ("10".to_string(), None), ("11".to_string(), None), ("12".to_string(), None),
-                ("20".to_string(), None), ("21".to_string(), None), ("22".to_string(), None),
-            ].iter().cloned().collect(),
+                ("00".to_string(), None),
+                ("01".to_string(), None),
+                ("02".to_string(), None),
+                ("10".to_string(), None),
+                ("11".to_string(), None),
+                ("12".to_string(), None),
+                ("20".to_string(), None),
+                ("21".to_string(), None),
+                ("22".to_string(), None),
+            ]
+            .iter()
+            .cloned()
+            .collect(),
             game_over: false,
             winner: None,
         }
@@ -134,7 +143,8 @@ impl GameContext {
     fn move_player(&mut self, player: &str, cell: &str) -> Result<(), String> {
         if self.board.contains_key(cell) {
             if self.board[cell].is_none() {
-                self.board.insert(cell.to_string(), Some(player.to_string()));
+                self.board
+                    .insert(cell.to_string(), Some(player.to_string()));
                 if self.is_winner(player) {
                     self.game_over = true;
                     self.winner = Some(player.to_string());
@@ -150,7 +160,10 @@ impl GameContext {
 
     fn is_winner(&self, player: &str) -> bool {
         for win_set in WIN_SETS {
-            if win_set.iter().all(|cell| self.board[&cell.to_string()].as_deref() == Some(player)) {
+            if win_set
+                .iter()
+                .all(|cell| self.board[&cell.to_string()].as_deref() == Some(player))
+            {
                 return true;
             }
         }
@@ -162,10 +175,14 @@ impl Display for GameContext {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut board = String::new();
         board.push_str("+---+---+---+\n");
-        for row in ["00", "10", "20"] {
+        for row in ["0", "1", "2"] {
             for col in ["0", "1", "2"] {
-                let cell = format!("{}{}", &row[0..1], col);
-                let value = self.board.get(&cell).and_then(|v| v.as_deref()).unwrap_or(" ");
+                let cell = format!("{}{}", &row, col);
+                let value = self
+                    .board
+                    .get(&cell)
+                    .and_then(|v| v.as_deref())
+                    .unwrap_or(" ");
                 board.push_str(&format!("| {} ", value));
             }
             board.push_str("|\n+---+---+---+\n");
@@ -191,7 +208,7 @@ impl State for TicTacToe {
 
     /// NOTE: this is a dummy implementation for the sake of the example
     fn evaluate_resource(&self, label: &str) -> Result<i32, StateMachineError> {
-        if self.model.net.places.contains_key(label) {
+        if label != "next" && self.model.net.places.contains_key(label) {
             Ok(1)
         } else {
             Ok(0)
@@ -257,13 +274,22 @@ impl Process<GameContext> for TicTacToe {
         event_log
     }
 
-    fn process_action(&self, action: &str, seq: u64, ctx: GameContext) -> Option<Event<GameContext>> {
+    fn process_action(
+        &self,
+        action: &str,
+        seq: u64,
+        ctx: GameContext,
+    ) -> Option<Event<GameContext>> {
         let mut state = self.state.lock().expect("lock failed");
         let res = self.model.vm.transform(&state, action, 1);
 
         if res.is_ok() {
             let mut data = ctx.clone();
-            data.msg = format!("Player {} moved to {}", action.chars().nth(0).unwrap(), &action[1..]);
+            data.msg = format!(
+                "Player {} moved -> {}",
+                action.chars().nth(0).unwrap(),
+                &action[1..]
+            );
             *state = res.output;
             let evt = Event {
                 action: action.to_string(),
@@ -299,7 +325,10 @@ impl Process<GameContext> for TicTacToe {
         vec![]
     }
 
-    fn execute_action(&self, event: Event<GameContext>) -> Result<Event<GameContext>, StateMachineError> {
+    fn execute_action(
+        &self,
+        event: Event<GameContext>,
+    ) -> Result<Event<GameContext>, StateMachineError> {
         if self.model.vm.transitions.contains_key(&event.action) {
             let (player, coord) = if event.action.starts_with("X") {
                 ("X", &event.action[1..])
@@ -307,7 +336,8 @@ impl Process<GameContext> for TicTacToe {
                 ("O", &event.action[1..])
             };
             let mut ctx = event.data.clone();
-            ctx.move_player(player, coord).map_err(|_| StateMachineError::InvalidAction)?;
+            ctx.move_player(player, coord)
+                .map_err(|_| StateMachineError::InvalidAction)?;
             Ok(Event {
                 action: event.action.clone(),
                 seq: event.seq,
@@ -327,7 +357,10 @@ mod tests {
     #[test]
     fn test_tic_tac_toe() {
         let ttt = TicTacToe::new();
-        println!("https://pflow.dev/?z={}", ttt.model.net.to_zblob().base64_zipped);
+        println!(
+            "https://pflow.dev/?z={}",
+            ttt.model.net.to_zblob().base64_zipped
+        );
         for event in ttt.run(GameContext::new("Start".to_string())) {
             println!("{}", event.data);
         }

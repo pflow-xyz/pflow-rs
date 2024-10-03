@@ -1,6 +1,5 @@
 use pflow_metamodel::{
-    pflow_diagram, state_machine,
-    Event, Model, Process, State, StateMachineError, Vasm, Vector,
+    pflow_diagram, state_machine, Event, Model, Process, State, StateMachineError, Vasm, Vector,
 };
 
 state_machine!( BasicStateMachine {
@@ -77,7 +76,9 @@ impl Process<Context> for BasicStateMachine {
             action: "__end__".to_string(),
             seq: current_seq + 1,
             state: self.state.lock().expect("lock failed").clone(),
-            data: Context { msg: "Simple state machine stopped".to_string() },
+            data: Context {
+                msg: "Simple state machine stopped".to_string(),
+            },
         };
         event_log.push(evt);
         event_log
@@ -88,7 +89,6 @@ impl Process<Context> for BasicStateMachine {
         let res = self.model.vm.transform(&state, action, 1);
         let mut data = ctx.clone();
         data.msg = format!("completed! #{seq}: {action}");
-
 
         if res.is_ok() {
             *state = res.output;
@@ -106,7 +106,9 @@ impl Process<Context> for BasicStateMachine {
                         action: format!("__error__::{action}::{e:?}"),
                         seq,
                         state: state.clone(),
-                        data: Context { msg: "Action failed".to_string() },
+                        data: Context {
+                            msg: "Action failed".to_string(),
+                        },
                     };
                     Some(evt)
                 }
@@ -117,11 +119,14 @@ impl Process<Context> for BasicStateMachine {
         }
     }
 
-
     fn next_action(&self) -> Vec<String> {
         use rand::seq::SliceRandom;
         let state = self.state.lock().expect("lock failed");
-        let mut actions: Vec<String> = self.model.vm.transitions.keys()
+        let mut actions: Vec<String> = self
+            .model
+            .vm
+            .transitions
+            .keys()
             .filter(|action| self.model.vm.transform(&state, action, 1).is_ok())
             .cloned()
             .collect();
@@ -133,12 +138,8 @@ impl Process<Context> for BasicStateMachine {
     fn execute_action(&self, event: Event<Context>) -> Result<Event<Context>, StateMachineError> {
         println!("{} - Executing action: {}", event.seq, event.action);
         match event.action.as_str() {
-            "Crash-->[*]" |
-            "Moving-->Crash" |
-            "Moving-->Still" |
-            "Still-->Moving" |
-            "Still-->[*]" |
-            "[*]-->Still" => Ok(event),
+            "Crash-->[*]" | "Moving-->Crash" | "Moving-->Still" | "Still-->Moving"
+            | "Still-->[*]" | "[*]-->Still" => Ok(event),
             _ => Err(StateMachineError::InvalidAction),
         }
     }
@@ -151,8 +152,13 @@ mod tests {
     #[test]
     fn test_simple_state_machine() {
         let sm = BasicStateMachine::new();
-        println!("https://pflow.dev/?z={}", sm.model.net.to_zblob().base64_zipped);
-        for event in sm.run(Context { msg: "Start".to_string() }) {
+        println!(
+            "https://pflow.dev/?z={}",
+            sm.model.net.to_zblob().base64_zipped
+        );
+        for event in sm.run(Context {
+            msg: "Start".to_string(),
+        }) {
             println!("{event:?}");
         }
     }
