@@ -36,3 +36,6 @@ mod tic_tac_toe;
 
 /// Module for the BasicStateMachine state machine.
 mod basic_state_machine;
+
+/// Module for the algebraic coffee machine state machine.
+mod algebraic_coffee_machine;
