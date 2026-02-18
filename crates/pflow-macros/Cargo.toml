@@ -13,7 +13,7 @@ categories = ["development-tools::procedural-macro-helpers"]
 proc-macro = true
 
 [dependencies]
-pflow-dsl = { path = "../pflow-dsl", version = "0.1.0" }
+pflow-dsl = { path = "../pflow-dsl", version = "0.1.1" }
 proc-macro2 = "1"
 quote = "1"
 syn = "2"

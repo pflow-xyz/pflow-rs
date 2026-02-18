@@ -10,5 +10,5 @@ keywords = ["dsl", "s-expression", "petri-net", "token-model", "parser"]
 categories = ["parsing", "compilers"]
 
 [dependencies]
-pflow-tokenmodel = { path = "../pflow-tokenmodel", version = "0.1.0" }
+pflow-tokenmodel = { path = "../pflow-tokenmodel", version = "0.1.1" }
 serde_json = "1"
