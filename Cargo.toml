@@ -5,6 +5,7 @@ members = [
     "crates/pflow-solver",
     "crates/pflow-tokenmodel",
     "crates/pflow-dsl",
+    "crates/pflow-macros",
     "crates/pflow",
 ]
 

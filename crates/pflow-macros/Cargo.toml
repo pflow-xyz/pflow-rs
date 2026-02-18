@@ -1,0 +1,15 @@
+[package]
+name = "pflow-macros"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Proc macros for pflow token model DSL"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+pflow-dsl = { path = "../pflow-dsl" }
+proc-macro2 = "1"
+quote = "1"
+syn = "2"

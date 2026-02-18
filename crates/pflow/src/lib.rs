@@ -9,6 +9,7 @@ pub use pflow_tokenmodel as tokenmodel;
 
 // Convenient re-exports
 pub use pflow_core::{Builder, PetriNet, State};
+pub use pflow_macros::schema;
 pub use pflow_solver::{find_equilibrium, solve, Options, Problem, Solution};
 
 #[cfg(test)]
@@ -218,5 +219,130 @@ mod tests {
         let code = dsl::generate_rust_from_dsl(input, "counter", "make_counter").unwrap();
         assert!(code.contains("pub fn make_counter()"));
         assert!(code.contains("Schema::new"));
+    }
+
+    #[test]
+    fn test_schema_macro_counter() {
+        let s = schema!(r#"(schema counter
+  (version v1.0.0)
+  (states
+    (state count :kind token :initial 5)
+  )
+  (actions
+    (action inc)
+  )
+  (arcs
+    (arc inc -> count)
+  )
+)"#);
+
+        assert_eq!(s.name, "counter");
+        assert_eq!(s.version, "v1.0.0");
+        assert_eq!(s.states.len(), 1);
+        assert_eq!(s.states[0].id, "count");
+        assert!(s.states[0].is_token());
+        assert_eq!(s.states[0].initial_tokens(), 5);
+        assert_eq!(s.actions.len(), 1);
+        assert_eq!(s.actions[0].id, "inc");
+        assert_eq!(s.arcs.len(), 1);
+        assert_eq!(s.arcs[0].source, "inc");
+        assert_eq!(s.arcs[0].target, "count");
+    }
+
+    #[test]
+    fn test_schema_macro_erc020() {
+        let s = schema!(r#"(schema ERC-020
+  (version v1.0.0)
+  (states
+    (state balances :type map[address]uint256 :exported)
+  )
+  (actions
+    (action transfer :guard {balances[from] >= amount})
+  )
+  (arcs
+    (arc balances -> transfer :keys (from))
+    (arc transfer -> balances :keys (to))
+  )
+  (constraints
+    (constraint conservation {sum(balances) == totalSupply})
+  )
+)"#);
+
+        assert_eq!(s.name, "ERC-020");
+        assert_eq!(s.version, "v1.0.0");
+        assert_eq!(s.states.len(), 1);
+        assert_eq!(s.states[0].id, "balances");
+        assert!(s.states[0].exported);
+        assert_eq!(s.states[0].typ, "map[address]uint256");
+        assert_eq!(s.actions.len(), 1);
+        assert_eq!(s.actions[0].id, "transfer");
+        assert_eq!(s.actions[0].guard, "balances[from] >= amount");
+        assert_eq!(s.arcs.len(), 2);
+        assert_eq!(s.arcs[0].keys, vec!["from"]);
+        assert_eq!(s.arcs[1].keys, vec!["to"]);
+        assert_eq!(s.constraints.len(), 1);
+        assert_eq!(s.constraints[0].id, "conservation");
+        assert_eq!(s.constraints[0].expr, "sum(balances) == totalSupply");
+    }
+
+    #[test]
+    fn test_schema_macro_runtime() {
+        let s = schema!(r#"(schema counter
+  (states
+    (state ready :kind token :initial 3)
+    (state done :kind token :initial 0)
+  )
+  (actions
+    (action process)
+  )
+  (arcs
+    (arc ready -> process)
+    (arc process -> done)
+  )
+)"#);
+
+        let mut rt = tokenmodel::Runtime::new(s);
+        assert_eq!(rt.tokens("ready"), 3);
+        assert_eq!(rt.tokens("done"), 0);
+
+        for _ in 0..3 {
+            rt.execute("process").unwrap();
+        }
+
+        assert_eq!(rt.tokens("ready"), 0);
+        assert_eq!(rt.tokens("done"), 3);
+        assert!(rt.execute("process").is_err());
+    }
+
+    #[test]
+    fn test_schema_macro_matches_runtime_parse() {
+        let dsl_input = r#"(schema counter
+  (version v1.0.0)
+  (states
+    (state count :kind token :initial 5)
+  )
+  (actions
+    (action inc)
+  )
+  (arcs
+    (arc inc -> count)
+  )
+)"#;
+
+        let macro_schema = schema!(r#"(schema counter
+  (version v1.0.0)
+  (states
+    (state count :kind token :initial 5)
+  )
+  (actions
+    (action inc)
+  )
+  (arcs
+    (arc inc -> count)
+  )
+)"#);
+        let runtime_schema = dsl::parse_schema(dsl_input).unwrap();
+
+        assert_eq!(macro_schema.cid(), runtime_schema.cid());
     }
 }
