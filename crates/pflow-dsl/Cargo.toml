@@ -1,0 +1,10 @@
+[package]
+name = "pflow-dsl"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "S-expression DSL for defining token model schemas"
+
+[dependencies]
+pflow-tokenmodel = { path = "../pflow-tokenmodel" }
+serde_json = "1"

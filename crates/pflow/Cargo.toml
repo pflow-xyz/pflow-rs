@@ -1,0 +1,15 @@
+[package]
+name = "pflow"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Petri net modeling with ODE simulation and token model DSL"
+
+[dependencies]
+pflow-core = { path = "../pflow-core" }
+pflow-solver = { path = "../pflow-solver" }
+pflow-tokenmodel = { path = "../pflow-tokenmodel" }
+pflow-dsl = { path = "../pflow-dsl" }
+
+[dev-dependencies]
+serde_json = "1"

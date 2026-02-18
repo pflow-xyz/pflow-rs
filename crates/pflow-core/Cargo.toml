@@ -1,0 +1,8 @@
+[package]
+name = "pflow-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Core Petri net types, fluent builder API, and state utilities"
+
+[dependencies]

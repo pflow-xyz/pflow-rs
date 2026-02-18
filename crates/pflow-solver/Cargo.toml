@@ -1,0 +1,9 @@
+[package]
+name = "pflow-solver"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "ODE solvers for Petri net simulation using mass-action kinetics"
+
+[dependencies]
+pflow-core = { path = "../pflow-core" }
