@@ -3,7 +3,11 @@ name = "pflow-solver"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
 description = "ODE solvers for Petri net simulation using mass-action kinetics"
+keywords = ["ode-solver", "petri-net", "simulation", "runge-kutta"]
+categories = ["simulation", "science", "mathematics"]
 
 [dependencies]
-pflow-core = { path = "../pflow-core" }
+pflow-core = { path = "../pflow-core", version = "0.1.0" }

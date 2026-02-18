@@ -3,10 +3,14 @@ name = "pflow-tokenmodel"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
 description = "Token model schema, snapshot, and runtime execution"
+keywords = ["token-model", "state-machine", "petri-net", "schema"]
+categories = ["simulation", "data-structures"]
 
 [dependencies]
-pflow-core = { path = "../pflow-core" }
+pflow-core = { path = "../pflow-core", version = "0.1.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"

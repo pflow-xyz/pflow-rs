@@ -3,14 +3,18 @@ name = "pflow"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
 description = "Petri net modeling with ODE simulation and token model DSL"
+keywords = ["petri-net", "ode-solver", "state-machine", "dsl", "token-model"]
+categories = ["simulation", "science"]
 
 [dependencies]
-pflow-core = { path = "../pflow-core" }
-pflow-solver = { path = "../pflow-solver" }
-pflow-tokenmodel = { path = "../pflow-tokenmodel" }
-pflow-dsl = { path = "../pflow-dsl" }
-pflow-macros = { path = "../pflow-macros" }
+pflow-core = { path = "../pflow-core", version = "0.1.0" }
+pflow-solver = { path = "../pflow-solver", version = "0.1.0" }
+pflow-tokenmodel = { path = "../pflow-tokenmodel", version = "0.1.0" }
+pflow-dsl = { path = "../pflow-dsl", version = "0.1.0" }
+pflow-macros = { path = "../pflow-macros", version = "0.1.0" }
 
 [dev-dependencies]
 serde_json = "1"

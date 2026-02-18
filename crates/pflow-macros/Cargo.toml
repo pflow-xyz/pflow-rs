@@ -3,13 +3,17 @@ name = "pflow-macros"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
 description = "Proc macros for pflow token model DSL"
+keywords = ["proc-macro", "dsl", "petri-net", "token-model"]
+categories = ["development-tools::procedural-macro-helpers"]
 
 [lib]
 proc-macro = true
 
 [dependencies]
-pflow-dsl = { path = "../pflow-dsl" }
+pflow-dsl = { path = "../pflow-dsl", version = "0.1.0" }
 proc-macro2 = "1"
 quote = "1"
 syn = "2"

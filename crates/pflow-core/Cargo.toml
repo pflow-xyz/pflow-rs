@@ -3,6 +3,10 @@ name = "pflow-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
 description = "Core Petri net types, fluent builder API, and state utilities"
+keywords = ["petri-net", "state-machine", "simulation"]
+categories = ["simulation", "science"]
 
 [dependencies]
