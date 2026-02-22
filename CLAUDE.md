@@ -42,22 +42,31 @@ Uses BN254 curve + Groth16 (128-byte proofs, ~2ms verification).
 
 ### risc0 (zkVM)
 
-Wraps transition logic in a RISC-V guest. Currently simulation mode only.
-Full STARK proofs require: `cargo risczero install`
+Wraps transition logic in a RISC-V guest program. Two modes:
+- **Simulation** (default): executes guest logic natively, no real proofs
+- **Real STARK proofs** (`prove` feature): requires `cargo risczero install`
+
+```bash
+cargo test -p pflow-zk-risc0                  # Simulation mode
+cargo test -p pflow-zk-risc0 --features prove # Real STARK proofs (~10s)
+```
 
 ### Running benchmarks
 
 ```bash
 cargo bench -p pflow --features zk-arkworks --bench zk_bench
-cargo run --example zk_compare -p pflow --features zk-arkworks,zk-risc0
+cargo run --example zk_compare -p pflow --features zk-arkworks,zk-risc0 --release           # Sim mode
+cargo run --example zk_compare -p pflow --features zk-arkworks,zk-risc0-prove --release     # Real STARK
+cargo run --example zk_compare -p pflow --features zk-arkworks,zk-risc0-prove --release -- 3 5 10  # Custom sizes
 ```
 
 ### Feature flags
 
 ```toml
-pflow = { features = ["zk-arkworks"] }  # Groth16 prover
-pflow = { features = ["zk-risc0"] }     # risc0 prover
-pflow = { features = ["zk"] }           # Shared traits only
+pflow = { features = ["zk-arkworks"] }       # Groth16 prover
+pflow = { features = ["zk-risc0"] }          # risc0 prover (simulation)
+pflow = { features = ["zk-risc0-prove"] }    # risc0 prover (real STARK)
+pflow = { features = ["zk"] }                # Shared traits only
 ```
 
 ## Key Types

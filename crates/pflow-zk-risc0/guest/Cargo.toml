@@ -1,0 +1,11 @@
+[package]
+name = "pflow-zk-risc0-guest"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+risc0-zkvm = { version = "^3.0.5", default-features = false, features = ["std"] }
+serde = { version = "1", features = ["derive"] }
+sha2 = "0.10"

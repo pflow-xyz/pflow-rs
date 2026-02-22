@@ -16,6 +16,17 @@ serde = { version = "1", features = ["derive"] }
 bincode = "1"
 thiserror = "2"
 sha2 = "0.10"
+risc0-zkvm = { version = "^3.0.5", optional = true }
+
+[build-dependencies]
+risc0-build = { version = "^3.0.5", optional = true }
+
+[features]
+default = []
+prove = ["dep:risc0-zkvm", "dep:risc0-build"]
+
+[package.metadata.risc0]
+methods = ["guest"]
 
 [dev-dependencies]
 pflow-zk = { path = "../pflow-zk", version = "0.1.1" }

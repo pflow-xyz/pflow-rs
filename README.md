@@ -11,6 +11,9 @@ Rust port of [go-pflow](https://github.com/pflow-xyz/go-pflow) — Petri net mod
 | `pflow-tokenmodel` | Token model schema, snapshot, runtime execution, validation, content-addressed identity |
 | `pflow-dsl` | S-expression DSL: lexer, parser, interpreter, builder, codegen |
 | `pflow-macros` | `schema!` proc macro — compile-time DSL parsing with zero runtime overhead |
+| `pflow-zk` | ZK proof traits (`PetriProver`), `IncidenceMatrix` extraction, `fire_transition()` |
+| `pflow-zk-arkworks` | Groth16 prover over BN254 with Poseidon hashing (structural R1CS) |
+| `pflow-zk-risc0` | risc0 zkVM STARK prover (simulation mode default; real proofs with `prove` feature) |
 | `pflow` | Umbrella crate re-exporting all of the above |
 
 ## Quick Start
@@ -244,6 +247,65 @@ use pflow_dsl::generate_rust_from_dsl;
 
 let code = generate_rust_from_dsl(dsl_input, "mymodule", "make_schema").unwrap();
 // Outputs a Rust function that constructs the schema
+```
+
+## ZK Proofs
+
+Two contrasting strategies prove the same statement — "transition T is enabled and transforms marking M into M'":
+
+- **arkworks (structural R1CS)**: compiles net topology into Groth16 constraints over BN254 with Poseidon hashing. Constant 128-byte proofs, sub-millisecond verification.
+- **risc0 (zkVM STARK)**: wraps transition logic in a RISC-V guest program. No trusted setup, but larger proofs and slower proving.
+
+```rust
+use pflow_zk::{IncidenceMatrix, PetriProver, TransitionWitness, fire_transition};
+use pflow_zk_arkworks::ArkworksProver;
+
+let net = PetriNet::build().sir(999.0, 1.0, 0.0).done();
+let matrix = IncidenceMatrix::from_petri_net(&net);
+
+let mut prover = ArkworksProver::new(matrix.clone());
+prover.setup().unwrap();
+
+let pre = matrix.initial_marking(&net);
+let post = fire_transition(&matrix, &pre, 0).unwrap();
+let witness = TransitionWitness { pre_marking: pre, transition_id: 0, post_marking: post };
+
+let proof = prover.prove(&witness).unwrap();
+assert!(prover.verify(&proof).unwrap());
+assert_eq!(proof.metrics.proof_size_bytes, 128);
+```
+
+### Benchmarks
+
+Head-to-head comparison using NxN tic-tac-toe nets (3n² places, 2n² transitions):
+
+```
+cargo run --example zk_compare -p pflow --features zk-arkworks,zk-risc0-prove --release
+```
+
+| Model | System | Places | Trans | Setup | Prove | Verify | Proof Size |
+|-------|--------|--------|-------|-------|-------|--------|------------|
+| SIR | groth16-bn254 | 3 | 2 | 26ms | 18ms | 1.0ms | 128B |
+| SIR | risc0 | 3 | 2 | 0ms | 3.0s | 9.5ms | 217KB |
+| TTT 3x3 | groth16-bn254 | 27 | 18 | 67ms | 78ms | 0.8ms | 128B |
+| TTT 3x3 | risc0 | 27 | 18 | 0ms | 6.1s | 10ms | 239KB |
+| TTT 5x5 | groth16-bn254 | 75 | 50 | 176ms | 189ms | 0.8ms | 128B |
+| TTT 5x5 | risc0 | 75 | 50 | 0ms | 12.1s | 11ms | 250KB |
+| TTT 10x10 | groth16-bn254 | 300 | 200 | 654ms | 709ms | 0.9ms | 128B |
+| TTT 10x10 | risc0 | 300 | 200 | 0ms | 51.8s | 13ms | 275KB |
+| TTT 20x20 | groth16-bn254 | 1200 | 800 | 2.6s | 2.8s | 0.9ms | 128B |
+| TTT 20x20 | risc0 | 1200 | 800 | 0ms | 2m47s | 48ms | 1.05MB |
+| TTT 40x40 | groth16-bn254 | 4800 | 3200 | 11.1s | 11.4s | 0.9ms | 128B |
+| TTT 40x40 | risc0 | 4800 | 3200 | 0ms | 10m55s | 160ms | 3.5MB |
+
+At 4800 places / 3200 transitions: arkworks proves **57x faster**, verifies **178x faster**, with proofs **28,000x smaller**. Groth16 verification and proof size remain constant regardless of net size. risc0 trades performance for no trusted setup and simpler guest programming.
+
+### Feature Flags
+
+```toml
+pflow = { features = ["zk-arkworks"] }       # Groth16 prover
+pflow = { features = ["zk-risc0"] }          # risc0 simulation mode
+pflow = { features = ["zk-risc0-prove"] }    # risc0 real STARK proofs (requires cargo risczero install)
 ```
 
 ## Dependencies

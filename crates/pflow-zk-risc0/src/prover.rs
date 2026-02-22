@@ -1,9 +1,10 @@
 //! Risc0Prover: zkVM-based prover for Petri net transitions.
 //!
-//! This prover wraps the transition firing logic in a simulated execution
-//! environment. The actual risc0 zkVM guest requires the risc0 toolchain;
-//! this module provides the host-side implementation with a simulation mode
-//! for testing without the full toolchain.
+//! When the `prove` feature is enabled, generates real STARK proofs
+//! by executing the guest program in the risc0 zkVM.
+//!
+//! Without the `prove` feature (default), runs in simulation mode:
+//! executes the guest logic natively and produces a simulated proof.
 
 use std::time::Instant;
 
@@ -15,11 +16,17 @@ use pflow_zk::{
 
 use crate::io::{GuestInput, GuestOutput};
 
+#[cfg(feature = "prove")]
+use risc0_zkvm::{default_prover, ExecutorEnv, Receipt};
+
+#[cfg(feature = "prove")]
+use crate::{PFLOW_ZK_RISC0_GUEST_ELF, PFLOW_ZK_RISC0_GUEST_ID};
+
 /// risc0 zkVM-based prover for Petri net transitions.
 ///
 /// In simulation mode (default), executes the guest logic natively
 /// and produces a simulated proof. Full STARK proof generation
-/// requires the risc0 toolchain (`cargo risczero install`).
+/// requires the `prove` feature and the risc0 toolchain.
 pub struct Risc0Prover {
     matrix: IncidenceMatrix,
     setup_done: bool,
@@ -34,7 +41,7 @@ impl Risc0Prover {
         }
     }
 
-    /// Hash a marking using SHA-256.
+    /// Hash a marking using SHA-256 (matches the guest program).
     fn hash_marking(marking: &[i64]) -> [u8; 32] {
         let mut hasher = Sha256::new();
         for &v in marking {
@@ -43,9 +50,20 @@ impl Risc0Prover {
         hasher.finalize().into()
     }
 
+    /// Build the guest input from a witness.
+    fn build_guest_input(&self, witness: &TransitionWitness) -> GuestInput {
+        GuestInput {
+            inputs: self.matrix.inputs.clone(),
+            outputs: self.matrix.outputs.clone(),
+            num_places: self.matrix.num_places,
+            pre_marking: witness.pre_marking.clone(),
+            transition_id: witness.transition_id,
+        }
+    }
+
     /// Execute the guest logic natively (simulation mode).
+    #[cfg(not(feature = "prove"))]
     fn execute_guest(&self, input: &GuestInput) -> Result<(GuestOutput, Vec<i64>), ZkError> {
-        // Verify the transition is within bounds
         if input.transition_id >= input.inputs.len() {
             return Err(ZkError::InvalidTransition(
                 input.transition_id,
@@ -53,14 +71,12 @@ impl Risc0Prover {
             ));
         }
 
-        // Check enabledness
         for &(p_idx, weight) in &input.inputs[input.transition_id] {
             if input.pre_marking[p_idx] < weight {
                 return Err(ZkError::NotEnabled(input.transition_id));
             }
         }
 
-        // Compute post-marking
         let mut post_marking = input.pre_marking.clone();
         for &(p_idx, weight) in &input.inputs[input.transition_id] {
             post_marking[p_idx] -= weight;
@@ -90,6 +106,9 @@ impl PetriProver for Risc0Prover {
         Ok(())
     }
 
+    // ── Simulation mode ────────────────────────────────────────────
+
+    #[cfg(not(feature = "prove"))]
     fn prove(&self, witness: &TransitionWitness) -> pflow_zk::Result<Proof> {
         if !self.setup_done {
             return Err(ZkError::NotSetup);
@@ -97,17 +116,9 @@ impl PetriProver for Risc0Prover {
 
         let start = Instant::now();
 
-        let input = GuestInput {
-            inputs: self.matrix.inputs.clone(),
-            outputs: self.matrix.outputs.clone(),
-            num_places: self.matrix.num_places,
-            pre_marking: witness.pre_marking.clone(),
-            transition_id: witness.transition_id,
-        };
-
+        let input = self.build_guest_input(witness);
         let (output, post_marking) = self.execute_guest(&input)?;
 
-        // Verify the witness post-marking matches what the guest computed
         if post_marking != witness.post_marking {
             return Err(ZkError::ProofGeneration(
                 "witness post-marking doesn't match computed post-marking".into(),
@@ -116,12 +127,8 @@ impl PetriProver for Risc0Prover {
 
         let generation_time = start.elapsed().as_millis() as u64;
 
-        // Serialize the guest output as the "proof"
-        // In real risc0, this would be the STARK receipt
         let proof_bytes =
             bincode::serialize(&output).map_err(|e| ZkError::Serialization(e.to_string()))?;
-
-        // Public inputs = the committed output
         let public_inputs =
             bincode::serialize(&output).map_err(|e| ZkError::Serialization(e.to_string()))?;
 
@@ -138,35 +145,142 @@ impl PetriProver for Risc0Prover {
         })
     }
 
+    #[cfg(not(feature = "prove"))]
     fn verify(&self, proof: &Proof) -> pflow_zk::Result<bool> {
         if !self.setup_done {
             return Err(ZkError::NotSetup);
         }
 
-        // In simulation mode, we verify by checking the guest output structure
-        let output: GuestOutput = bincode::deserialize(&proof.proof_bytes)
+        let _output: GuestOutput = bincode::deserialize(&proof.proof_bytes)
             .map_err(|e| ZkError::Verification(format!("deserialization failed: {}", e)))?;
-
-        // Verify the output structure is well-formed
-        // (in real risc0, the receipt itself proves correctness)
-        if output.pre_hash == [0u8; 32] && output.post_hash == [0u8; 32] {
-            return Ok(false);
-        }
 
         Ok(true)
     }
 
+    #[cfg(not(feature = "prove"))]
     fn verifying_key(&self) -> pflow_zk::Result<Vec<u8>> {
         if !self.setup_done {
             return Err(ZkError::NotSetup);
         }
-        // risc0 uses the guest image ID as the verifying key
-        // In simulation mode, return a placeholder
         Ok(b"risc0-simulation-vk".to_vec())
     }
 
+    #[cfg(not(feature = "prove"))]
     fn system_name(&self) -> &'static str {
         "risc0-sim"
+    }
+
+    // ── Real STARK proof mode ──────────────────────────────────────
+
+    #[cfg(feature = "prove")]
+    fn prove(&self, witness: &TransitionWitness) -> pflow_zk::Result<Proof> {
+        if !self.setup_done {
+            return Err(ZkError::NotSetup);
+        }
+
+        let start = Instant::now();
+
+        let input = self.build_guest_input(witness);
+
+        // Pre-check on host side: better error messages, avoids wasted zkVM execution
+        if input.transition_id >= input.inputs.len() {
+            return Err(ZkError::InvalidTransition(
+                input.transition_id,
+                input.inputs.len(),
+            ));
+        }
+        for &(p_idx, weight) in &input.inputs[input.transition_id] {
+            if input.pre_marking[p_idx] < weight {
+                return Err(ZkError::NotEnabled(input.transition_id));
+            }
+        }
+
+        // Build executor environment with serialized input
+        let env = ExecutorEnv::builder()
+            .write(&input)
+            .map_err(|e| ZkError::ProofGeneration(e.to_string()))?
+            .build()
+            .map_err(|e| ZkError::ProofGeneration(e.to_string()))?;
+
+        // Generate STARK proof by executing guest in zkVM
+        let prove_info = default_prover()
+            .prove(env, PFLOW_ZK_RISC0_GUEST_ELF)
+            .map_err(|e| ZkError::ProofGeneration(e.to_string()))?;
+
+        let receipt = prove_info.receipt;
+
+        // Decode guest output from the journal
+        let output: GuestOutput = receipt
+            .journal
+            .decode()
+            .map_err(|e| ZkError::ProofGeneration(e.to_string()))?;
+
+        // Verify the post-marking hash matches the witness
+        let expected_post_hash = Self::hash_marking(&witness.post_marking);
+        if output.post_hash != expected_post_hash {
+            return Err(ZkError::ProofGeneration(
+                "post-marking hash mismatch".into(),
+            ));
+        }
+
+        let generation_time = start.elapsed().as_millis() as u64;
+
+        // Serialize the STARK receipt as the proof
+        let receipt_bytes =
+            bincode::serialize(&receipt).map_err(|e| ZkError::Serialization(e.to_string()))?;
+        let public_inputs =
+            bincode::serialize(&output).map_err(|e| ZkError::Serialization(e.to_string()))?;
+
+        Ok(Proof {
+            proof_bytes: receipt_bytes.clone(),
+            public_inputs,
+            system: self.system_name().to_string(),
+            metrics: ProofMetrics {
+                generation_time_ms: generation_time,
+                proof_size_bytes: receipt_bytes.len(),
+                verification_time_ms: None,
+                constraint_count: None,
+            },
+        })
+    }
+
+    #[cfg(feature = "prove")]
+    fn verify(&self, proof: &Proof) -> pflow_zk::Result<bool> {
+        if !self.setup_done {
+            return Err(ZkError::NotSetup);
+        }
+
+        let start = Instant::now();
+
+        // Deserialize the STARK receipt
+        let receipt: Receipt = bincode::deserialize(&proof.proof_bytes)
+            .map_err(|e| ZkError::Verification(format!("deserialization failed: {}", e)))?;
+
+        // Verify the STARK proof against the guest image ID
+        receipt
+            .verify(PFLOW_ZK_RISC0_GUEST_ID)
+            .map_err(|e| ZkError::Verification(e.to_string()))?;
+
+        let _verify_time = start.elapsed().as_millis() as u64;
+
+        Ok(true)
+    }
+
+    #[cfg(feature = "prove")]
+    fn verifying_key(&self) -> pflow_zk::Result<Vec<u8>> {
+        if !self.setup_done {
+            return Err(ZkError::NotSetup);
+        }
+        // The image ID is the verifying key for risc0
+        Ok(PFLOW_ZK_RISC0_GUEST_ID
+            .iter()
+            .flat_map(|w| w.to_le_bytes())
+            .collect())
+    }
+
+    #[cfg(feature = "prove")]
+    fn system_name(&self) -> &'static str {
+        "risc0"
     }
 }
 
@@ -229,7 +343,6 @@ mod tests {
         let m1 = fire_transition(&matrix, &m0, 0).unwrap();
         let m2 = fire_transition(&matrix, &m1, 1).unwrap();
 
-        // Prove both transitions
         let cases: Vec<(&Vec<i64>, usize, &Vec<i64>)> =
             vec![(&m0, 0, &m1), (&m1, 1, &m2)];
         for (pre, tid, post) in cases {
@@ -253,7 +366,7 @@ mod tests {
         let witness = TransitionWitness {
             pre_marking: vec![0, 0, 999],
             transition_id: 0,
-            post_marking: vec![1, 0, 998], // invalid
+            post_marking: vec![1, 0, 998],
         };
 
         assert!(matches!(prover.prove(&witness), Err(ZkError::NotEnabled(0))));
