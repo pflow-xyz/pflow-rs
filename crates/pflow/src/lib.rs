@@ -12,6 +12,14 @@ pub use pflow_core::{Builder, PetriNet, State};
 pub use pflow_macros::schema;
 pub use pflow_solver::{find_equilibrium, solve, Options, Problem, Solution};
 
+// ZK proof re-exports (behind feature flags)
+#[cfg(feature = "zk")]
+pub use pflow_zk as zk;
+#[cfg(feature = "zk-arkworks")]
+pub use pflow_zk_arkworks as zk_arkworks;
+#[cfg(feature = "zk-risc0")]
+pub use pflow_zk_risc0 as zk_risc0;
+
 #[cfg(test)]
 mod tests {
     use super::*;

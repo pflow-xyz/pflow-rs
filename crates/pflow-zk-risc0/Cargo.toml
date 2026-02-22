@@ -1,0 +1,21 @@
+[package]
+name = "pflow-zk-risc0"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "risc0 zkVM-based prover for Petri nets"
+keywords = ["petri-net", "zero-knowledge", "risc0", "zkvm"]
+categories = ["cryptography"]
+
+[dependencies]
+pflow-zk = { path = "../pflow-zk", version = "0.1.1" }
+pflow-core = { path = "../pflow-core", version = "0.1.1" }
+serde = { version = "1", features = ["derive"] }
+bincode = "1"
+thiserror = "2"
+sha2 = "0.10"
+
+[dev-dependencies]
+pflow-zk = { path = "../pflow-zk", version = "0.1.1" }

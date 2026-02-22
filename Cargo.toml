@@ -6,6 +6,9 @@ members = [
     "crates/pflow-tokenmodel",
     "crates/pflow-dsl",
     "crates/pflow-macros",
+    "crates/pflow-zk",
+    "crates/pflow-zk-arkworks",
+    "crates/pflow-zk-risc0",
     "crates/pflow",
 ]
 

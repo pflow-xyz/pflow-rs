@@ -1,0 +1,24 @@
+[package]
+name = "pflow-zk-arkworks"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Arkworks-based ZK prover for Petri nets (Groth16 + Poseidon over BN254)"
+keywords = ["petri-net", "zero-knowledge", "groth16", "arkworks"]
+categories = ["cryptography"]
+
+[dependencies]
+pflow-zk = { path = "../pflow-zk", version = "0.1.1" }
+pflow-core = { path = "../pflow-core", version = "0.1.1" }
+ark-ff = "0.5"
+ark-bn254 = "0.5"
+ark-relations = "0.5"
+ark-r1cs-std = "0.5"
+ark-groth16 = "0.5"
+ark-crypto-primitives = { version = "0.5", features = ["sponge", "r1cs"] }
+ark-snark = "0.5"
+ark-serialize = "0.5"
+ark-std = "0.5"
+thiserror = "2"
