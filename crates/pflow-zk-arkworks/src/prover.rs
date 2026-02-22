@@ -256,4 +256,38 @@ mod tests {
         let vk = prover.verifying_key().unwrap();
         assert!(!vk.is_empty());
     }
+
+    #[test]
+    fn test_arkworks_all_transitions_single_key() {
+        // SIR: infect has 2 input arcs, recover has 1.
+        // Both must work with a single proving key (padded constraints).
+        let net = PetriNet::build().sir(999.0, 1.0, 0.0).done();
+        let matrix = IncidenceMatrix::from_petri_net(&net);
+        let mut prover = ArkworksProver::new(matrix.clone());
+        prover.setup().unwrap();
+
+        let m0 = matrix.initial_marking(&net);
+
+        // Prove infect (transition 0, 2 input arcs)
+        let m1 = fire_transition(&matrix, &m0, 0).unwrap();
+        let proof_infect = prover
+            .prove(&TransitionWitness {
+                pre_marking: m0.clone(),
+                transition_id: 0,
+                post_marking: m1.clone(),
+            })
+            .unwrap();
+        assert!(prover.verify(&proof_infect).unwrap(), "infect proof should verify");
+
+        // Prove recover (transition 1, 1 input arc)
+        let m2 = fire_transition(&matrix, &m1, 1).unwrap();
+        let proof_recover = prover
+            .prove(&TransitionWitness {
+                pre_marking: m1,
+                transition_id: 1,
+                post_marking: m2,
+            })
+            .unwrap();
+        assert!(prover.verify(&proof_recover).unwrap(), "recover proof should verify");
+    }
 }
