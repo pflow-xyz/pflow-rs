@@ -70,6 +70,24 @@ impl ArkworksProver {
         Ok(circuit)
     }
 
+    /// Export the verifying key as a deployable Solidity contract.
+    ///
+    /// Must call `setup()` first. Returns the Solidity source code for
+    /// a Groth16 verifier with the VK baked in as constants.
+    pub fn export_solidity_verifier(&self) -> Result<String, ZkError> {
+        let pk = self.proving_key.as_ref().ok_or(ZkError::NotSetup)?;
+        let vk = &pk.vk;
+        let sol_vk = crate::solidity_export::extract_solidity_vk(vk);
+        Ok(crate::solidity_export::render_groth16_verifier(&sol_vk))
+    }
+
+    /// Export proof bytes as Solidity calldata hex values.
+    pub fn proof_to_calldata(
+        proof_bytes: &[u8],
+    ) -> Result<crate::solidity_export::SolidityProof, ZkError> {
+        crate::solidity_export::proof_to_solidity_calldata(proof_bytes)
+    }
+
     /// Create a dummy circuit for setup (uses zero markings).
     fn dummy_circuit(&self) -> PetriTransitionCircuit {
         let zero_marking = vec![0i64; self.matrix.num_places];

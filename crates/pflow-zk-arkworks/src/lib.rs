@@ -5,6 +5,7 @@
 
 pub mod circuit;
 pub mod hash;
+pub mod solidity_export;
 
 mod prover;
 

@@ -13,6 +13,7 @@
 
 use std::collections::HashMap;
 use std::io::{self, Write};
+use std::path::PathBuf;
 use std::time::Instant;
 
 use pflow_core::PetriNet;
@@ -22,6 +23,7 @@ use pflow_solver::{
 };
 use pflow_zk::{fire_transition, IncidenceMatrix, PetriProver, TransitionWitness};
 use pflow_zk_arkworks::ArkworksProver;
+use pflow_zk_arkworks::solidity_export;
 
 // ---------------------------------------------------------------------------
 // Board representation
@@ -472,8 +474,20 @@ fn find_transition_id(matrix: &IncidenceMatrix, name: &str) -> usize {
 // Main
 // ---------------------------------------------------------------------------
 
+/// Compute the Poseidon hash of the initial marking as a hex string.
+fn compute_initial_state_root(matrix: &IncidenceMatrix, net: &PetriNet) -> String {
+    let marking = matrix.initial_marking(net);
+    pflow_zk_arkworks::solidity_export::marking_to_state_root_hex(&marking)
+}
+
 fn main() {
-    let demo_mode = std::env::args().any(|a| a == "--demo");
+    let args: Vec<String> = std::env::args().collect();
+    let demo_mode = args.iter().any(|a| a == "--demo");
+    let export_proof = args.iter().any(|a| a == "--export-proof");
+    let export_solidity_dir = args
+        .windows(2)
+        .find(|w| w[0] == "--export-solidity")
+        .map(|w| PathBuf::from(&w[1]));
 
     println!("ZK Tic-Tac-Toe: Integer Reduction + Groth16 Proofs");
     println!("===================================================\n");
@@ -511,6 +525,31 @@ fn main() {
     prover.setup().unwrap();
     let setup_ms = t0.elapsed().as_secs_f64() * 1000.0;
     println!("  Setup time: {:.1}ms\n", setup_ms);
+
+    // --export-solidity: generate contracts and exit
+    if let Some(dir) = export_solidity_dir {
+        std::fs::create_dir_all(&dir).expect("failed to create output directory");
+
+        // Groth16Verifier.sol
+        let verifier_sol = prover.export_solidity_verifier().expect("VK export failed");
+        let verifier_path = dir.join("Groth16Verifier.sol");
+        std::fs::write(&verifier_path, &verifier_sol).expect("failed to write verifier");
+        println!("  Wrote {}", verifier_path.display());
+
+        // ZKTicTacToe.sol
+        let initial_root = compute_initial_state_root(&matrix, &net);
+        let game_sol = solidity_export::render_tictactoe_contract(&initial_root);
+        let game_path = dir.join("ZKTicTacToe.sol");
+        std::fs::write(&game_path, &game_sol).expect("failed to write game contract");
+        println!("  Wrote {}", game_path.display());
+
+        println!("\n  Initial state root: {}", initial_root);
+        println!("\n  Deployment:");
+        println!("    1. Deploy Groth16Verifier");
+        println!("    2. Deploy ZKTicTacToe(verifierAddress)");
+        println!("    3. Call playMove() with ZK proofs for each move");
+        return;
+    }
 
     // Phase 3: Game loop
     println!("Phase 3: Game Play with ZK Proofs");
@@ -609,6 +648,12 @@ fn main() {
             proof.metrics.proof_size_bytes,
             if ok { "VALID" } else { "INVALID" }
         );
+
+        if export_proof {
+            if let Ok(calldata) = ArkworksProver::proof_to_calldata(&proof.proof_bytes) {
+                println!("  Solidity calldata: {}", calldata.to_calldata_string());
+            }
+        }
 
         assert!(ok, "proof verification failed!");
 
