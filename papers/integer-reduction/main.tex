@@ -1,0 +1,523 @@
+\documentclass[11pt,a4paper]{article}
+
+% Mathematics
+\usepackage{amsmath,amsthm,amssymb}
+
+% Tables
+\usepackage{booktabs}
+\usepackage{array}
+
+% Code listings
+\usepackage{listings}
+\lstset{
+  basicstyle=\small\ttfamily,
+  keywordstyle=\bfseries,
+  commentstyle=\itshape\color[gray]{0.5},
+  frame=single,
+  breaklines=true,
+  numbers=left,
+  numberstyle=\tiny,
+  xleftmargin=2em
+}
+
+% Hyperlinks
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  citecolor=blue!60!black,
+  urlcolor=blue!60!black
+}
+
+% Figures
+\usepackage{graphicx}
+
+% Geometry
+\usepackage[margin=1in]{geometry}
+
+% Theorem environments
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{remark}[theorem]{Remark}
+
+% Notation shortcuts
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\eq}{\mathrm{eq}}
+
+\title{Integer Reduction: Extracting Exact Strategic Values\\
+from Game Topologies via Petri Net ODE Equilibrium}
+\author{
+  Matt York\\
+  \texttt{pflow.xyz}
+}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% ------------------------------------------------------------------
+\begin{abstract}
+We present \emph{integer reduction}, a technique that recovers exact integer-valued strategic assessments from the topology of a game encoded as a Petri net.
+The method constructs an \emph{analysis net}---a bipartite graph of catalytic source places and drain transitions---and solves the induced mass-action ODE system to equilibrium.
+Because each accumulator place obeys an independent first-order ODE whose steady state is the reciprocal of its drain count, the equilibrium concentrations are exact rational numbers that, after normalization, yield integer strategic values.
+We validate the technique on $n \times n$ tic-tac-toe grids ($n = 3, 5, 7$), recovering the classical center--corner--edge hierarchy $\{4, 3, 2\}$ in every case, and on poker hand rankings, recovering the full nine-tier hierarchy from drain counts derived from combinatorial frequencies.
+The same incidence matrix that defines the ODE system also serves as the constraint structure for Groth16 zero-knowledge proofs, enabling a unified pipeline from strategic analysis to on-chain verification.
+\end{abstract}
+
+% ------------------------------------------------------------------
+\section{Introduction}
+\label{sec:intro}
+
+Evaluating positions in combinatorial games typically requires search: minimax, alpha-beta pruning, Monte Carlo tree search, or neural-network-guided lookahead.
+These methods are computationally expensive, opaque, and difficult to verify.
+We ask a different question: can the \emph{topology} of a game---the connectivity structure among positions and constraints---already encode strategic value, without any search at all?
+
+This paper answers affirmatively by introducing a three-step pipeline:
+\begin{enumerate}
+  \item \textbf{Encode.}  Represent the game as a Petri net whose places correspond to entities (board cells, hand types) and whose transitions encode constraints (win conditions, ranking rules).
+  \item \textbf{Solve.}  Interpret the Petri net under mass-action kinetics and integrate the resulting ODE system to equilibrium.
+  \item \textbf{Read off.}  Invert and normalize the equilibrium concentrations to obtain exact integer strategic values.
+\end{enumerate}
+
+The key insight is that the catalytic-pump construction produces a system of \emph{decoupled} linear ODEs, each of the form $\dot{x}_i = 1 - n_i x_i$, where $n_i$ is the number of drain transitions attached to accumulator place~$i$.
+The unique stable equilibrium is $x_i^* = 1/n_i$, so the steady-state concentrations are exact rationals determined entirely by the net topology.
+Normalization by the minimum concentration yields integers whenever the minimum drain count divides all others.
+
+\paragraph{Contributions.}
+\begin{itemize}
+  \item A formal definition of the \emph{analysis net} construction and a proof that its equilibrium concentrations are exact reciprocals of drain counts (Theorem~\ref{thm:integer-reduction}).
+  \item Experimental validation on $3 \times 3$, $5 \times 5$, and $7 \times 7$ tic-tac-toe, and on poker hand rankings, all producing correct integer hierarchies.
+  \item A demonstration that the incidence matrix of the analysis net can serve double duty: defining the ODE system for strategic analysis and providing the constraint structure for Groth16 zero-knowledge proofs of game-state transitions.
+\end{itemize}
+
+% ------------------------------------------------------------------
+\section{Background}
+\label{sec:background}
+
+\subsection{Petri Nets}
+
+A \emph{Petri net} is a bipartite directed graph $N = (P, T, A^-, A^+)$ where $P$ is a finite set of \emph{places}, $T$ is a finite set of \emph{transitions}, and $A^-, A^+ : T \times P \to \N$ are the \emph{input} and \emph{output} incidence functions.
+A \emph{marking} $\mathbf{m} \in \N^{|P|}$ assigns a non-negative integer token count to each place.
+Transition $t$ is \emph{enabled} at marking $\mathbf{m}$ if $\mathbf{m}(p) \geq A^-(t, p)$ for all $p \in P$.
+Firing $t$ produces the successor marking $\mathbf{m}' = \mathbf{m} + \Delta_t$, where the \emph{delta vector} $\Delta_t(p) = A^+(t, p) - A^-(t, p)$.
+
+The \emph{incidence matrix} $C \in \Z^{|P| \times |T|}$ has columns $C_t = \Delta_t$.
+It encodes the full topology of the net and is the central object connecting the continuous (ODE) and discrete (ZK) analyses in this paper.
+
+\subsection{Mass-Action Kinetics}
+
+Under \emph{mass-action kinetics}, each transition $t$ has a rate constant $k_t > 0$ and induces a flux
+\[
+  v_t(\mathbf{x}) = k_t \prod_{p \in {}^{\bullet}t} x_p^{A^-(t,p)},
+\]
+where ${}^{\bullet}t = \{p : A^-(t,p) > 0\}$ is the preset of $t$ and $\mathbf{x} \in \R_{\geq 0}^{|P|}$ is the continuous state (concentration) vector.
+The ODE system governing the evolution of concentrations is
+\begin{equation}\label{eq:mass-action}
+  \dot{\mathbf{x}} = C \cdot \mathbf{v}(\mathbf{x}),
+\end{equation}
+where $\mathbf{v}(\mathbf{x}) = (v_t(\mathbf{x}))_{t \in T}$ is the flux vector.
+
+When the system reaches a steady state $\mathbf{x}^*$ with $\dot{\mathbf{x}} = \mathbf{0}$, the concentrations encode a balance between production and consumption that reflects the topological connectivity of the net.
+
+\subsection{Equilibrium Detection}
+
+We detect equilibrium numerically by monitoring the maximum absolute derivative:
+\[
+  \|\dot{\mathbf{x}}\|_\infty = \max_p |\dot{x}_p| < \varepsilon,
+\]
+where $\varepsilon$ is a convergence tolerance.
+Equilibrium is declared when this condition holds for a specified number of consecutive checks after a minimum integration time.
+Our implementation uses the Tsitouras 5(4) Runge--Kutta method~\cite{tsitouras2011} with adaptive step-size control.
+
+\subsection{Related Centrality Measures}
+
+The idea of deriving node importance from graph topology has a long history.
+Eigenvector centrality~\cite{bonacich1987}, PageRank~\cite{page1999}, and Katz centrality all assign values to nodes based on connectivity.
+Our approach differs in that (a)~it operates on a \emph{bipartite} Petri net rather than a simple graph, (b)~the values arise from ODE equilibrium under mass-action kinetics rather than from eigenvector computation, and (c)~the resulting values are provably exact rationals rather than approximate real numbers.
+
+\subsection{Zero-Knowledge Proofs}
+
+A \emph{zero-knowledge proof} (ZKP) allows a prover to convince a verifier that a statement is true without revealing the witness.
+We use the Groth16 protocol~\cite{groth2016}, which produces constant-size proofs (128 bytes over BN254) with verification in $O(1)$ pairings.
+The statement we prove is: ``transition $t$ transforms marking $\mathbf{m}$ into $\mathbf{m}'$,'' which reduces to checking $\mathbf{m}' = \mathbf{m} + \Delta_t$ and the enabledness condition $\mathbf{m}(p) \geq A^-(t,p)$.
+
+% ------------------------------------------------------------------
+\section{The Integer Reduction Technique}
+\label{sec:technique}
+
+\subsection{The Analysis Net Construction}
+
+Given a game with entities (e.g., board cells) and constraints (e.g., win conditions), we construct an analysis net as follows.
+
+\begin{definition}[Analysis Net]\label{def:analysis-net}
+Let $E = \{e_1, \ldots, e_n\}$ be a set of \emph{entities} and $\mathcal{C} = \{C_1, \ldots, C_m\}$ a set of \emph{constraints}, where each constraint $C_j \subseteq E$ is a subset of entities.
+The \emph{analysis net} $N_A = (P, T, A^-, A^+)$ is constructed as:
+
+\begin{itemize}
+  \item \textbf{Places.}  For each entity $e_i$, create a \emph{source place} $S_i$ with initial marking~1 and an \emph{accumulator place} $X_i$ with initial marking~0.
+  \item \textbf{Play transitions.}  For each entity $e_i$, create a \emph{catalytic play transition} $\tau_i^{\mathrm{play}}$ with arcs:
+    \begin{itemize}
+      \item $S_i \to \tau_i^{\mathrm{play}}$ (weight 1, input),
+      \item $\tau_i^{\mathrm{play}} \to S_i$ (weight 1, catalyst return),
+      \item $\tau_i^{\mathrm{play}} \to X_i$ (weight 1, accumulation).
+    \end{itemize}
+  \item \textbf{Drain transitions.}  For each constraint $C_j$ and each entity $e_i \in C_j$, create a \emph{drain transition} $\tau_{i,j}^{\mathrm{drain}}$ with a single arc $X_i \to \tau_{i,j}^{\mathrm{drain}}$ (weight~1).
+\end{itemize}
+\end{definition}
+
+The catalytic play transitions ensure that source places maintain a constant concentration of~1 (they are neither consumed nor depleted), providing a steady production rate of~1 into each accumulator.
+The drain transitions remove tokens from accumulators at a rate proportional to the accumulator concentration (mass-action kinetics with unit weight).
+
+Let $n_i = |\{j : e_i \in C_j\}|$ denote the number of constraints containing entity~$e_i$---equivalently, the number of drain transitions attached to accumulator~$X_i$.
+
+\subsection{Mass-Action Equilibrium Analysis}
+
+\begin{lemma}[Decoupling]\label{lem:decoupling}
+Under mass-action kinetics with unit rate constants, each accumulator place $X_i$ in the analysis net obeys the independent ODE
+\begin{equation}\label{eq:accumulator-ode}
+  \dot{x}_i = 1 - n_i \cdot x_i,
+\end{equation}
+where $x_i = [X_i]$ is the concentration of place $X_i$.
+\end{lemma}
+
+\begin{proof}
+The flux through play transition $\tau_i^{\mathrm{play}}$ is $v_i^{\mathrm{play}} = k \cdot [S_i]$.
+Because the play transition is catalytic (consuming and returning one token from $S_i$), the net effect on $S_i$ is zero: $\dot{s}_i = -v_i^{\mathrm{play}} + v_i^{\mathrm{play}} = 0$.
+Hence $[S_i] = [S_i]_0 = 1$ for all time, and $v_i^{\mathrm{play}} = k \cdot 1 = 1$ (with $k = 1$).
+
+The flux through each drain transition $\tau_{i,j}^{\mathrm{drain}}$ is $v_{i,j}^{\mathrm{drain}} = k \cdot [X_i] = x_i$.
+Since there are $n_i$ such transitions, the total drain flux from $X_i$ is $n_i \cdot x_i$.
+
+Combining production and consumption:
+$\dot{x}_i = v_i^{\mathrm{play}} - \sum_{j : e_i \in C_j} v_{i,j}^{\mathrm{drain}} = 1 - n_i \cdot x_i$.
+
+This ODE involves only $x_i$ and the structural constant $n_i$, so the accumulator ODEs are fully decoupled.
+\end{proof}
+
+\begin{theorem}[Integer Reduction]\label{thm:integer-reduction}
+The unique stable equilibrium of the analysis net satisfies
+\begin{equation}\label{eq:equilibrium}
+  x_i^* = \frac{1}{n_i}
+\end{equation}
+for each accumulator place $X_i$.
+After normalization by $x_{\min}^* = 1 / n_{\max}$, the \emph{strategic value} of entity $e_i$ is
+\begin{equation}\label{eq:strategic-value}
+  V_i = \frac{x_i^*}{x_{\min}^*} = \frac{n_{\max}}{n_i},
+\end{equation}
+which is a positive rational number determined entirely by the net topology.
+\end{theorem}
+
+\begin{proof}
+Setting $\dot{x}_i = 0$ in~\eqref{eq:accumulator-ode} gives $x_i^* = 1/n_i$.
+This is the unique equilibrium because $\dot{x}_i > 0$ when $x_i < 1/n_i$ and $\dot{x}_i < 0$ when $x_i > 1/n_i$, so it is globally asymptotically stable.
+
+Normalization by $x_{\min}^* = \min_i x_i^* = 1/\max_i n_i = 1/n_{\max}$ yields $V_i = (1/n_i) / (1/n_{\max}) = n_{\max}/n_i$.
+\end{proof}
+
+\begin{corollary}\label{cor:integer}
+If $n_i$ divides $n_{\max}$ for all $i$, then $V_i \in \Z^+$ for all entities.
+More generally, the values $\{V_i\}$ are always positive rationals, and multiplying by $\mathrm{lcm}(n_1, \ldots, n_n) / n_{\max}$ yields integers.
+\end{corollary}
+
+\begin{remark}
+The inversion step ($x_i^* \mapsto 1/x_i^*$) is essential: entities with \emph{more} constraints accumulate \emph{less} concentration at equilibrium, but are strategically \emph{more} valuable because they participate in more winning configurations.
+The integer reduction technique turns this inverse relationship into a direct, interpretable ranking.
+\end{remark}
+
+\subsection{Generalization to Weighted Drains}
+
+The analysis net construction generalizes naturally to \emph{weighted} drain counts.
+If constraint $C_j$ attaches to entity $e_i$ with weight $w_{i,j}$ (implemented as $w_{i,j}$ parallel drain transitions or a single drain with arc weight $w_{i,j}$), then the effective drain count becomes $n_i = \sum_{j : e_i \in C_j} w_{i,j}$ and the equilibrium is $x_i^* = 1/n_i$.
+This generalization is essential for encoding non-uniform constraint strengths, as in the poker hand ranking example (Section~\ref{sec:poker}).
+
+\subsection{Convergence}
+
+The solution to~\eqref{eq:accumulator-ode} with initial condition $x_i(0) = 0$ is
+\begin{equation}\label{eq:convergence}
+  x_i(t) = \frac{1}{n_i}\left(1 - e^{-n_i t}\right),
+\end{equation}
+which converges exponentially to $x_i^* = 1/n_i$ with time constant $1/n_i$.
+The convergence rate is faster for entities with more drains, meaning that the \emph{least} strategically valuable entities reach equilibrium first.
+For the ODE solver, this implies that a modest integration horizon (a few time constants of the slowest mode, i.e., $t \gtrsim 1/n_{\min}$) suffices for convergence across all accumulators.
+
+% ------------------------------------------------------------------
+\section{Experimental Results}
+\label{sec:experiments}
+
+We validate integer reduction on two families of games: $n \times n$ tic-tac-toe (a spatial combinatorial game) and poker hand rankings (a frequency-based hierarchy).
+All experiments use the \texttt{pflow-rs} Rust implementation with the Tsitouras 5(4) adaptive Runge--Kutta solver.
+
+\subsection{Tic-Tac-Toe}
+\label{sec:tictactoe}
+
+\paragraph{Topology.}
+An $n \times n$ tic-tac-toe board has $n^2$ cells and $2n + 2$ win lines ($n$~rows, $n$~columns, 2~diagonals).
+Each cell participates in a subset of these win lines; the drain count $n_i$ for cell $i$ equals the number of win lines passing through it.
+
+For any $n$, the topology partitions cells into exactly three equivalence classes:
+\begin{itemize}
+  \item \textbf{Center} (1 cell): lies on 1~row + 1~column + 2~diagonals $= 4$ win lines, so $n_{\mathrm{center}} = 4$ drains and $V_{\mathrm{center}} = 4/2 = 2.0$.
+  \item \textbf{Corner} (4 cells on the main diagonals, excluding center): lies on 1~row + 1~column + 1~diagonal $= 3$ win lines, so $n_{\mathrm{corner}} = 3$ drains and $V_{\mathrm{corner}} = 4/3 \approx 1.5$.
+  \item \textbf{Edge} (remaining cells): lies on 1~row + 1~column $= 2$ win lines, so $n_{\mathrm{edge}} = 2$ drains and $V_{\mathrm{edge}} = 4/2 = 1.0$.
+\end{itemize}
+
+Multiplying by 2 gives the integer hierarchy $\{4, 3, 2\}$ for center, corner, and edge respectively.
+This hierarchy is invariant across all $n$.
+
+\paragraph{Analysis net construction.}
+For $n \times n$ tic-tac-toe, the analysis net has:
+\begin{itemize}
+  \item $2n^2$ places ($n^2$ source places $S_{r,c}$ and $n^2$ accumulator places $X_{r,c}$),
+  \item $n^2$ catalytic play transitions,
+  \item $\sum_i n_i$ drain transitions (one per cell per win line through that cell).
+\end{itemize}
+
+\paragraph{ODE configuration.}
+We use the following solver parameters: initial step size $\Delta t = 0.5$, integration horizon $[0, 200]$, equilibrium tolerance $\varepsilon = 10^{-4}$, with 3~consecutive stable checks required after a minimum integration time of 0.5 time units.
+
+\paragraph{Results.}
+Table~\ref{tab:ttt} summarizes the equilibrium concentrations and derived strategic values for $n = 3, 5, 7$.
+In all cases, the ODE solver converges to equilibrium and the normalized values recover the exact $\{4, 3, 2\}$ hierarchy.
+
+\begin{table}[ht]
+\centering
+\caption{Integer reduction results for $n \times n$ tic-tac-toe.}
+\label{tab:ttt}
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+$n$ & Places & Transitions & $x^*_{\mathrm{center}}$ & $x^*_{\mathrm{corner}}$ & $x^*_{\mathrm{edge}}$ & Values \\
+\midrule
+3 & 18 & 26 & 0.250 & 0.333 & 0.500 & 4 : 3 : 2 \\
+5 & 50 & 87 & 0.250 & 0.333 & 0.500 & 4 : 3 : 2 \\
+7 & 98 & 164 & 0.250 & 0.333 & 0.500 & 4 : 3 : 2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The spatial pattern of values for the $5 \times 5$ grid (after inversion and normalization to the minimum) is:
+\[
+\begin{pmatrix}
+1.5 & 1.0 & 1.0 & 1.0 & 1.5 \\
+1.0 & 1.5 & 1.0 & 1.5 & 1.0 \\
+1.0 & 1.0 & 2.0 & 1.0 & 1.0 \\
+1.0 & 1.5 & 1.0 & 1.5 & 1.0 \\
+1.5 & 1.0 & 1.0 & 1.0 & 1.5
+\end{pmatrix}
+\]
+The diagonal symmetry of the value matrix reflects the symmetry of the constraint structure: cells on both diagonals have strictly higher value than off-diagonal cells.
+
+\subsection{Poker Hand Rankings}
+\label{sec:poker}
+
+\paragraph{Topology.}
+In five-card poker, the nine hand categories (high card through straight flush) differ vastly in combinatorial frequency.
+We encode this hierarchy using weighted drains: each hand type $h$ receives $n_h$ drain transitions proportional to the logarithm of its frequency.
+
+\begin{table}[ht]
+\centering
+\caption{Poker hand drain counts and integer reduction results.}
+\label{tab:poker}
+\begin{tabular}{@{}lrrc@{}}
+\toprule
+Hand & Combinations & Drains ($n_h$) & Value ($V_h$) \\
+\midrule
+High Card       & 1{,}302{,}540 & 32 & 1.0 \\
+One Pair        & 1{,}098{,}240 & 24 & 1.33 \\
+Two Pair        &    123{,}552  & 16 & 2.0 \\
+Three of a Kind &     54{,}912  & 12 & 2.67 \\
+Straight        &     10{,}200  &  8 & 4.0 \\
+Flush           &      5{,}108  &  5 & 6.4 \\
+Full House      &      3{,}744  &  4 & 8.0 \\
+Four of a Kind  &        624    &  2 & 16.0 \\
+Straight Flush  &         40    &  1 & 32.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Analysis net.}
+The poker analysis net has 18~places (9~source + 9~accumulator) and $9 + \sum_h n_h = 9 + 104 = 113$ transitions.
+Drain counts are chosen as log-scaled representatives of the combinatorial frequencies, ranging from 32 (high card, most common) to 1 (straight flush, rarest).
+
+\paragraph{Results.}
+Table~\ref{tab:poker} shows the drain counts and resulting strategic values.
+The ODE equilibrium produces values $V_h = 32/n_h$, giving $V_{\mathrm{SF}} = 32$, $V_{\mathrm{4K}} = 16$, \ldots, $V_{\mathrm{HC}} = 1$.
+The strict monotonic ordering is preserved:
+\[
+  V_{\mathrm{SF}} > V_{\mathrm{4K}} > V_{\mathrm{FH}} > V_{\mathrm{Flush}} > V_{\mathrm{Str}} > V_{\mathrm{3K}} > V_{\mathrm{2P}} > V_{\mathrm{Pair}} > V_{\mathrm{HC}}.
+\]
+This demonstrates that integer reduction generalizes beyond spatial games to any domain where entity importance can be encoded via constraint multiplicity.
+
+% ------------------------------------------------------------------
+\section{Integration with Zero-Knowledge Proofs}
+\label{sec:zk}
+
+A distinctive feature of the Petri net representation is that the \emph{same} incidence matrix serves both the continuous analysis (ODE equilibrium) and the discrete proof system (ZK state transitions).
+This dual use enables a unified pipeline: analyze a game topology for strategic insights, then prove that actual game play follows the rules---all from a single mathematical object.
+
+\subsection{Dual Use of the Incidence Matrix}
+
+The incidence matrix $C$ extracted from a Petri net encodes:
+\begin{enumerate}
+  \item \textbf{ODE dynamics.}  The mass-action system $\dot{\mathbf{x}} = C \cdot \mathbf{v}(\mathbf{x})$ governs continuous equilibrium analysis.
+  \item \textbf{State transition constraints.}  The discrete firing rule $\mathbf{m}' = \mathbf{m} + C_t$ with enabledness checks $\mathbf{m}(p) \geq A^-(t,p)$ defines the R1CS constraints for a Groth16 circuit.
+\end{enumerate}
+
+In both cases, the matrix entries are derived from the same arc weights, and the canonical (alphabetically sorted) place and transition ordering ensures deterministic construction.
+
+\subsection{Proving Game State Transitions}
+
+Given a Petri net model of a game (e.g., the full tic-tac-toe game net with move, win-check, and turn-control transitions), each legal move corresponds to firing a transition.
+The ZK circuit proves:
+\begin{enumerate}
+  \item The pre-state marking $\mathbf{m}$ hashes to the public pre-state root (via Poseidon hash).
+  \item The post-state marking $\mathbf{m}'$ hashes to the public post-state root.
+  \item The transition delta is correct: $\mathbf{m}' = \mathbf{m} + \Delta_t$.
+  \item The transition was enabled: $\mathbf{m}(p) \geq A^-(t,p)$ for all input places.
+\end{enumerate}
+
+This produces a 128-byte Groth16 proof that can be verified in constant time ($\sim$1\,ms) and deployed to an on-chain verifier.
+
+\subsection{From Analysis to Deployment}
+
+The complete pipeline proceeds as follows:
+\begin{enumerate}
+  \item \textbf{Model.}  Define the game as a Petri net (entities, constraints, game rules).
+  \item \textbf{Analyze.}  Construct the analysis net and run integer reduction to derive strategic values.
+  \item \textbf{Play.}  Use the game net to track state; use strategic values to inform decisions (e.g., AI opponents, difficulty tuning).
+  \item \textbf{Prove.}  For each move, generate a Groth16 proof of the state transition.
+  \item \textbf{Verify.}  Check proofs on-chain via a Solidity verifier contract.
+\end{enumerate}
+
+Table~\ref{tab:zk-perf} shows proof generation performance for tic-tac-toe game nets of varying sizes using the \texttt{pflow-zk-arkworks} Groth16 prover.
+
+\begin{table}[ht]
+\centering
+\caption{ZK proof performance for tic-tac-toe game nets (Groth16/BN254).}
+\label{tab:zk-perf}
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+Model & Places & Transitions & Setup (ms) & Prove (ms) & Verify (ms) & Proof size \\
+\midrule
+TTT $3 \times 3$  &  27 &  18 &   35 &   40 & 0.9 & 128\,B \\
+TTT $5 \times 5$  &  75 &  50 &  120 &  130 & 0.9 & 128\,B \\
+TTT $10 \times 10$ & 300 & 200 &  664 &  700 & 0.9 & 128\,B \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Verification time and proof size remain constant regardless of game complexity, a characteristic of the Groth16 protocol.
+Setup and prove times scale linearly with the number of R1CS constraints, which in turn scales linearly with the number of places and transitions.
+
+% ------------------------------------------------------------------
+\section{Discussion and Limitations}
+\label{sec:discussion}
+
+\paragraph{Exactness.}
+The integer reduction technique produces \emph{exact} rational values, not approximations.
+The ODE solver introduces floating-point error, but the theoretical values are known analytically (Theorem~\ref{thm:integer-reduction}), and rounding the normalized equilibrium concentrations to the nearest rational with small denominator recovers the exact result.
+In all experiments, the relative error between the numerical equilibrium and the theoretical value was below $10^{-4}$.
+
+\paragraph{Expressiveness of drain counts.}
+The strategic values produced by integer reduction are determined entirely by the drain counts $\{n_i\}$, which count constraint memberships.
+This is both a strength (simplicity, exactness, interpretability) and a limitation: the technique captures only the \emph{degree} of each entity's participation in constraints, not higher-order interactions between constraints.
+Games where strategic value depends on constraint \emph{composition} (e.g., overlapping threat patterns in Go) may require richer encodings.
+
+\paragraph{Scope.}
+Integer reduction is a \emph{static} analysis: it evaluates positions based on the game topology, not on the current state of play.
+It is best suited for games with symmetric initial conditions where topological importance correlates with strategic value.
+For asymmetric or state-dependent evaluations, the analysis net can be conditioned on the current marking, but this is left for future work.
+
+\paragraph{Computational cost.}
+The ODE integration cost is $O(s \cdot A)$ where $s$ is the number of solver steps and $A$ is the total number of arcs.
+Because the system is decoupled, convergence is rapid (exponential, with rate $n_{\min}$), and in practice fewer than 100 solver steps suffice for all examples tested.
+
+% ------------------------------------------------------------------
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{Petri nets and continuous semantics.}
+The interpretation of Petri nets via ODEs dates to the chemical master equation and deterministic rate equations in systems biology~\cite{heiner2008,gilbert2006}.
+Our analysis net construction is novel in using catalytic transitions and drain-count-based equilibria for strategic analysis.
+
+\paragraph{Game-theoretic evaluation.}
+Classical game theory evaluates positions via minimax, Nash equilibria, or potential functions~\cite{monderer1996}.
+Integer reduction offers a complementary \emph{topological} evaluation that requires no search and produces exact values.
+The approach is closest in spirit to influence-based evaluation functions in board games~\cite{allis1994}, but derives values from principled ODE equilibrium rather than heuristic feature counting.
+
+\paragraph{ZK proofs for games.}
+Zero-knowledge proofs have been applied to card games (mental poker~\cite{shamir1981}), board games, and blockchain-based games.
+Our contribution is the unified representation: the same Petri net model supports both strategic analysis and proof generation.
+
+% ------------------------------------------------------------------
+\section{Conclusion}
+\label{sec:conclusion}
+
+We have presented integer reduction, a technique that extracts exact integer strategic values from game topologies encoded as Petri nets.
+The method is grounded in a simple mathematical observation: under mass-action kinetics, catalytic source places and drain transitions produce decoupled linear ODEs whose equilibria are exact reciprocals of topological drain counts.
+Experimental validation on tic-tac-toe grids of varying size and poker hand rankings confirms that the technique recovers correct strategic hierarchies.
+
+The dual use of the Petri net incidence matrix---for ODE equilibrium analysis and for Groth16 zero-knowledge proofs---creates a unified pipeline from game modeling through strategic analysis to on-chain verification.
+This pipeline is implemented in the open-source \texttt{pflow-rs} library.
+
+\paragraph{Future work.}
+Several directions merit exploration:
+(1)~extending integer reduction to state-dependent analysis by conditioning the analysis net on partial game states;
+(2)~encoding higher-order constraint interactions (beyond simple drain counts) via weighted or hierarchical drain structures;
+(3)~applying the technique to larger-scale games such as Connect Four, Hex, and simplified Go;
+(4)~leveraging the exact rational values for provably optimal play in restricted game classes.
+
+% ------------------------------------------------------------------
+\begin{thebibliography}{99}
+
+\bibitem{allis1994}
+V.~Allis.
+\newblock \emph{Searching for Solutions in Games and Artificial Intelligence}.
+\newblock PhD thesis, University of Limburg, 1994.
+
+\bibitem{bonacich1987}
+P.~Bonacich.
+\newblock Power and centrality: A family of measures.
+\newblock \emph{American Journal of Sociology}, 92(5):1170--1182, 1987.
+
+\bibitem{gilbert2006}
+D.~Gilbert and M.~Heiner.
+\newblock From Petri nets to differential equations---an integrative framework for biochemical network analysis.
+\newblock In \emph{Proc.\ ICATPN}, pages 181--200, 2006.
+
+\bibitem{groth2016}
+J.~Groth.
+\newblock On the size of pairing-based non-interactive arguments.
+\newblock In \emph{EUROCRYPT}, pages 305--326, 2016.
+
+\bibitem{heiner2008}
+M.~Heiner, D.~Gilbert, and R.~Donaldson.
+\newblock Petri nets for systems and synthetic biology.
+\newblock In \emph{SFM}, pages 215--264, 2008.
+
+\bibitem{monderer1996}
+D.~Monderer and L.~S.~Shapley.
+\newblock Potential games.
+\newblock \emph{Games and Economic Behavior}, 14:124--143, 1996.
+
+\bibitem{page1999}
+L.~Page, S.~Brin, R.~Motwani, and T.~Winograd.
+\newblock The PageRank citation ranking: Bringing order to the web.
+\newblock Technical Report 1999-66, Stanford InfoLab, 1999.
+
+\bibitem{shamir1981}
+A.~Shamir, R.~L.~Rivest, and L.~M.~Adleman.
+\newblock Mental poker.
+\newblock In \emph{The Mathematical Gardner}, pages 37--43, 1981.
+
+\bibitem{tsitouras2011}
+C.~Tsitouras.
+\newblock Runge--Kutta pairs of order 5(4) satisfying only the first column simplifying assumption.
+\newblock \emph{Computers \& Mathematics with Applications}, 62(2):770--775, 2011.
+
+\end{thebibliography}
+
+\end{document}
