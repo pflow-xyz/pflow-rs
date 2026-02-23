@@ -20,6 +20,9 @@
   xleftmargin=2em
 }
 
+% Colors (xcolor needed for mixing syntax in hyperref)
+\usepackage{xcolor}
+
 % Hyperlinks
 \usepackage{hyperref}
 \hypersetup{
@@ -63,7 +66,9 @@ from Game Topologies via Petri Net ODE Equilibrium}
 \begin{abstract}
 We present \emph{integer reduction}, a technique that recovers exact integer-valued strategic assessments from the topology of a game encoded as a Petri net.
 The method constructs an \emph{analysis net}---a bipartite graph of catalytic source places and drain transitions---and solves the induced mass-action ODE system to equilibrium.
-Because each accumulator place obeys an independent first-order ODE whose steady state is the reciprocal of its drain count, the equilibrium concentrations are exact rational numbers that, after normalization, yield integer strategic values.
+The central structural result is a \emph{decoupling lemma}: catalytic source places hold constant concentration, causing each accumulator to obey an independent first-order ODE $\dot{x}_i = 1 - n_i x_i$, where $n_i$ is the number of drain transitions.
+Because these ODEs are fully decoupled, the equilibrium $x_i^* = 1/n_i$ is available in closed form---no iterative eigenvector computation or coupled fixed-point convergence is required.
+After normalization, the equilibrium concentrations yield exact rational (often integer) strategic values determined entirely by net topology.
 We validate the technique on $n \times n$ tic-tac-toe grids ($n = 3, 5, 7$), recovering the classical center--corner--edge hierarchy $\{4, 3, 2\}$ in every case, and on poker hand rankings, recovering the full nine-tier hierarchy from drain counts derived from combinatorial frequencies.
 The same incidence matrix that defines the ODE system also serves as the constraint structure for Groth16 zero-knowledge proofs, enabling a unified pipeline from strategic analysis to on-chain verification.
 \end{abstract}
@@ -137,7 +142,12 @@ Our implementation uses the Tsitouras 5(4) Runge--Kutta method~\cite{tsitouras20
 
 The idea of deriving node importance from graph topology has a long history.
 Eigenvector centrality~\cite{bonacich1987}, PageRank~\cite{page1999}, and Katz centrality all assign values to nodes based on connectivity.
-Our approach differs in that (a)~it operates on a \emph{bipartite} Petri net rather than a simple graph, (b)~the values arise from ODE equilibrium under mass-action kinetics rather than from eigenvector computation, and (c)~the resulting values are provably exact rationals rather than approximate real numbers.
+These methods share a common computational structure: they solve a \emph{coupled} system (an eigenvalue problem or a global fixed-point iteration) where every node's value depends on every other node's.
+Convergence requires iterating to a tolerance, and the resulting values are irrational reals in general.
+
+Our approach differs fundamentally.
+The analysis net's catalytic-pump construction produces a system that \emph{decouples analytically} (Lemma~\ref{lem:decoupling}): each accumulator's ODE depends only on its own concentration and a structural constant $n_i$.
+This means (a)~equilibrium values are available in closed form without iterative convergence, (b)~the values are provably exact rationals (not floating-point approximations of irrational eigenvector components), and (c)~the computation operates on a \emph{bipartite} Petri net rather than a simple graph, naturally encoding the entity--constraint duality of game topologies.
 
 \subsection{Zero-Knowledge Proofs}
 
@@ -411,6 +421,10 @@ TTT $10 \times 10$ & 300 & 200 &  664 &  700 & 0.9 & 128\,B \\
 
 Verification time and proof size remain constant regardless of game complexity, a characteristic of the Groth16 protocol.
 Setup and prove times scale linearly with the number of R1CS constraints, which in turn scales linearly with the number of places and transitions.
+
+The combination of integer reduction and ZK proofs enables a concrete application: a \emph{verifiable AI opponent}.
+The topology-derived strategic values from Section~\ref{sec:experiments} can drive an AI player's decisions (e.g., preferring the center cell in tic-tac-toe, or calibrating bet sizes by hand strength in poker), while every move the AI makes is accompanied by a Groth16 proof that the move is legal.
+An on-chain verifier can thus confirm that the AI followed the game rules without revealing its strategy or internal state---the strategic values inform play, and the ZK proofs guarantee integrity, both derived from the same Petri net model.
 
 % ------------------------------------------------------------------
 \section{Discussion and Limitations}
