@@ -2,6 +2,8 @@
 
 Rust port of [go-pflow](https://github.com/pflow-xyz/go-pflow) — Petri net modeling with ODE simulation and token model DSL.
 
+**Paper:** [Integer Reduction: Extracting Exact Strategic Values from Game Topologies via Petri Net ODE Equilibrium](https://github.com/pflow-xyz/pflow-rs/releases/latest/download/integer-reduction-draft.pdf)
+
 ## Crates
 
 | Crate | Description |
