@@ -1093,6 +1093,207 @@ mod tests {
         );
     }
 
+    /// Chess: empty-board integer reduction recovers piece-mobility square values.
+    /// Phase 1 (unweighted): drain count = total attack reach per square.
+    /// Phase 2 (piece-weighted): drain weight = piece value (P=1, N=3, B=3, R=5, Q=9, K=1).
+    #[test]
+    fn test_integer_reduction_chess() {
+        use pflow_solver::equilibrium::{solve_until_equilibrium, EquilibriumOptions};
+        use pflow_solver::methods;
+
+        // --- Attack helpers (empty board, 8×8) ---
+        fn knight_attacks(r: usize, c: usize) -> Vec<(usize, usize)> {
+            [(-2i32,-1),(-2,1),(-1,-2),(-1,2),(1,-2),(1,2),(2,-1),(2,1)].iter()
+                .filter_map(|&(dr, dc)| {
+                    let (nr, nc) = (r as i32 + dr, c as i32 + dc);
+                    if (0..8).contains(&nr) && (0..8).contains(&nc) {
+                        Some((nr as usize, nc as usize))
+                    } else { None }
+                }).collect()
+        }
+        fn sliding(r: usize, c: usize, dirs: &[(i32, i32)]) -> Vec<(usize, usize)> {
+            let mut t = Vec::new();
+            for &(dr, dc) in dirs {
+                let (mut nr, mut nc) = (r as i32 + dr, c as i32 + dc);
+                while (0..8).contains(&nr) && (0..8).contains(&nc) {
+                    t.push((nr as usize, nc as usize));
+                    nr += dr; nc += dc;
+                }
+            }
+            t
+        }
+        fn bishop_rays(r: usize, c: usize) -> Vec<(usize, usize)> {
+            sliding(r, c, &[(-1,-1),(-1,1),(1,-1),(1,1)])
+        }
+        fn rook_rays(r: usize, c: usize) -> Vec<(usize, usize)> {
+            sliding(r, c, &[(-1,0),(1,0),(0,-1),(0,1)])
+        }
+        fn queen_attacks(r: usize, c: usize) -> Vec<(usize, usize)> {
+            sliding(r, c, &[(-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)])
+        }
+        fn king_attacks(r: usize, c: usize) -> Vec<(usize, usize)> {
+            [(-1i32,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)].iter()
+                .filter_map(|&(dr, dc)| {
+                    let (nr, nc) = (r as i32 + dr, c as i32 + dc);
+                    if (0..8).contains(&nr) && (0..8).contains(&nc) {
+                        Some((nr as usize, nc as usize))
+                    } else { None }
+                }).collect()
+        }
+        fn pawn_attacks(r: usize, c: usize) -> Vec<(usize, usize)> {
+            let mut t = Vec::new();
+            if r > 0 { // white captures (moving up)
+                if c > 0 { t.push((r - 1, c - 1)); }
+                if c < 7 { t.push((r - 1, c + 1)); }
+            }
+            if r < 7 { // black captures (moving down)
+                if c > 0 { t.push((r + 1, c - 1)); }
+                if c < 7 { t.push((r + 1, c + 1)); }
+            }
+            t
+        }
+
+        type AttackFn = fn(usize, usize) -> Vec<(usize, usize)>;
+        let piece_types: [(&str, AttackFn, f64); 6] = [
+            ("P", pawn_attacks as AttackFn, 1.0),
+            ("N", knight_attacks, 3.0),
+            ("B", bishop_rays, 3.0),
+            ("R", rook_rays, 5.0),
+            ("Q", queen_attacks, 9.0),
+            ("K", king_attacks, 1.0),
+        ];
+
+        for (phase, use_weights) in [(1u8, false), (2, true)] {
+            // Compute drain sums per square
+            let mut drain_sums = [[0.0f64; 8]; 8];
+            for r in 0..8usize {
+                for c in 0..8usize {
+                    for &(_piece, attack_fn, weight) in &piece_types {
+                        let count = attack_fn(r, c).len() as f64;
+                        let w = if use_weights { weight } else { 1.0 };
+                        drain_sums[r][c] += count * w;
+                    }
+                }
+            }
+
+            // Normalize drain weights so max = 1.0 to prevent high weights from
+            // amplifying numerical error above equilibrium detection tolerance.
+            // Normalized values are identical (they're ratios of drain sums).
+            let max_drain = drain_sums.iter().flat_map(|r| r.iter()).copied()
+                .fold(f64::MIN, f64::max);
+
+            // Build analysis net with consolidated drains (one per square).
+            // Multiple drains from the same place are additive in mass-action ODE,
+            // so a single drain with weight = total_drain_sum gives identical equilibrium.
+            let mut net = PetriNet::new();
+            for r in 0..8usize {
+                for c in 0..8usize {
+                    net.add_place(format!("P{}_{}", r, c), vec![1.0], vec![], 0.0, 0.0, None);
+                    net.add_place(format!("_X{}_{}", r, c), vec![0.0], vec![], 0.0, 0.0, None);
+                }
+            }
+            for r in 0..8usize {
+                for c in 0..8usize {
+                    let t = format!("Play{}_{}", r, c);
+                    net.add_transition(&t, "play", 0.0, 0.0, None);
+                    net.add_arc(format!("P{}_{}", r, c), &t, vec![1.0], false);
+                    net.add_arc(&t, format!("P{}_{}", r, c), vec![1.0], false);
+                    net.add_arc(&t, format!("_X{}_{}", r, c), vec![1.0], false);
+
+                    let d = format!("drain_{}_{}", r, c);
+                    net.add_transition(&d, "drain", 0.0, 0.0, None);
+                    net.add_arc(
+                        format!("_X{}_{}", r, c), &d,
+                        vec![drain_sums[r][c] / max_drain], false,
+                    );
+                }
+            }
+
+            // Run ODE to equilibrium
+            let state = net.set_state(None);
+            let rates = net.set_rates(None);
+            let prob = Problem::new(net, state, [0.0, 200.0], rates);
+            let opts = Options { dt: 0.5, ..Options::default_opts() };
+            let eq_opts = EquilibriumOptions {
+                tolerance: 1e-4,
+                consecutive_steps: 3,
+                min_time: 0.5,
+                check_interval: 5,
+            };
+            let (_, result) = solve_until_equilibrium(&prob, &methods::tsit5(), &opts, &eq_opts);
+            assert!(result.reached, "Phase {}: ODE should reach equilibrium", phase);
+
+            // Extract and invert concentrations
+            let mut values = [[0.0f64; 8]; 8];
+            for r in 0..8 {
+                for c in 0..8 {
+                    let key = format!("_X{}_{}", r, c);
+                    let conc = result.state.get(&key).copied().unwrap_or(0.0);
+                    assert!(conc > 1e-10, "Phase {}: ({},{}) positive concentration", phase, r, c);
+                    values[r][c] = 1.0 / conc;
+                }
+            }
+            let min_val = values.iter().flat_map(|r| r.iter()).copied()
+                .fold(f64::MAX, f64::min);
+            for row in &mut values {
+                for v in row.iter_mut() {
+                    *v /= min_val;
+                }
+            }
+
+            // Verify values match expected drain-sum ratios
+            let min_drain = drain_sums.iter().flat_map(|r| r.iter()).copied()
+                .fold(f64::MAX, f64::min);
+            for r in 0..8 {
+                for c in 0..8 {
+                    let expected = drain_sums[r][c] / min_drain;
+                    assert!(
+                        (values[r][c] - expected).abs() < 0.1 * expected,
+                        "Phase {}: ({},{}) value {:.3} != expected {:.3} (drain_sum {:.0})",
+                        phase, r, c, values[r][c], expected, drain_sums[r][c]
+                    );
+                }
+            }
+
+            // Center (d4/d5/e4/e5 = rows 3-4, cols 3-4) > edge-middle > corner
+            let center = values[3][3];
+            let corner = values[0][0];
+            let edge_mid = values[0][3];
+            assert!(center > edge_mid, "Phase {}: center ({:.3}) > edge ({:.3})", phase, center, edge_mid);
+            assert!(edge_mid > corner, "Phase {}: edge ({:.3}) > corner ({:.3})", phase, edge_mid, corner);
+
+            // 8-fold symmetry: V[r][c] ≈ V[r][7-c] and V[r][c] ≈ V[7-r][c]
+            for r in 0..8 {
+                for c in 0..8 {
+                    let v = values[r][c];
+                    assert!(
+                        (v - values[r][7 - c]).abs() < 0.05 * v.max(1.0),
+                        "Phase {}: LR symmetry ({},{}) {:.3} != ({},{}) {:.3}",
+                        phase, r, c, v, r, 7 - c, values[r][7 - c]
+                    );
+                    assert!(
+                        (v - values[7 - r][c]).abs() < 0.05 * v.max(1.0),
+                        "Phase {}: TB symmetry ({},{}) {:.3} != ({},{}) {:.3}",
+                        phase, r, c, v, 7 - r, c, values[7 - r][c]
+                    );
+                }
+            }
+
+            // Maximum at center cluster, minimum at corners
+            let max_val = values.iter().flat_map(|r| r.iter()).copied()
+                .fold(f64::MIN, f64::max);
+            let center_max = values[3][3].max(values[3][4]).max(values[4][3]).max(values[4][4]);
+            assert!(
+                (center_max - max_val).abs() < 0.01 * max_val,
+                "Phase {}: maximum should be at center cluster", phase
+            );
+            assert!(
+                (values[0][0] - 1.0).abs() < 0.05,
+                "Phase {}: corner should be normalized minimum (1.0), got {:.3}", phase, values[0][0]
+            );
+        }
+    }
+
     #[test]
     fn test_schema_macro_matches_runtime_parse() {
         let dsl_input = r#"(schema counter
