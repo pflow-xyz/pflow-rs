@@ -365,7 +365,7 @@ This demonstrates that integer reduction generalizes beyond spatial games to any
 \label{sec:connect4}
 
 \paragraph{Topology.}
-Connect Four is played on a $7 \times 6$ grid (7~columns, 6~rows).
+Connect Four~\cite{allis1988} is played on a $7 \times 6$ grid (7~columns, 6~rows).
 A player wins by placing four consecutive tokens in a horizontal, vertical, or diagonal line.
 The win lines are all 4-in-a-row segments:
 \begin{itemize}
@@ -377,7 +377,7 @@ The win lines are all 4-in-a-row segments:
 for a total of 69 win lines.
 Each cell's drain count $n_{r,c}$ equals the number of 4-in-a-row segments passing through it.
 
-Unlike $n \times n$ tic-tac-toe, the non-square grid and shorter win length produce a richer drain-count distribution with seven distinct levels (3, 4, 5, 6, 7, 8, 10, 11, 13) rather than three.
+Unlike $n \times n$ tic-tac-toe, the non-square grid and shorter win length produce a richer drain-count distribution with nine distinct levels (3, 4, 5, 6, 7, 8, 10, 11, 13) rather than three.
 
 \paragraph{Drain count matrix.}
 The drain counts exhibit vertical and horizontal symmetry about the center column ($c = 3$) and the middle rows ($r = 2, 3$):
@@ -428,7 +428,7 @@ The results confirm known Connect Four strategy:
 \label{sec:hex}
 
 \paragraph{Topology.}
-Hex is played on a rhombic board with hexagonal cells.
+Hex~\cite{gale1979} is played on a rhombic board with hexagonal cells.
 Two players claim cells; one wins by connecting the top edge to the bottom edge, the other by connecting the left edge to the right edge.
 We analyze a $5 \times 5$ board using axial coordinates $(r, c)$ with hex adjacency: each cell has up to six neighbors $(r \pm 1, c)$, $(r, c \pm 1)$, $(r-1, c+1)$, and $(r+1, c-1)$.
 
