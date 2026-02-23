@@ -69,7 +69,7 @@ The method constructs an \emph{analysis net}---a bipartite graph of catalytic so
 The central structural result is a \emph{decoupling lemma}: catalytic source places hold constant concentration, causing each accumulator to obey an independent first-order ODE $\dot{x}_i = 1 - n_i x_i$, where $n_i$ is the number of drain transitions.
 Because these ODEs are fully decoupled, the equilibrium $x_i^* = 1/n_i$ is available in closed form---no iterative eigenvector computation or coupled fixed-point convergence is required.
 After normalization, the equilibrium concentrations yield exact rational (often integer) strategic values determined entirely by net topology.
-We validate the technique on $n \times n$ tic-tac-toe grids ($n = 3, 5, 7$), recovering the classical center--corner--edge hierarchy $\{4, 3, 2\}$ in every case, and on poker hand rankings, recovering the full nine-tier hierarchy from drain counts derived from combinatorial frequencies.
+We validate the technique on $n \times n$ tic-tac-toe grids ($n = 3, 5, 7$), recovering the classical center--corner--edge hierarchy $\{4, 3, 2\}$ in every case; on poker hand rankings, recovering the full nine-tier hierarchy from drain counts derived from combinatorial frequencies; on Connect Four ($7 \times 6$, 4-in-a-row), recovering center-column dominance with a 13:3 value ratio; and on Hex ($5 \times 5$, shortest-path win conditions), recovering anti-diagonal dominance with a 16:1 value ratio from non-Cartesian topology.
 The same incidence matrix that defines the ODE system also serves as the constraint structure for Groth16 zero-knowledge proofs, enabling a unified pipeline from strategic analysis to on-chain verification.
 \end{abstract}
 
@@ -95,7 +95,7 @@ Normalization by the minimum concentration yields integers whenever the minimum 
 \paragraph{Contributions.}
 \begin{itemize}
   \item A formal definition of the \emph{analysis net} construction and a proof that its equilibrium concentrations are exact reciprocals of drain counts (Theorem~\ref{thm:integer-reduction}).
-  \item Experimental validation on $3 \times 3$, $5 \times 5$, and $7 \times 7$ tic-tac-toe, and on poker hand rankings, all producing correct integer hierarchies.
+  \item Experimental validation on $3 \times 3$, $5 \times 5$, and $7 \times 7$ tic-tac-toe, poker hand rankings, Connect Four, and Hex---spanning uniform grids, frequency-weighted hierarchies, non-square grids, and non-Cartesian topologies.
   \item A demonstration that the incidence matrix of the analysis net can serve double duty: defining the ODE system for strategic analysis and providing the constraint structure for Groth16 zero-knowledge proofs of game-state transitions.
 \end{itemize}
 
@@ -258,7 +258,7 @@ For the ODE solver, this implies that a modest integration horizon (a few time c
 \section{Experimental Results}
 \label{sec:experiments}
 
-We validate integer reduction on two families of games: $n \times n$ tic-tac-toe (a spatial combinatorial game) and poker hand rankings (a frequency-based hierarchy).
+We validate integer reduction on four families of games: $n \times n$ tic-tac-toe (uniform grid, same win structure for all $n$), poker hand rankings (frequency-weighted hierarchy), Connect Four (non-square grid with higher drain-count variation), and Hex (non-Cartesian hexagonal topology with path-based win conditions).
 All experiments use the \texttt{pflow-rs} Rust implementation with the Tsitouras 5(4) adaptive Runge--Kutta solver.
 
 \subsection{Tic-Tac-Toe}
@@ -360,6 +360,139 @@ The strict monotonic ordering is preserved:
   V_{\mathrm{SF}} > V_{\mathrm{4K}} > V_{\mathrm{FH}} > V_{\mathrm{Flush}} > V_{\mathrm{Str}} > V_{\mathrm{3K}} > V_{\mathrm{2P}} > V_{\mathrm{Pair}} > V_{\mathrm{HC}}.
 \]
 This demonstrates that integer reduction generalizes beyond spatial games to any domain where entity importance can be encoded via constraint multiplicity.
+
+\subsection{Connect Four}
+\label{sec:connect4}
+
+\paragraph{Topology.}
+Connect Four is played on a $7 \times 6$ grid (7~columns, 6~rows).
+A player wins by placing four consecutive tokens in a horizontal, vertical, or diagonal line.
+The win lines are all 4-in-a-row segments:
+\begin{itemize}
+  \item \textbf{Horizontal}: 4 starting columns per row $\times$ 6 rows $= 24$ lines,
+  \item \textbf{Vertical}: 3 starting rows per column $\times$ 7 columns $= 21$ lines,
+  \item \textbf{Diagonal $\searrow$}: $3 \times 4 = 12$ lines,
+  \item \textbf{Diagonal $\nearrow$}: $3 \times 4 = 12$ lines,
+\end{itemize}
+for a total of 69 win lines.
+Each cell's drain count $n_{r,c}$ equals the number of 4-in-a-row segments passing through it.
+
+Unlike $n \times n$ tic-tac-toe, the non-square grid and shorter win length produce a richer drain-count distribution with seven distinct levels (3, 4, 5, 6, 7, 8, 10, 11, 13) rather than three.
+
+\paragraph{Drain count matrix.}
+The drain counts exhibit vertical and horizontal symmetry about the center column ($c = 3$) and the middle rows ($r = 2, 3$):
+\[
+\begin{pmatrix}
+3 & 4 & 5 & 7 & 5 & 4 & 3 \\
+4 & 6 & 8 & 10 & 8 & 6 & 4 \\
+5 & 8 & 11 & 13 & 11 & 8 & 5 \\
+5 & 8 & 11 & 13 & 11 & 8 & 5 \\
+4 & 6 & 8 & 10 & 8 & 6 & 4 \\
+3 & 4 & 5 & 7 & 5 & 4 & 3
+\end{pmatrix}
+\]
+
+\paragraph{Analysis net.}
+The Connect Four analysis net has 84~places ($42$ source $+ 42$ accumulator) and $42 + 69 \times 4 = 318$ transitions ($42$~play $+ 276$~drain).
+
+\paragraph{Results.}
+Table~\ref{tab:c4} shows the strategic value matrix after inversion and normalization (dividing by the minimum concentration, corresponding to the corner cells with drain count~3).
+
+\begin{table}[ht]
+\centering
+\caption{Connect Four strategic values $V_{r,c} = n_{r,c} / n_{\min}$ (normalized, $n_{\min} = 3$).}
+\label{tab:c4}
+\begin{tabular}{@{}c|ccccccc@{}}
+\toprule
+& $c=0$ & $c=1$ & $c=2$ & $c=3$ & $c=4$ & $c=5$ & $c=6$ \\
+\midrule
+$r=0$ & 1.00 & 1.33 & 1.67 & 2.33 & 1.67 & 1.33 & 1.00 \\
+$r=1$ & 1.33 & 2.00 & 2.67 & 3.33 & 2.67 & 2.00 & 1.33 \\
+$r=2$ & 1.67 & 2.67 & 3.67 & \textbf{4.33} & 3.67 & 2.67 & 1.67 \\
+$r=3$ & 1.67 & 2.67 & 3.67 & \textbf{4.33} & 3.67 & 2.67 & 1.67 \\
+$r=4$ & 1.33 & 2.00 & 2.67 & 3.33 & 2.67 & 2.00 & 1.33 \\
+$r=5$ & 1.00 & 1.33 & 1.67 & 2.33 & 1.67 & 1.33 & 1.00 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The results confirm known Connect Four strategy:
+\begin{itemize}
+  \item \textbf{Center column dominance}: column~3 has the highest value at every row, matching the well-known heuristic that the center column is the strongest opening move.
+  \item \textbf{Vertical center dominance}: middle rows ($r = 2, 3$) dominate top and bottom rows at every column: $V_{2,c} > V_{1,c} > V_{0,c}$.
+  \item \textbf{Strict monotonic ordering}: values decrease monotonically from center to edge along both axes, with the peak at cells $(2, 3)$ and $(3, 3)$.
+  \item \textbf{Max:min ratio}: the ratio between the most and least valuable cells is $13/3 \approx 4.33$, significantly higher than tic-tac-toe's $2.0$, reflecting the richer constraint structure.
+\end{itemize}
+
+\subsection{Hex}
+\label{sec:hex}
+
+\paragraph{Topology.}
+Hex is played on a rhombic board with hexagonal cells.
+Two players claim cells; one wins by connecting the top edge to the bottom edge, the other by connecting the left edge to the right edge.
+We analyze a $5 \times 5$ board using axial coordinates $(r, c)$ with hex adjacency: each cell has up to six neighbors $(r \pm 1, c)$, $(r, c \pm 1)$, $(r-1, c+1)$, and $(r+1, c-1)$.
+
+Unlike tic-tac-toe and Connect Four, Hex win conditions are \emph{path-based} rather than fixed-length lines: a player wins by forming any path of adjacent cells connecting opposite edges.
+This fundamentally different constraint type tests integer reduction on non-Cartesian topology.
+
+\paragraph{Shortest winning paths.}
+We restrict attention to \emph{shortest} winning paths---those visiting exactly $n = 5$ cells (one per row for top-to-bottom, one per column for left-to-right).
+
+\emph{Top-to-bottom paths} start at any cell $(0, c)$ and at each step move from $(r, c)$ to $(r+1, c-1)$ or $(r+1, c)$, provided the column remains in $[0, 4]$.
+\emph{Left-to-right paths} start at any cell $(r, 0)$ and at each step move from $(r, c)$ to $(r-1, c+1)$ or $(r, c+1)$, provided the row remains in $[0, 4]$.
+
+Recursive enumeration yields 48~top-to-bottom paths and 48~left-to-right paths, for a total of 96~shortest winning paths.
+Each path generates one drain transition per cell it visits.
+
+\paragraph{Drain count matrix.}
+The drain count for each cell is the total number of shortest paths (both directions combined) that pass through it:
+\[
+\begin{pmatrix}
+2 & 7 & 15 & 23 & 32 \\
+7 & 16 & 26 & 32 & 23 \\
+15 & 26 & 32 & 26 & 15 \\
+23 & 32 & 26 & 16 & 7 \\
+32 & 23 & 15 & 7 & 2
+\end{pmatrix}
+\]
+The drain counts range from 2 (corners $(0,0)$ and $(4,4)$) to 32 (five cells on the anti-diagonal).
+
+\paragraph{Analysis net.}
+The Hex analysis net has 50~places ($25$ source $+ 25$ accumulator) and $25 + 96 \times 5 = 505$ transitions ($25$~play $+ 480$~drain).
+
+\paragraph{Results.}
+Table~\ref{tab:hex} shows the strategic value matrix after inversion and normalization ($n_{\min} = 2$).
+
+\begin{table}[ht]
+\centering
+\caption{Hex ($5 \times 5$) strategic values $V_{r,c} = n_{r,c} / n_{\min}$ (normalized, $n_{\min} = 2$).}
+\label{tab:hex}
+\begin{tabular}{@{}c|ccccc@{}}
+\toprule
+& $c=0$ & $c=1$ & $c=2$ & $c=3$ & $c=4$ \\
+\midrule
+$r=0$ & 1.0 & 3.5 & 7.5 & 11.5 & \textbf{16.0} \\
+$r=1$ & 3.5 & 8.0 & 13.0 & \textbf{16.0} & 11.5 \\
+$r=2$ & 7.5 & 13.0 & \textbf{16.0} & 13.0 & 7.5 \\
+$r=3$ & 11.5 & \textbf{16.0} & 13.0 & 8.0 & 3.5 \\
+$r=4$ & \textbf{16.0} & 11.5 & 7.5 & 3.5 & 1.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The results reveal structural properties specific to Hex:
+\begin{itemize}
+  \item \textbf{Anti-diagonal dominance}: the five cells on the anti-diagonal---$(0,4)$, $(1,3)$, $(2,2)$, $(3,1)$, $(4,0)$---all share the maximum value of 16.0.
+  This anti-diagonal is the ``bridge'' connecting both pairs of opposite edges and is the most strategically contested territory in Hex play.
+  \item \textbf{Center included}: the center cell $(2,2)$ achieves the maximum value, consistent with the known Hex heuristic that center control is optimal, but it is not \emph{uniquely} maximal---it shares this distinction with four other anti-diagonal cells.
+  \item \textbf{180$^\circ$ rotation symmetry}: $V_{r,c} = V_{4-r, 4-c}$ for all cells, reflecting the symmetry of the hex board under rotation (the two winning conditions are symmetric under this transformation).
+  \item \textbf{Max:min ratio}: the ratio $32/2 = 16$ is the largest among all tested games, reflecting the high variation in path participation across the board.
+  \item \textbf{Diagonal monotonicity}: values decrease from center toward corners along the main diagonal: $V_{2,2} > V_{1,1} > V_{0,0}$ (drain counts 32 $>$ 16 $>$ 2).
+\end{itemize}
+
+\paragraph{Comparison with tic-tac-toe.}
+While tic-tac-toe produces only three distinct value levels regardless of board size, Hex on a $5 \times 5$ board produces seven distinct levels, and Connect Four produces nine.
+This illustrates how richer game topologies---non-square grids, variable-length constraints, non-Cartesian adjacency---yield more nuanced strategic assessments, all captured exactly by integer reduction.
 
 % ------------------------------------------------------------------
 \section{Integration with Zero-Knowledge Proofs}
@@ -472,7 +605,7 @@ Our contribution is the unified representation: the same Petri net model support
 
 We have presented integer reduction, a technique that extracts exact integer strategic values from game topologies encoded as Petri nets.
 The method is grounded in a simple mathematical observation: under mass-action kinetics, catalytic source places and drain transitions produce decoupled linear ODEs whose equilibria are exact reciprocals of topological drain counts.
-Experimental validation on tic-tac-toe grids of varying size and poker hand rankings confirms that the technique recovers correct strategic hierarchies.
+Experimental validation on tic-tac-toe grids of varying size, poker hand rankings, Connect Four, and Hex confirms that the technique recovers correct strategic hierarchies across uniform grids, frequency-weighted domains, non-square boards, and non-Cartesian topologies.
 
 The dual use of the Petri net incidence matrix---for ODE equilibrium analysis and for Groth16 zero-knowledge proofs---creates a unified pipeline from game modeling through strategic analysis to on-chain verification.
 This pipeline is implemented in the open-source \texttt{pflow-rs} library.
@@ -481,11 +614,16 @@ This pipeline is implemented in the open-source \texttt{pflow-rs} library.
 Several directions merit exploration:
 (1)~extending integer reduction to state-dependent analysis by conditioning the analysis net on partial game states;
 (2)~encoding higher-order constraint interactions (beyond simple drain counts) via weighted or hierarchical drain structures;
-(3)~applying the technique to larger-scale games such as Connect Four, Hex, and simplified Go;
+(3)~applying the technique to larger-scale games such as Go, where constraint composition (not just constraint degree) determines strategic value;
 (4)~leveraging the exact rational values for provably optimal play in restricted game classes.
 
 % ------------------------------------------------------------------
 \begin{thebibliography}{99}
+
+\bibitem{allis1988}
+V.~Allis.
+\newblock \emph{A Knowledge-Based Approach of Connect-Four}.
+\newblock Master's thesis, Vrije Universiteit Amsterdam, 1988.
 
 \bibitem{allis1994}
 V.~Allis.
@@ -496,6 +634,11 @@ V.~Allis.
 P.~Bonacich.
 \newblock Power and centrality: A family of measures.
 \newblock \emph{American Journal of Sociology}, 92(5):1170--1182, 1987.
+
+\bibitem{gale1979}
+D.~Gale.
+\newblock The game of Hex and the Brouwer fixed-point theorem.
+\newblock \emph{The American Mathematical Monthly}, 86(10):818--827, 1979.
 
 \bibitem{gilbert2006}
 D.~Gilbert and M.~Heiner.

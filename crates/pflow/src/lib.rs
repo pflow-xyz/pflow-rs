@@ -757,6 +757,342 @@ mod tests {
         );
     }
 
+    /// Connect Four: 7×6 grid, 4-in-a-row win conditions.
+    /// ODE equilibrium should recover center-column dominance from topology.
+    #[test]
+    fn test_integer_reduction_connect4() {
+        use pflow_solver::equilibrium::{solve_until_equilibrium, EquilibriumOptions};
+        use pflow_solver::methods;
+
+        let rows = 6;
+        let cols = 7;
+        let win_len = 4;
+
+        // Enumerate all 4-in-a-row win lines
+        let mut win_lines: Vec<Vec<(usize, usize)>> = Vec::new();
+
+        // Horizontal
+        for r in 0..rows {
+            for c in 0..=(cols - win_len) {
+                win_lines.push((0..win_len).map(|k| (r, c + k)).collect());
+            }
+        }
+        // Vertical
+        for c in 0..cols {
+            for r in 0..=(rows - win_len) {
+                win_lines.push((0..win_len).map(|k| (r + k, c)).collect());
+            }
+        }
+        // Diagonal ↘
+        for r in 0..=(rows - win_len) {
+            for c in 0..=(cols - win_len) {
+                win_lines.push((0..win_len).map(|k| (r + k, c + k)).collect());
+            }
+        }
+        // Diagonal ↗
+        for r in (win_len - 1)..rows {
+            for c in 0..=(cols - win_len) {
+                win_lines.push((0..win_len).map(|k| (r - k, c + k)).collect());
+            }
+        }
+        assert_eq!(win_lines.len(), 69, "expected 24+21+12+12 = 69 win lines");
+
+        // Build analysis net
+        let mut net = PetriNet::new();
+        for r in 0..rows {
+            for c in 0..cols {
+                net.add_place(format!("P{}_{}", r, c), vec![1.0], vec![], 0.0, 0.0, None);
+                net.add_place(format!("_X{}_{}", r, c), vec![0.0], vec![], 0.0, 0.0, None);
+            }
+        }
+        for r in 0..rows {
+            for c in 0..cols {
+                let t = format!("Play{}_{}", r, c);
+                net.add_transition(&t, "play", 0.0, 0.0, None);
+                net.add_arc(format!("P{}_{}", r, c), &t, vec![1.0], false);
+                net.add_arc(&t, format!("P{}_{}", r, c), vec![1.0], false);
+                net.add_arc(&t, format!("_X{}_{}", r, c), vec![1.0], false);
+            }
+        }
+        for (line_idx, line) in win_lines.iter().enumerate() {
+            for &(r, c) in line {
+                let t = format!("drain_{}_{}_{}", r, c, line_idx);
+                net.add_transition(&t, "drain", 0.0, 0.0, None);
+                net.add_arc(format!("_X{}_{}", r, c), &t, vec![1.0], false);
+            }
+        }
+
+        // Run ODE to equilibrium
+        let state = net.set_state(None);
+        let rates = net.set_rates(None);
+        let prob = Problem::new(net, state, [0.0, 200.0], rates);
+        let opts = Options { dt: 0.5, ..Options::default_opts() };
+        let eq_opts = EquilibriumOptions {
+            tolerance: 1e-4,
+            consecutive_steps: 3,
+            min_time: 0.5,
+            check_interval: 5,
+        };
+        let (_, result) = solve_until_equilibrium(&prob, &methods::tsit5(), &opts, &eq_opts);
+        assert!(result.reached, "ODE should reach equilibrium");
+
+        // Extract and invert concentrations
+        let mut raw = vec![vec![0.0f64; cols]; rows];
+        for r in 0..rows {
+            for c in 0..cols {
+                let key = format!("_X{}_{}", r, c);
+                raw[r][c] = result.state.get(&key).copied().unwrap_or(0.0);
+            }
+        }
+        let mut values = vec![vec![0.0f64; cols]; rows];
+        for r in 0..rows {
+            for c in 0..cols {
+                assert!(raw[r][c] > 1e-10, "cell ({},{}) should have positive concentration", r, c);
+                values[r][c] = 1.0 / raw[r][c];
+            }
+        }
+        let min_val = values.iter().flat_map(|row| row.iter()).copied().fold(f64::MAX, f64::min);
+        for r in 0..rows {
+            for c in 0..cols {
+                values[r][c] /= min_val;
+            }
+        }
+
+        // Expected drain counts per cell
+        #[rustfmt::skip]
+        let expected_drains: [[usize; 7]; 6] = [
+            [ 3,  4,  5,  7,  5,  4,  3],
+            [ 4,  6,  8, 10,  8,  6,  4],
+            [ 5,  8, 11, 13, 11,  8,  5],
+            [ 5,  8, 11, 13, 11,  8,  5],
+            [ 4,  6,  8, 10,  8,  6,  4],
+            [ 3,  4,  5,  7,  5,  4,  3],
+        ];
+        let min_drain = 3.0f64;
+        for r in 0..rows {
+            for c in 0..cols {
+                let expected = expected_drains[r][c] as f64 / min_drain;
+                assert!(
+                    (values[r][c] - expected).abs() < 0.15,
+                    "cell ({},{}) value {:.3} != expected {:.3} (drain count {})",
+                    r, c, values[r][c], expected, expected_drains[r][c]
+                );
+            }
+        }
+
+        // Vertical center dominance: center rows > adjacent > edge
+        assert!(values[2][3] > values[1][3], "row 2 center > row 1 center");
+        assert!(values[1][3] > values[0][3], "row 1 center > row 0 center");
+
+        // Horizontal center dominance
+        assert!(values[2][3] > values[2][2], "col 3 > col 2 at row 2");
+        assert!(values[2][2] > values[2][1], "col 2 > col 1 at row 2");
+        assert!(values[2][1] > values[2][0], "col 1 > col 0 at row 2");
+
+        // Center column (c=3) dominates all other columns at each row
+        for r in 0..rows {
+            for c in 0..cols {
+                if c != 3 {
+                    assert!(
+                        values[r][3] >= values[r][c],
+                        "center col ({},{}) {:.3} should >= ({},{}) {:.3}",
+                        r, 3, values[r][3], r, c, values[r][c]
+                    );
+                }
+            }
+        }
+
+        // Max:min ratio ≈ 13/3 ≈ 4.333
+        let max_val = values.iter().flat_map(|row| row.iter()).copied().fold(f64::MIN, f64::max);
+        assert!(
+            (max_val - 13.0 / 3.0).abs() < 0.15,
+            "max:min ratio should be ~4.33 (got {:.3})", max_val
+        );
+    }
+
+    /// Hex: 5×5 hexagonal board with shortest winning paths.
+    /// ODE equilibrium should recover anti-diagonal dominance and rotational symmetry.
+    #[test]
+    fn test_integer_reduction_hex() {
+        use pflow_solver::equilibrium::{solve_until_equilibrium, EquilibriumOptions};
+        use pflow_solver::methods;
+
+        let n = 5usize;
+
+        // Enumerate shortest top-to-bottom paths.
+        // From (r, c), next step: (r+1, c-1) or (r+1, c), if column in bounds.
+        fn tb_paths(n: usize, r: usize, c: usize, path: &mut Vec<(usize, usize)>, all: &mut Vec<Vec<(usize, usize)>>) {
+            path.push((r, c));
+            if r == n - 1 {
+                all.push(path.clone());
+            } else {
+                if c > 0 {
+                    tb_paths(n, r + 1, c - 1, path, all);
+                }
+                tb_paths(n, r + 1, c, path, all);
+            }
+            path.pop();
+        }
+
+        // Enumerate shortest left-to-right paths.
+        // From (r, c), next step: (r-1, c+1) or (r, c+1), if row in bounds.
+        fn lr_paths(n: usize, r: usize, c: usize, path: &mut Vec<(usize, usize)>, all: &mut Vec<Vec<(usize, usize)>>) {
+            path.push((r, c));
+            if c == n - 1 {
+                all.push(path.clone());
+            } else {
+                if r > 0 {
+                    lr_paths(n, r - 1, c + 1, path, all);
+                }
+                lr_paths(n, r, c + 1, path, all);
+            }
+            path.pop();
+        }
+
+        let mut all_paths: Vec<Vec<(usize, usize)>> = Vec::new();
+        for c in 0..n {
+            tb_paths(n, 0, c, &mut Vec::new(), &mut all_paths);
+        }
+        for r in 0..n {
+            lr_paths(n, r, 0, &mut Vec::new(), &mut all_paths);
+        }
+        assert_eq!(all_paths.len(), 96, "expected 48 TB + 48 LR = 96 shortest paths");
+
+        // Compute drain counts per cell from enumerated paths
+        let mut drain_counts = vec![vec![0usize; n]; n];
+        for path in &all_paths {
+            for &(r, c) in path {
+                drain_counts[r][c] += 1;
+            }
+        }
+
+        // Verify expected drain count matrix (TB + LR combined)
+        #[rustfmt::skip]
+        let expected_drains: [[usize; 5]; 5] = [
+            [ 2,  7, 15, 23, 32],
+            [ 7, 16, 26, 32, 23],
+            [15, 26, 32, 26, 15],
+            [23, 32, 26, 16,  7],
+            [32, 23, 15,  7,  2],
+        ];
+        for r in 0..n {
+            for c in 0..n {
+                assert_eq!(
+                    drain_counts[r][c], expected_drains[r][c],
+                    "drain count mismatch at ({},{})", r, c
+                );
+            }
+        }
+
+        // Build analysis net
+        let mut net = PetriNet::new();
+        for r in 0..n {
+            for c in 0..n {
+                net.add_place(format!("P{}_{}", r, c), vec![1.0], vec![], 0.0, 0.0, None);
+                net.add_place(format!("_X{}_{}", r, c), vec![0.0], vec![], 0.0, 0.0, None);
+            }
+        }
+        for r in 0..n {
+            for c in 0..n {
+                let t = format!("Play{}_{}", r, c);
+                net.add_transition(&t, "play", 0.0, 0.0, None);
+                net.add_arc(format!("P{}_{}", r, c), &t, vec![1.0], false);
+                net.add_arc(&t, format!("P{}_{}", r, c), vec![1.0], false);
+                net.add_arc(&t, format!("_X{}_{}", r, c), vec![1.0], false);
+            }
+        }
+        for (path_idx, path) in all_paths.iter().enumerate() {
+            for &(r, c) in path {
+                let t = format!("drain_{}_{}_{}", r, c, path_idx);
+                net.add_transition(&t, "drain", 0.0, 0.0, None);
+                net.add_arc(format!("_X{}_{}", r, c), &t, vec![1.0], false);
+            }
+        }
+
+        // Run ODE to equilibrium
+        let state = net.set_state(None);
+        let rates = net.set_rates(None);
+        let prob = Problem::new(net, state, [0.0, 200.0], rates);
+        let opts = Options { dt: 0.5, ..Options::default_opts() };
+        let eq_opts = EquilibriumOptions {
+            tolerance: 1e-4,
+            consecutive_steps: 3,
+            min_time: 0.5,
+            check_interval: 5,
+        };
+        let (_, result) = solve_until_equilibrium(&prob, &methods::tsit5(), &opts, &eq_opts);
+        assert!(result.reached, "ODE should reach equilibrium");
+
+        // Extract and invert concentrations
+        let mut raw = vec![vec![0.0f64; n]; n];
+        for r in 0..n {
+            for c in 0..n {
+                let key = format!("_X{}_{}", r, c);
+                raw[r][c] = result.state.get(&key).copied().unwrap_or(0.0);
+            }
+        }
+        let mut values = vec![vec![0.0f64; n]; n];
+        for r in 0..n {
+            for c in 0..n {
+                assert!(raw[r][c] > 1e-10, "cell ({},{}) should have positive concentration", r, c);
+                values[r][c] = 1.0 / raw[r][c];
+            }
+        }
+        let min_val = values.iter().flat_map(|row| row.iter()).copied().fold(f64::MAX, f64::min);
+        for r in 0..n {
+            for c in 0..n {
+                values[r][c] /= min_val;
+            }
+        }
+
+        // Verify values match expected drain count ratios
+        let min_drain = 2.0f64;
+        for r in 0..n {
+            for c in 0..n {
+                let expected = expected_drains[r][c] as f64 / min_drain;
+                assert!(
+                    (values[r][c] - expected).abs() < 0.1 * expected.max(1.0),
+                    "cell ({},{}) value {:.3} != expected {:.3} (drain count {})",
+                    r, c, values[r][c], expected, expected_drains[r][c]
+                );
+            }
+        }
+
+        // Center cell (2,2) > near-corner (1,1) > corner (0,0)
+        assert!(values[2][2] > values[1][1], "center ({:.2}) > near-corner ({:.2})", values[2][2], values[1][1]);
+        assert!(values[1][1] > values[0][0], "near-corner ({:.2}) > corner ({:.2})", values[1][1], values[0][0]);
+
+        // 180° rotation symmetry: value[r][c] ≈ value[n-1-r][n-1-c]
+        for r in 0..n {
+            for c in 0..n {
+                let sym_val = values[n - 1 - r][n - 1 - c];
+                assert!(
+                    (values[r][c] - sym_val).abs() < 0.05 * values[r][c].max(1.0),
+                    "symmetry: ({},{}) {:.3} != ({},{}) {:.3}",
+                    r, c, values[r][c], n - 1 - r, n - 1 - c, sym_val
+                );
+            }
+        }
+
+        // Anti-diagonal cells (0,4), (1,3), (2,2), (3,1), (4,0) all share max value
+        let center_val = values[2][2];
+        for i in 0..n {
+            let (r, c) = (i, n - 1 - i);
+            assert!(
+                (values[r][c] - center_val).abs() < 0.1 * center_val,
+                "anti-diagonal ({},{}) {:.3} should equal center {:.3}",
+                r, c, values[r][c], center_val
+            );
+        }
+
+        // Max:min ratio = 32/2 = 16
+        let max_val = values.iter().flat_map(|row| row.iter()).copied().fold(f64::MIN, f64::max);
+        assert!(
+            (max_val - 16.0).abs() < 0.5,
+            "max:min ratio should be ~16.0 (got {:.3})", max_val
+        );
+    }
+
     #[test]
     fn test_schema_macro_matches_runtime_parse() {
         let dsl_input = r#"(schema counter
