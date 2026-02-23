@@ -70,7 +70,7 @@ The central structural result is a \emph{decoupling lemma}: catalytic source pla
 Because these ODEs are fully decoupled, the equilibrium $x_i^* = 1/n_i$ is available in closed form---no iterative eigenvector computation or coupled fixed-point convergence is required.
 After normalization, the equilibrium concentrations yield exact rational (often integer) strategic values determined entirely by net topology.
 We validate the technique on $n \times n$ tic-tac-toe grids ($n = 3, 5, 7$), recovering the classical center--corner--edge hierarchy $\{4, 3, 2\}$ in every case; on poker hand rankings, recovering the full nine-tier hierarchy from drain counts derived from combinatorial frequencies; on Connect Four ($7 \times 6$, 4-in-a-row), recovering center-column dominance with a 13:3 value ratio; and on Hex ($5 \times 5$, shortest-path win conditions), recovering anti-diagonal dominance with a 16:1 value ratio from non-Cartesian topology.
-The same incidence matrix that defines the ODE system also serves as the constraint structure for Groth16 zero-knowledge proofs, enabling a unified pipeline from strategic analysis to on-chain verification.
+The same incidence matrix admits three complementary readings---discrete (Petri net firing rules), continuous (ODE equilibrium), and cryptographic (Groth16 ZK proofs)---with the decoupling lemma ensuring lossless round-trip between discrete and continuous semantics.
 \end{abstract}
 
 % ------------------------------------------------------------------
@@ -96,7 +96,7 @@ Normalization by the minimum concentration yields integers whenever the minimum 
 \begin{itemize}
   \item A formal definition of the \emph{analysis net} construction and a proof that its equilibrium concentrations are exact reciprocals of drain counts (Theorem~\ref{thm:integer-reduction}).
   \item Experimental validation on $3 \times 3$, $5 \times 5$, and $7 \times 7$ tic-tac-toe, poker hand rankings, Connect Four, and Hex---spanning uniform grids, frequency-weighted hierarchies, non-square grids, and non-Cartesian topologies.
-  \item A demonstration that the incidence matrix of the analysis net can serve double duty: defining the ODE system for strategic analysis and providing the constraint structure for Groth16 zero-knowledge proofs of game-state transitions.
+  \item A characterization of the incidence matrix as a \emph{semantic bridge} admitting three readings (discrete, continuous, cryptographic), with the decoupling lemma guaranteeing lossless discrete $\to$ continuous $\to$ discrete round-trip.
 \end{itemize}
 
 % ------------------------------------------------------------------
@@ -498,18 +498,30 @@ This illustrates how richer game topologies---non-square grids, variable-length 
 \section{Integration with Zero-Knowledge Proofs}
 \label{sec:zk}
 
-A distinctive feature of the Petri net representation is that the \emph{same} incidence matrix serves both the continuous analysis (ODE equilibrium) and the discrete proof system (ZK state transitions).
-This dual use enables a unified pipeline: analyze a game topology for strategic insights, then prove that actual game play follows the rules---all from a single mathematical object.
+A distinctive feature of the Petri net representation is that the \emph{same} incidence matrix admits three complementary readings---discrete, continuous, and cryptographic---each extracting different information from the same mathematical object.
+This three-way reading enables a unified pipeline: model a game as a Petri net, analyze its topology via ODE equilibrium, and prove that actual game play follows the rules.
 
-\subsection{Dual Use of the Incidence Matrix}
+\subsection{Three Readings of the Incidence Matrix}
 
-The incidence matrix $C$ extracted from a Petri net encodes:
+The incidence matrix $C$ extracted from a Petri net admits three complementary semantic interpretations:
 \begin{enumerate}
-  \item \textbf{ODE dynamics.}  The mass-action system $\dot{\mathbf{x}} = C \cdot \mathbf{v}(\mathbf{x})$ governs continuous equilibrium analysis.
-  \item \textbf{State transition constraints.}  The discrete firing rule $\mathbf{m}' = \mathbf{m} + C_t$ with enabledness checks $\mathbf{m}(p) \geq A^-(t,p)$ defines the R1CS constraints for a Groth16 circuit.
+  \item \textbf{Discrete.}  The firing rule $\mathbf{m}' = \mathbf{m} + C_t$ with enabledness checks $\mathbf{m}(p) \geq A^-(t,p)$ governs token dynamics.  Markings are integer vectors; transitions are discrete events.
+  \item \textbf{Continuous.}  The mass-action system $\dot{\mathbf{x}} = C \cdot \mathbf{v}(\mathbf{x})$ governs concentration dynamics.  States are real-valued vectors; evolution is smooth.
+  \item \textbf{Cryptographic.}  The same discrete firing rule, re-expressed over a prime field $\mathbb{F}_p$, defines R1CS constraints for a Groth16 circuit.  States are field elements; transitions are provable.
 \end{enumerate}
 
-In both cases, the matrix entries are derived from the same arc weights, and the canonical (alphabetically sorted) place and transition ordering ensures deterministic construction.
+All three readings share the same matrix entries (derived from arc weights) and the same canonical ordering of places and transitions.
+The incidence matrix thus serves as a \emph{semantic bridge}: a single mathematical object interpretable in discrete, continuous, or cryptographic semantics without modification.
+
+\paragraph{Discrete--continuous duality.}
+The passage between discrete and continuous readings is bidirectional.
+In the \emph{forward} direction, the \emph{exponential encoding} lifts integer token counts to real-valued concentrations: the discrete marking $\mathbf{m} \in \N^{|P|}$ becomes the initial condition $\mathbf{x}(0) \in \R_{\geq 0}^{|P|}$ for the ODE system.
+In the \emph{reverse} direction, \emph{integer reduction} recovers exact integers from continuous equilibrium: the steady-state concentrations $x_i^* = 1/n_i$ are inverted and normalized to yield $V_i = n_{\max}/n_i \in \mathbb{Q}^+$.
+
+The decoupling lemma (Lemma~\ref{lem:decoupling}) is what makes this round-trip lossless.
+Because the catalytic-pump construction produces fully decoupled ODEs, each equilibrium value depends on exactly one structural parameter~$n_i$---the discrete drain count.
+No information is lost in the continuous encoding, and no approximation contaminates the discrete recovery.
+The round-trip discrete $\to$ continuous $\to$ discrete preserves exact integer structure.
 
 \subsection{Proving Game State Transitions}
 
@@ -607,7 +619,8 @@ We have presented integer reduction, a technique that extracts exact integer str
 The method is grounded in a simple mathematical observation: under mass-action kinetics, catalytic source places and drain transitions produce decoupled linear ODEs whose equilibria are exact reciprocals of topological drain counts.
 Experimental validation on tic-tac-toe grids of varying size, poker hand rankings, Connect Four, and Hex confirms that the technique recovers correct strategic hierarchies across uniform grids, frequency-weighted domains, non-square boards, and non-Cartesian topologies.
 
-The dual use of the Petri net incidence matrix---for ODE equilibrium analysis and for Groth16 zero-knowledge proofs---creates a unified pipeline from game modeling through strategic analysis to on-chain verification.
+The incidence matrix bridges three semantic domains---discrete token dynamics, continuous ODE equilibrium, and cryptographic proof constraints---with the decoupling lemma ensuring a lossless round-trip between discrete and continuous readings.
+This three-way bridge creates a unified pipeline from game modeling through strategic analysis to on-chain verification.
 This pipeline is implemented in the open-source \texttt{pflow-rs} library.
 
 \paragraph{Future work.}
