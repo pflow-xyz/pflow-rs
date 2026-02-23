@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chess Integer Reduction</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    }
+    #app {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="custom/components.js"></script>
+  <script type="module">
+    await customElements.whenDefined('chess-app');
+    document.getElementById('app').innerHTML = '<chess-app></chess-app>';
+  </script>
+</body>
+</html>
