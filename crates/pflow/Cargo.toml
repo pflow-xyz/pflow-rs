@@ -45,3 +45,7 @@ required-features = ["zk-arkworks", "zk-risc0"]
 [[example]]
 name = "zk_compare"
 required-features = ["zk-arkworks", "zk-risc0"]
+
+[[example]]
+name = "zk_tictactoe"
+required-features = ["zk-arkworks"]
