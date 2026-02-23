@@ -10,7 +10,7 @@ keywords = ["token-model", "state-machine", "petri-net", "schema"]
 categories = ["simulation", "data-structures"]
 
 [dependencies]
-pflow-core = { path = "../pflow-core", version = "0.1.1" }
+pflow-core = { path = "../pflow-core", version = "0.2.1" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
