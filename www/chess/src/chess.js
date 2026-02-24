@@ -1,14 +1,14 @@
 // Chess Integer Reduction — Analysis Engine
 // Pure computation: attack generation, drain sums, FEN parsing, normalization.
 
-const DIAG = [[-1,-1],[-1,1],[1,-1],[1,1]];
-const ORTHO = [[-1,0],[1,0],[0,-1],[0,1]];
-const ALL8 = [...DIAG, ...ORTHO];
-const KNIGHT_DELTAS = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+export const DIAG = [[-1,-1],[-1,1],[1,-1],[1,1]];
+export const ORTHO = [[-1,0],[1,0],[0,-1],[0,1]];
+export const ALL8 = [...DIAG, ...ORTHO];
+export const KNIGHT_DELTAS = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
 
 export const PIECE_WEIGHTS = { P: 1, N: 3, B: 3, R: 5, Q: 9, K: 1 };
 
-function inBounds(r, c) { return r >= 0 && r < 8 && c >= 0 && c < 8; }
+export function inBounds(r, c) { return r >= 0 && r < 8 && c >= 0 && c < 8; }
 
 function knightMoves(r, c) {
     return KNIGHT_DELTAS
@@ -72,7 +72,7 @@ function slidingAttacksBlocked(r, c, dirs, occupied) {
     return attacks;
 }
 
-function pieceAttacksBlocked(type, color, r, c, occupied) {
+export function pieceAttacksBlocked(type, color, r, c, occupied) {
     switch (type) {
         case 'N': return knightMoves(r, c);
         case 'K': return kingMoves(r, c);
@@ -170,6 +170,25 @@ export function computePhase3(fen) {
     const result = normalize(sums);
     result.board = board;
     return result;
+}
+
+export function computePhase3Sided(fen) {
+    const board = parseFEN(fen);
+    const occupied = board.map(row => row.map(cell => cell !== null));
+    const white = Array.from({ length: 8 }, () => Array(8).fill(0));
+    const black = Array.from({ length: 8 }, () => Array(8).fill(0));
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const piece = board[r][c];
+            if (piece) {
+                const grid = piece.color === 'w' ? white : black;
+                for (const [tr, tc] of pieceAttacksBlocked(piece.type, piece.color, r, c, occupied)) {
+                    grid[tr][tc] += PIECE_WEIGHTS[piece.type];
+                }
+            }
+        }
+    }
+    return { white, black };
 }
 
 export const PRESETS = [

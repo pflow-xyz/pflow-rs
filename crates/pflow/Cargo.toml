@@ -20,7 +20,13 @@ pflow-zk = { path = "../pflow-zk", version = "0.2.1", optional = true }
 pflow-zk-arkworks = { path = "../pflow-zk-arkworks", version = "0.2.1", optional = true }
 pflow-zk-risc0 = { path = "../pflow-zk-risc0", version = "0.2.1", optional = true }
 
+axum = { version = "0.8", optional = true }
+tower-http = { version = "0.6", features = ["fs", "set-header"], optional = true }
+tokio = { version = "1", features = ["full"], optional = true }
+http = { version = "1", optional = true }
+
 [features]
+serve = ["dep:axum", "dep:tower-http", "dep:tokio", "dep:http"]
 zk = ["dep:pflow-zk"]
 zk-arkworks = ["zk", "dep:pflow-zk-arkworks"]
 zk-risc0 = ["zk", "dep:pflow-zk-risc0"]
@@ -54,6 +60,10 @@ required-features = ["zk-arkworks"]
 [[example]]
 name = "zk_holdem"
 required-features = ["zk-arkworks"]
+
+[[bin]]
+name = "serve"
+required-features = ["serve"]
 
 [[example]]
 name = "chess"
