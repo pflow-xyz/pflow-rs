@@ -174,21 +174,29 @@ export function computePhase3(fen) {
 
 export function computePhase3Sided(fen) {
     const board = parseFEN(fen);
+    return computePressureFromBoard(board);
+}
+
+export function computePressureFromBoard(board) {
     const occupied = board.map(row => row.map(cell => cell !== null));
     const white = Array.from({ length: 8 }, () => Array(8).fill(0));
     const black = Array.from({ length: 8 }, () => Array(8).fill(0));
+    const whiteCount = Array.from({ length: 8 }, () => Array(8).fill(0));
+    const blackCount = Array.from({ length: 8 }, () => Array(8).fill(0));
     for (let r = 0; r < 8; r++) {
         for (let c = 0; c < 8; c++) {
             const piece = board[r][c];
             if (piece) {
                 const grid = piece.color === 'w' ? white : black;
+                const countGrid = piece.color === 'w' ? whiteCount : blackCount;
                 for (const [tr, tc] of pieceAttacksBlocked(piece.type, piece.color, r, c, occupied)) {
                     grid[tr][tc] += PIECE_WEIGHTS[piece.type];
+                    countGrid[tr][tc] += 1;
                 }
             }
         }
     }
-    return { white, black };
+    return { white, black, whiteCount, blackCount };
 }
 
 export const PRESETS = [

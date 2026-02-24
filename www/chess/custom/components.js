@@ -565,8 +565,9 @@ select {
   <button class="btn" id="undo" disabled>Undo</button>
   <label>Engine:
     <select id="engine">
-      <option value="pressure-2">Phase 3 Pressure (Easy)</option>
-      <option value="pressure-3">Phase 3 Pressure (Medium)</option>
+      <option value="pressure-2">Pressure (Easy)</option>
+      <option value="pressure-3">Pressure (Medium)</option>
+      <option value="pressure-4">Pressure (Hard)</option>
       <option value="stockfish-easy">Stockfish (Easy)</option>
       <option value="stockfish-medium" selected>Stockfish (Medium)</option>
       <option value="stockfish-hard">Stockfish (Hard)</option>
@@ -969,7 +970,7 @@ a { color: #667eea; }
             this._stockfish?.destroy();
             this._stockfish = null;
             // Fallback to pressure engine
-            gc.setStatus('Stockfish failed — falling back to Phase 3', '');
+            gc.setStatus('Stockfish failed — falling back to Pressure', '');
             this._engineType = 'pressure';
             this._engineParam = '3';
             setTimeout(() => this._aiMove(), 100);
