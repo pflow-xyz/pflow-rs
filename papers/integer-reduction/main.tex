@@ -115,7 +115,11 @@ It encodes the full topology of the net and is the central object connecting the
 
 \subsection{Mass-Action Kinetics}
 
-Under \emph{mass-action kinetics}, each transition $t$ has a rate constant $k_t > 0$ and induces a flux
+The mathematical framework for mass-action kinetics in reaction networks was established by Horn and Jackson~\cite{horn1972} and subsequently developed into a comprehensive theory by Feinberg~\cite{feinberg1979,feinberg2019}.
+Their \emph{chemical reaction network theory} (CRNT) studies the ODE systems that arise when reaction rates follow the law of mass action, first formulated by Guldberg and Waage~\cite{guldberg1864}.
+The isomorphism between Petri nets and chemical reaction networks is well known~\cite{heiner2008}: places correspond to chemical species, transitions to reactions, and the incidence matrix to the stoichiometric matrix.
+
+Under mass-action kinetics, each transition $t$ has a rate constant $k_t > 0$ and induces a flux
 \[
   v_t(\mathbf{x}) = k_t \prod_{p \in {}^{\bullet}t} x_p^{A^-(t,p)},
 \]
@@ -125,8 +129,11 @@ The ODE system governing the evolution of concentrations is
   \dot{\mathbf{x}} = C \cdot \mathbf{v}(\mathbf{x}),
 \end{equation}
 where $\mathbf{v}(\mathbf{x}) = (v_t(\mathbf{x}))_{t \in T}$ is the flux vector.
+This is precisely the deterministic rate equation of CRNT~\cite{horn1972}.
 
 When the system reaches a steady state $\mathbf{x}^*$ with $\dot{\mathbf{x}} = \mathbf{0}$, the concentrations encode a balance between production and consumption that reflects the topological connectivity of the net.
+The existence, uniqueness, and stability of such equilibria are the central concern of CRNT; Feinberg's \emph{deficiency zero theorem}~\cite{feinberg1979} gives sufficient conditions for unique positive equilibria in mass-action systems.
+Our analysis net construction satisfies stronger conditions---full decoupling---so we prove equilibrium properties directly (Theorem~\ref{thm:integer-reduction}) rather than invoking the general theory.
 
 \subsection{Equilibrium Detection}
 
@@ -705,9 +712,11 @@ Because the system is decoupled, convergence is rapid (exponential, with rate $n
 \section{Related Work}
 \label{sec:related}
 
-\paragraph{Petri nets and continuous semantics.}
-The interpretation of Petri nets via ODEs dates to the chemical master equation and deterministic rate equations in systems biology~\cite{heiner2008,gilbert2006}.
-Our analysis net construction is novel in using catalytic transitions and drain-count-based equilibria for strategic analysis.
+\paragraph{Chemical reaction network theory.}
+The ODE semantics we employ is a direct application of mass-action kinetics, whose mathematical foundations were laid by Horn and Jackson~\cite{horn1972} and developed into chemical reaction network theory (CRNT) by Feinberg~\cite{feinberg1979,feinberg2019}.
+CRNT classifies reaction networks by their deficiency and linkage structure, yielding powerful theorems about equilibrium existence and uniqueness.
+The connection between Petri nets and chemical reaction networks has been exploited extensively in systems biology~\cite{heiner2008,gilbert2006}, where the stoichiometric matrix is exactly the Petri net incidence matrix.
+Our contribution is not the ODE simulation itself---which is classical---but the specific \emph{analysis net construction} whose catalytic-pump topology guarantees full decoupling, yielding closed-form equilibria that bypass CRNT's general iterative methods.
 
 \paragraph{Game-theoretic evaluation.}
 Classical game theory evaluates positions via minimax, Nash equilibria, or potential functions~\cite{monderer1996}.
@@ -755,10 +764,30 @@ P.~Bonacich.
 \newblock Power and centrality: A family of measures.
 \newblock \emph{American Journal of Sociology}, 92(5):1170--1182, 1987.
 
+\bibitem{feinberg1979}
+M.~Feinberg.
+\newblock Lectures on chemical reaction networks.
+\newblock Notes of lectures given at the Mathematics Research Center, University of Wisconsin, 1979.
+
+\bibitem{feinberg2019}
+M.~Feinberg.
+\newblock \emph{Foundations of Chemical Reaction Network Theory}.
+\newblock Springer, 2019.
+
 \bibitem{gale1979}
 D.~Gale.
 \newblock The game of Hex and the Brouwer fixed-point theorem.
 \newblock \emph{The American Mathematical Monthly}, 86(10):818--827, 1979.
+
+\bibitem{guldberg1864}
+C.~M.~Guldberg and P.~Waage.
+\newblock Studies concerning affinity.
+\newblock \emph{Forhandlinger: Videnskabs-Selskabet i Christiania}, 35, 1864.
+
+\bibitem{horn1972}
+F.~Horn and R.~Jackson.
+\newblock General mass action kinetics.
+\newblock \emph{Archive for Rational Mechanics and Analysis}, 47(2):81--116, 1972.
 
 \bibitem{gilbert2006}
 D.~Gilbert and M.~Heiner.
