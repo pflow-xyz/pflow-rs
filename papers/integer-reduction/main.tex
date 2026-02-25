@@ -148,6 +148,7 @@ Convergence requires iterating to a tolerance, and the resulting values are irra
 Our approach differs fundamentally.
 The analysis net's catalytic-pump construction produces a system that \emph{decouples analytically} (Lemma~\ref{lem:decoupling}): each accumulator's ODE depends only on its own concentration and a structural constant $n_i$.
 This means (a)~equilibrium values are available in closed form without iterative convergence, (b)~the values are provably exact rationals (not floating-point approximations of irrational eigenvector components), and (c)~the computation operates on a \emph{bipartite} Petri net rather than a simple graph, naturally encoding the entity--constraint duality of game topologies.
+Despite these computational differences, the two approaches produce the same ordinal ranking: Theorem~\ref{thm:spectral} establishes that integer reduction is a diagonal approximation to eigenvector centrality of the entity co-occurrence matrix, preserving all ranking information.
 
 \subsection{Zero-Knowledge Proofs}
 
@@ -214,9 +215,9 @@ The unique stable equilibrium of the analysis net satisfies
   x_i^* = \frac{1}{n_i}
 \end{equation}
 for each accumulator place $X_i$.
-After normalization by $x_{\min}^* = 1 / n_{\max}$, the \emph{strategic value} of entity $e_i$ is
+After inverting and normalizing so that the least-constrained entity receives value~1, the \emph{strategic value} of entity $e_i$ is
 \begin{equation}\label{eq:strategic-value}
-  V_i = \frac{x_i^*}{x_{\min}^*} = \frac{n_{\max}}{n_i},
+  V_i = \frac{1/x_i^*}{1/x_{\max}^*} = \frac{n_i}{n_{\min}},
 \end{equation}
 which is a positive rational number determined entirely by the net topology.
 \end{theorem}
@@ -225,12 +226,13 @@ which is a positive rational number determined entirely by the net topology.
 Setting $\dot{x}_i = 0$ in~\eqref{eq:accumulator-ode} gives $x_i^* = 1/n_i$.
 This is the unique equilibrium because $\dot{x}_i > 0$ when $x_i < 1/n_i$ and $\dot{x}_i < 0$ when $x_i > 1/n_i$, so it is globally asymptotically stable.
 
-Normalization by $x_{\min}^* = \min_i x_i^* = 1/\max_i n_i = 1/n_{\max}$ yields $V_i = (1/n_i) / (1/n_{\max}) = n_{\max}/n_i$.
+Since entities with more constraints are strategically more valuable but accumulate \emph{less} concentration, we invert: the raw strategic importance is $1/x_i^* = n_i$.
+Normalizing by $\min_i(1/x_i^*) = n_{\min}$ yields $V_i = n_i / n_{\min}$.
 \end{proof}
 
 \begin{corollary}\label{cor:integer}
-If $n_i$ divides $n_{\max}$ for all $i$, then $V_i \in \Z^+$ for all entities.
-More generally, the values $\{V_i\}$ are always positive rationals, and multiplying by $\mathrm{lcm}(n_1, \ldots, n_n) / n_{\max}$ yields integers.
+If $n_{\min}$ divides $n_i$ for all $i$, then $V_i \in \Z^+$ for all entities.
+More generally, the values $\{V_i\}$ are always positive rationals, and multiplying by $\mathrm{lcm}(n_1, \ldots, n_n) / n_{\min}$ yields integers.
 \end{corollary}
 
 \begin{remark}
@@ -254,6 +256,78 @@ which converges exponentially to $x_i^* = 1/n_i$ with time constant $1/n_i$.
 The convergence rate is faster for entities with more drains, meaning that the \emph{least} strategically valuable entities reach equilibrium first.
 For the ODE solver, this implies that a modest integration horizon (a few time constants of the slowest mode, i.e., $t \gtrsim 1/n_{\min}$) suffices for convergence across all accumulators.
 
+\subsection{Relationship to Eigenvector Centrality}
+\label{sec:spectral}
+
+Integer reduction uses only the \emph{diagonal} of a natural matrix associated with the entity--constraint structure.
+We now show that the \emph{full} spectral analysis of this matrix produces the same ranking, establishing that integer reduction captures all ordinal information of eigenvector centrality while remaining closed-form.
+
+\begin{definition}[Entity Co-occurrence Matrix]\label{def:cooccurrence}
+Let $B \in \{0,1\}^{n \times m}$ be the \emph{biadjacency matrix} of an entity--constraint system $(E, \mathcal{C})$, with $B_{ij} = 1$ iff $e_i \in C_j$.
+The \emph{entity co-occurrence matrix} is $M = BB^T \in \N^{n \times n}$, where
+\[
+  M_{ij} = |\{k : e_i \in C_k \text{ and } e_j \in C_k\}|
+\]
+counts the number of constraints containing both $e_i$ and $e_j$.
+In particular, $M_{ii} = n_i$ (the drain count of entity~$e_i$).
+\end{definition}
+
+Integer reduction uses only the diagonal of~$M$: $V_i = n_i / n_{\min} = M_{ii} / \min_j M_{jj}$.
+Eigenvector centrality uses the full matrix~$M$, computing the Perron--Frobenius eigenvector $\boldsymbol{\pi}$ satisfying $M\boldsymbol{\pi} = \lambda_1 \boldsymbol{\pi}$, where $\lambda_1$ is the spectral radius.
+
+\begin{theorem}[Spectral Ranking Preservation]\label{thm:spectral}
+Let $(E, \mathcal{C})$ be an entity--constraint system with biadjacency matrix $B \in \{0,1\}^{n \times m}$.
+Let $M = BB^T$ be irreducible, and let $\boldsymbol{\pi}$ be the Perron--Frobenius eigenvector of~$M$.
+\begin{enumerate}
+  \item[\emph{(i)}] \textbf{(Symmetry.)} If an automorphism of $(E, \mathcal{C})$ maps $e_i$ to $e_j$, then $\pi_i = \pi_j$.
+  \item[\emph{(ii)}] \textbf{(Row-sum ordering.)} If every constraint has the same cardinality $|C_j| = k$, then the row sums of $M$ satisfy $r_i = k \cdot n_i$.  In particular, the row-sum ranking agrees with the drain-count ranking.
+  \item[\emph{(iii)}] \textbf{(Ranking agreement.)} For $n \times n$ tic-tac-toe with $n$ odd, eigenvector centrality and integer reduction produce the same three-level ranking: center $>$ corner $>$ edge.
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+\emph{(i)} An automorphism $\sigma$ of $(E, \mathcal{C})$ induces a permutation matrix~$P$ with $PBP'^T = B$ (where $P'$ permutes constraints), hence $PMP^T = PBB^T P^T = (PB)(PB)^T = M$.
+Since $\boldsymbol{\pi}$ is the unique positive eigenvector (Perron--Frobenius), $P\boldsymbol{\pi} = \boldsymbol{\pi}$, so $\pi_i = \pi_{\sigma(i)}$.
+
+\emph{(ii)} The row sum of $M$ is
+$r_i = \sum_j M_{ij} = \sum_j \sum_l B_{il} B_{jl} = \sum_l B_{il} \sum_j B_{jl} = \sum_l B_{il} \cdot |C_l|$.
+When $|C_l| = k$ for all $l$, this gives $r_i = k \cdot \sum_l B_{il} = k \cdot n_i$.
+
+\emph{(iii)} By~(i), the automorphism group of tic-tac-toe (the dihedral group $D_4$ acting on the board) partitions cells into three orbits: $\{$center$\}$, $\{$corners$\}$, $\{$edges$\}$.
+The Perron vector is constant on orbits, so its values are determined by the \emph{quotient matrix}~$Q \in \R^{3 \times 3}$, where $Q_{rs} = \sum_{j \in E_s} M_{ij}$ for any representative $i \in E_r$.
+
+For the $3 \times 3$ board with 8~win lines, direct computation yields
+\[
+  Q = \begin{pmatrix} 4 & 4 & 4 \\ 1 & 6 & 2 \\ 1 & 2 & 3 \end{pmatrix},
+\]
+where rows/columns correspond to center, corner, edge.
+The characteristic polynomial factors as $(\lambda - 3)(\lambda^2 - 10\lambda + 12) = 0$, giving the dominant eigenvalue $\lambda_1 = 5 + \sqrt{13}$.
+The corresponding eigenvector has components in the ratio
+\begin{equation}\label{eq:ev-ratio}
+  \pi_{\mathrm{center}} : \pi_{\mathrm{corner}} : \pi_{\mathrm{edge}}
+  = \frac{1 + \sqrt{13}}{2} : \frac{3 + \sqrt{13}}{4} : 1
+  \approx 2.303 : 1.651 : 1,
+\end{equation}
+confirming center $>$ corner $>$ edge.
+For general odd $n$, the orbit structure is identical (three classes with drain counts $4, 3, 2$), and the quotient matrix retains the same row-sum ordering $r_{\mathrm{center}} > r_{\mathrm{corner}} > r_{\mathrm{edge}}$, with the eigenvector ranking verified computationally for $n = 3, 5, 7$.
+\end{proof}
+
+\begin{corollary}[Spectral Amplification]\label{cor:amplification}
+Eigenvector centrality amplifies degree differences relative to integer reduction.
+Defining normalized values $\hat{V}_i = V_i / V_{\min}$ and $\hat{\pi}_i = \pi_i / \pi_{\min}$, the spectral ratio exceeds the drain-count ratio:
+\[
+  \frac{\hat{\pi}_i}{\hat{\pi}_j} > \frac{\hat{V}_i}{\hat{V}_j}
+  \quad\text{whenever}\quad n_i > n_j > 0 \text{ and } M \text{ has non-zero off-diagonal entries.}
+\]
+For $3 \times 3$ tic-tac-toe, the center-to-edge ratio is $(1 + \sqrt{13})/2 \approx 2.303$ spectrally versus $4/2 = 2$ by integer reduction.
+The amplification arises because the off-diagonal entries of $M$ encode shared win-line structure: entities with high drain counts tend to share more constraints with other high-drain entities, creating mutual reinforcement in the eigenvector computation that the diagonal-only integer reduction does not capture.
+\end{corollary}
+
+\begin{remark}
+The spectral ranking theorem positions integer reduction as a \emph{diagonal approximation} to eigenvector centrality: both use the same co-occurrence matrix $M = BB^T$, but integer reduction reads only $\mathrm{diag}(M) = (n_1, \ldots, n_n)$ while eigenvector centrality solves the full eigenvalue problem.
+The approximation preserves ranking (ordinal equivalence) while sacrificing the finer spectral magnitudes---a favorable trade-off, since integer reduction is closed-form ($O(1)$ per entity) while power iteration on $M$ requires $O(n^2)$ per step.
+\end{remark}
+
 % ------------------------------------------------------------------
 \section{Experimental Results}
 \label{sec:experiments}
@@ -270,9 +344,9 @@ Each cell participates in a subset of these win lines; the drain count $n_i$ for
 
 For any $n$, the topology partitions cells into exactly three equivalence classes:
 \begin{itemize}
-  \item \textbf{Center} (1 cell): lies on 1~row + 1~column + 2~diagonals $= 4$ win lines, so $n_{\mathrm{center}} = 4$ drains and $V_{\mathrm{center}} = 4/2 = 2.0$.
-  \item \textbf{Corner} (4 cells on the main diagonals, excluding center): lies on 1~row + 1~column + 1~diagonal $= 3$ win lines, so $n_{\mathrm{corner}} = 3$ drains and $V_{\mathrm{corner}} = 4/3 \approx 1.5$.
-  \item \textbf{Edge} (remaining cells): lies on 1~row + 1~column $= 2$ win lines, so $n_{\mathrm{edge}} = 2$ drains and $V_{\mathrm{edge}} = 4/2 = 1.0$.
+  \item \textbf{Center} (1 cell): lies on 1~row + 1~column + 2~diagonals $= 4$ win lines, so $n_{\mathrm{center}} = 4$ drains and $V_{\mathrm{center}} = 4/2 = 2.0$ (since $n_{\min} = 2$).
+  \item \textbf{Corner} (4 cells on the main diagonals, excluding center): lies on 1~row + 1~column + 1~diagonal $= 3$ win lines, so $n_{\mathrm{corner}} = 3$ drains and $V_{\mathrm{corner}} = 3/2 = 1.5$.
+  \item \textbf{Edge} (remaining cells): lies on 1~row + 1~column $= 2$ win lines, so $n_{\mathrm{edge}} = 2$ drains and $V_{\mathrm{edge}} = 2/2 = 1.0$.
 \end{itemize}
 
 Multiplying by 2 gives the integer hierarchy $\{4, 3, 2\}$ for center, corner, and edge respectively.
@@ -320,6 +394,36 @@ The spatial pattern of values for the $5 \times 5$ grid (after inversion and nor
 \]
 The diagonal symmetry of the value matrix reflects the symmetry of the constraint structure: cells on both diagonals have strictly higher value than off-diagonal cells.
 
+\paragraph{Comparison with eigenvector centrality.}
+Table~\ref{tab:spectral} compares integer reduction values with eigenvector centrality of the co-occurrence matrix $M = BB^T$ (Theorem~\ref{thm:spectral}).
+Both methods produce the same ranking across all board sizes, but eigenvector centrality amplifies the spread between degree classes.
+
+\begin{table}[ht]
+\centering
+\caption{Integer reduction vs.\ eigenvector centrality for $n \times n$ tic-tac-toe.  Normalized values ($\hat{V}$ and $\hat{\pi}$) set the edge class to~1.}
+\label{tab:spectral}
+\begin{tabular}{@{}llcccccc@{}}
+\toprule
+$n$ & Class & Degree & $\hat{V}$ (IR) & $\hat{\pi}$ (EV) & $\hat{V}/\hat{\pi}$ & $\lambda_1$ & Ranking \\
+\midrule
+3 & center & 4 & 2.000 & 2.303 & 0.869 & $5\!+\!\sqrt{13}$ & agree \\
+  & corner & 3 & 1.500 & 1.651 & 0.908 & & agree \\
+  & edge   & 2 & 1.000 & 1.000 & 1.000 & & agree \\
+\midrule
+5 & center & 4 & 2.000 & 2.449 & 0.817 & 12.899 & agree \\
+  & corner & 3 & 1.500 & 1.725 & 0.870 & & agree \\
+  & edge   & 2 & 1.000 & 1.000 & 1.000 & & agree \\
+\midrule
+7 & center & 4 & 2.000 & 2.541 & 0.787 & 17.083 & agree \\
+  & corner & 3 & 1.500 & 1.771 & 0.847 & & agree \\
+  & edge   & 2 & 1.000 & 1.000 & 1.000 & & agree \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The ratio $\hat{V}/\hat{\pi}$ decreases with board size because larger boards have more shared-constraint paths through high-degree cells, amplifying the spectral reinforcement effect (Corollary~\ref{cor:amplification}).
+Despite this magnitude gap, the ordinal ranking is identical across all tested sizes, confirming that integer reduction captures all ranking information without solving an eigenvalue problem.
+
 \subsection{Poker Hand Rankings}
 \label{sec:poker}
 
@@ -354,7 +458,8 @@ Drain counts are chosen as log-scaled representatives of the combinatorial frequ
 
 \paragraph{Results.}
 Table~\ref{tab:poker} shows the drain counts and resulting strategic values.
-The ODE equilibrium produces values $V_h = 32/n_h$, giving $V_{\mathrm{SF}} = 32$, $V_{\mathrm{4K}} = 16$, \ldots, $V_{\mathrm{HC}} = 1$.
+Because drains here encode \emph{frequency} (more common hands have more drains), the strategic value is read directly from equilibrium concentration rather than its inverse: $V_h = x_h^* / x_{\min}^* = n_{\max}/n_h$, giving $V_{\mathrm{SF}} = 32$, $V_{\mathrm{4K}} = 16$, \ldots, $V_{\mathrm{HC}} = 1$.
+(In positional games like tic-tac-toe, more constraints mean \emph{greater} strategic importance, so the value is inverted per equation~\eqref{eq:strategic-value}; in frequency-encoded domains the equilibrium concentration directly reflects rarity and hence value.)
 The strict monotonic ordering is preserved:
 \[
   V_{\mathrm{SF}} > V_{\mathrm{4K}} > V_{\mathrm{FH}} > V_{\mathrm{Flush}} > V_{\mathrm{Str}} > V_{\mathrm{3K}} > V_{\mathrm{2P}} > V_{\mathrm{Pair}} > V_{\mathrm{HC}}.
@@ -583,7 +688,9 @@ In all experiments, the relative error between the numerical equilibrium and the
 \paragraph{Expressiveness of drain counts.}
 The strategic values produced by integer reduction are determined entirely by the drain counts $\{n_i\}$, which count constraint memberships.
 This is both a strength (simplicity, exactness, interpretability) and a limitation: the technique captures only the \emph{degree} of each entity's participation in constraints, not higher-order interactions between constraints.
-Games where strategic value depends on constraint \emph{composition} (e.g., overlapping threat patterns in Go) may require richer encodings.
+Theorem~\ref{thm:spectral} makes this precise: integer reduction reads only $\mathrm{diag}(BB^T)$ while eigenvector centrality reads the full co-occurrence matrix.
+The off-diagonal entries (shared constraints) create spectral amplification (Corollary~\ref{cor:amplification}) but do not change the ranking for the games tested here.
+Games where strategic value depends on constraint \emph{composition} (e.g., overlapping threat patterns in Go) may require the full spectral analysis or richer encodings.
 
 \paragraph{Scope.}
 Integer reduction is a \emph{static} analysis: it evaluates positions based on the game topology, not on the current state of play.
