@@ -77,6 +77,15 @@ pflow = { features = ["zk"] }                # Shared traits only
 - `State = HashMap<String, f64>` — place label to token count
 - `Marking = Vec<i64>` — integer marking in canonical place order (ZK)
 
+## Paper (papers/integer-reduction/)
+
+The incidence reduction paper is in `papers/integer-reduction/main.tex`. No local LaTeX install — build on pflow.dev:
+
+```bash
+ssh pflow.dev "cd ~/Workspace/pflow-rs && git pull && cd papers/integer-reduction && pdflatex -interaction=nonstopmode main.tex"
+scp pflow.dev:~/Workspace/pflow-rs/papers/integer-reduction/main.pdf papers/integer-reduction/main.pdf
+```
+
 ## Architecture Notes
 
 - Places/transitions sorted alphabetically in `IncidenceMatrix` for deterministic circuit construction

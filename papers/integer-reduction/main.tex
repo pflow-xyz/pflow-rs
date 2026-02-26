@@ -135,7 +135,9 @@ This is precisely the deterministic rate equation of CRNT~\cite{horn1972}.
 
 When the system reaches a steady state $\mathbf{x}^*$ with $\dot{\mathbf{x}} = \mathbf{0}$, the concentrations encode a balance between production and consumption that reflects the topological connectivity of the net.
 The existence, uniqueness, and stability of such equilibria are the central concern of CRNT; Feinberg's \emph{deficiency zero theorem}~\cite{feinberg1979} gives sufficient conditions for unique positive equilibria in mass-action systems.
-Our analysis net construction satisfies stronger conditions---full decoupling---so we prove equilibrium properties directly (Theorem~\ref{thm:incidence-reduction}) rather than invoking the general theory.
+Indeed, because the catalytic source places hold constant concentration, the effective reaction network reduces to $n$ independent reversible pairs $\varnothing \rightleftharpoons X_i$, each forming a single linkage class with two complexes and stoichiometric rank one.
+The deficiency of each subsystem is therefore $\delta = 2 - 1 - 1 = 0$, and since each pair is weakly reversible, the Deficiency Zero Theorem~\cite{feinberg1987} guarantees a unique positive equilibrium in each stoichiometric compatibility class.
+We give a direct proof (Theorem~\ref{thm:incidence-reduction}) because the fully decoupled structure yields a stronger result: closed-form equilibria $x_i^* = 1/n_i$, not merely existence and uniqueness.
 
 \subsection{Equilibrium Detection}
 
@@ -217,6 +219,11 @@ $\dot{x}_i = v_i^{\mathrm{play}} - \sum_{j : e_i \in C_j} v_{i,j}^{\mathrm{drain
 
 This ODE involves only $x_i$ and the structural constant $n_i$, so the accumulator ODEs are fully decoupled.
 \end{proof}
+
+\begin{remark}
+The analysis net has deficiency zero in the sense of Feinberg~\cite{feinberg1987}: because catalytic source places maintain constant concentration, the effective network reduces to $n$ independent pairs $\varnothing \rightleftharpoons X_i$, each with deficiency $\delta = 2 - 1 - 1 = 0$.
+The Deficiency Zero Theorem therefore guarantees a unique positive equilibrium; the direct proof below yields the stronger closed-form result $x_i^* = 1/n_i$.
+\end{remark}
 
 \begin{theorem}[Incidence Reduction]\label{thm:incidence-reduction}
 The unique stable equilibrium of the analysis net satisfies
@@ -321,20 +328,21 @@ confirming center $>$ corner $>$ edge.
 For general odd $n$, the orbit structure is identical (three classes with drain counts $4, 3, 2$), and the quotient matrix retains the same row-sum ordering $r_{\mathrm{center}} > r_{\mathrm{corner}} > r_{\mathrm{edge}}$, with the eigenvector ranking verified computationally for $n = 3, 5, 7$.
 \end{proof}
 
-\begin{corollary}[Spectral Amplification]\label{cor:amplification}
-Eigenvector centrality amplifies degree differences relative to incidence reduction.
+\begin{remark}[Spectral Amplification]\label{rem:amplification}
+For all games tested, eigenvector centrality amplifies degree differences relative to incidence reduction.
 Defining normalized values $\hat{V}_i = V_i / V_{\min}$ and $\hat{\pi}_i = \pi_i / \pi_{\min}$, the spectral ratio exceeds the drain-count ratio:
-\[
-  \frac{\hat{\pi}_i}{\hat{\pi}_j} > \frac{\hat{V}_i}{\hat{V}_j}
-  \quad\text{whenever}\quad n_i > n_j > 0 \text{ and } M \text{ has non-zero off-diagonal entries.}
-\]
-For $3 \times 3$ tic-tac-toe, the center-to-edge ratio is $(1 + \sqrt{13})/2 \approx 2.303$ spectrally versus $4/2 = 2$ by incidence reduction.
+for $3 \times 3$ tic-tac-toe, the center-to-edge ratio is $(1 + \sqrt{13})/2 \approx 2.303$ spectrally versus $4/2 = 2$ by incidence reduction.
 The amplification arises because the off-diagonal entries of $M$ encode shared win-line structure: entities with high drain counts tend to share more constraints with other high-drain entities, creating mutual reinforcement in the eigenvector computation that the diagonal-only incidence reduction does not capture.
-\end{corollary}
+This amplification is verified computationally for all games in Section~\ref{sec:experiments} but is not claimed to hold in general.
+\end{remark}
 
-\begin{remark}
-The spectral ranking theorem positions incidence reduction as a \emph{diagonal approximation} to eigenvector centrality: both use the same co-occurrence matrix $M = BB^T$, but incidence reduction reads only $\mathrm{diag}(M) = (n_1, \ldots, n_n)$ while eigenvector centrality solves the full eigenvalue problem.
-The approximation preserves ranking (ordinal equivalence) while sacrificing the finer spectral magnitudes---a favorable trade-off, since incidence reduction is closed-form ($O(1)$ per entity) while power iteration on $M$ requires $O(n^2)$ per step.
+\begin{remark}[Ranking Agreement and Its Limits]\label{rem:ranking-limits}
+Incidence reduction is a \emph{diagonal approximation} to eigenvector centrality: both use the same co-occurrence matrix $M = BB^T$, but incidence reduction reads only $\mathrm{diag}(M) = (n_1, \ldots, n_n)$ while eigenvector centrality solves the full eigenvalue problem.
+The approximation preserves ranking (ordinal equivalence) for all games tested here, yielding a favorable trade-off: exact rationals in closed form ($O(1)$ per entity) versus irrational approximations from iterative computation ($O(n^2)$ per step).
+
+However, ranking agreement is established only for games with high symmetry---tic-tac-toe's dihedral group $D_4$ collapses the board to three orbits, and uniform constraint cardinality makes row sums proportional to drain counts.
+For game topologies with sufficient off-diagonal asymmetry in $M$, the mutual reinforcement captured by the eigenvector can in principle swap the ranking of two entities whose drain counts are close but whose co-occurrence patterns differ substantially.
+Constructing an explicit example of ranking disagreement, and characterizing the topological conditions under which the diagonal approximation preserves ordinal ranking, is an open problem.
 \end{remark}
 
 % ------------------------------------------------------------------
@@ -430,7 +438,7 @@ $n$ & Class & Degree & $\hat{V}$ (IR) & $\hat{\pi}$ (EV) & $\hat{V}/\hat{\pi}$ &
 \end{tabular}
 \end{table}
 
-The ratio $\hat{V}/\hat{\pi}$ decreases with board size because larger boards have more shared-constraint paths through high-degree cells, amplifying the spectral reinforcement effect (Corollary~\ref{cor:amplification}).
+The ratio $\hat{V}/\hat{\pi}$ decreases with board size because larger boards have more shared-constraint paths through high-degree cells, amplifying the spectral reinforcement effect (Remark~\ref{rem:amplification}).
 Despite this magnitude gap, the ordinal ranking is identical across all tested sizes, confirming that incidence reduction captures all ranking information without solving an eigenvalue problem.
 
 \subsection{Poker Hand Rankings}
@@ -698,7 +706,8 @@ In all experiments, the relative error between the numerical equilibrium and the
 The strategic values produced by incidence reduction are determined entirely by the drain counts $\{n_i\}$, which count constraint memberships.
 This is both a strength (simplicity, exactness, interpretability) and a limitation: the technique captures only the \emph{degree} of each entity's participation in constraints, not higher-order interactions between constraints.
 Theorem~\ref{thm:spectral} makes this precise: incidence reduction reads only $\mathrm{diag}(BB^T)$ while eigenvector centrality reads the full co-occurrence matrix.
-The off-diagonal entries (shared constraints) create spectral amplification (Corollary~\ref{cor:amplification}) but do not change the ranking for the games tested here.
+The off-diagonal entries (shared constraints) create spectral amplification (Remark~\ref{rem:amplification}) but do not change the ranking for the games tested here.
+However, ranking agreement is only established for game topologies with high symmetry; for topologies with sufficient off-diagonal asymmetry, the eigenvector ranking can in principle diverge from the drain-count ranking (Remark~\ref{rem:ranking-limits}).
 Games where strategic value depends on constraint \emph{composition} (e.g., overlapping threat patterns in Go) may require the full spectral analysis or richer encodings.
 
 \paragraph{Scope.}
@@ -716,9 +725,10 @@ Because the system is decoupled, convergence is rapid (exponential, with rate $n
 
 \paragraph{Chemical reaction network theory.}
 The ODE semantics we employ is a direct application of mass-action kinetics, whose mathematical foundations were laid by Horn and Jackson~\cite{horn1972} and developed into chemical reaction network theory (CRNT) by Feinberg~\cite{feinberg1979,feinberg2019}.
-CRNT classifies reaction networks by their deficiency and linkage structure, yielding powerful theorems about equilibrium existence and uniqueness.
+CRNT classifies reaction networks by their deficiency and linkage structure, yielding powerful theorems about equilibrium existence and uniqueness; the canonical reference for the Deficiency Zero and Deficiency One Theorems is Feinberg~\cite{feinberg1987}.
 The connection between Petri nets and chemical reaction networks has been exploited extensively in systems biology~\cite{heiner2008,gilbert2006}, where the stoichiometric matrix is exactly the Petri net incidence matrix.
-Our contribution is not the ODE simulation itself---which is classical---but the specific \emph{analysis net construction} whose catalytic-pump topology guarantees full decoupling, yielding closed-form equilibria that bypass CRNT's general iterative methods.
+Our analysis net has deficiency zero (Section~\ref{sec:technique}), so the Deficiency Zero Theorem already guarantees a unique positive equilibrium.
+Our contribution is the specific \emph{analysis net construction} whose catalytic-pump topology yields a stronger result: fully decoupled ODEs with closed-form equilibria $x_i^* = 1/n_i$, not merely the existence and uniqueness provided by the general theory.
 
 \paragraph{Game-theoretic evaluation.}
 Classical game theory evaluates positions via minimax, Nash equilibria, or potential functions~\cite{monderer1996}.
@@ -771,6 +781,11 @@ P.~Bonacich.
 M.~Feinberg.
 \newblock Lectures on chemical reaction networks.
 \newblock Notes of lectures given at the Mathematics Research Center, University of Wisconsin, 1979.
+
+\bibitem{feinberg1987}
+M.~Feinberg.
+\newblock Chemical reaction network structure and the stability of complex isothermal reactors---I. The deficiency zero and deficiency one theorems.
+\newblock \emph{Chemical Engineering Science}, 42(10):2229--2268, 1987.
 
 \bibitem{feinberg2019}
 M.~Feinberg.
