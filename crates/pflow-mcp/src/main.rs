@@ -1,9 +1,14 @@
 mod tools;
 
 use rmcp::handler::server::router::tool::ToolRouter;
+use rmcp::handler::server::tool::ToolCallContext;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{ServerCapabilities, ServerInfo};
-use rmcp::{schemars, tool, tool_router, ServerHandler, ServiceExt};
+use rmcp::model::{
+    CallToolRequestParams, CallToolResult, ListToolsResult, PaginatedRequestParams,
+    ServerCapabilities, ServerInfo,
+};
+use rmcp::service::RequestContext;
+use rmcp::{schemars, tool, tool_router, ErrorData as McpError, RoleServer, ServerHandler, ServiceExt};
 use tokio::io::{stdin, stdout};
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -40,7 +45,6 @@ pub struct FireParams {
 
 #[derive(Debug, Clone)]
 pub struct PflowServer {
-    #[allow(dead_code)]
     tool_router: ToolRouter<Self>,
 }
 
@@ -148,6 +152,27 @@ impl ServerHandler for PflowServer {
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             ..Default::default()
         }
+    }
+
+    async fn list_tools(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListToolsResult, McpError> {
+        Ok(ListToolsResult {
+            tools: self.tool_router.list_all(),
+            next_cursor: None,
+            meta: None,
+        })
+    }
+
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let ctx = ToolCallContext::new(self, request, context);
+        self.tool_router.call(ctx).await
     }
 }
 
