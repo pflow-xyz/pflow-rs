@@ -51,7 +51,7 @@
 \newcommand{\N}{\mathbb{N}}
 \newcommand{\eq}{\mathrm{eq}}
 
-\title{Integer Reduction: Extracting Exact Strategic Values\\
+\title{Incidence Reduction: Extracting Exact Strategic Values\\
 from Game Topologies via Petri Net ODE Equilibrium}
 \author{
   Matt York\\
@@ -64,12 +64,12 @@ from Game Topologies via Petri Net ODE Equilibrium}
 
 % ------------------------------------------------------------------
 \begin{abstract}
-We present \emph{integer reduction}, a technique that recovers exact integer-valued strategic assessments from the topology of a game encoded as a Petri net.
+We present \emph{incidence reduction}, a technique that recovers exact integer-valued strategic assessments from the topology of a game encoded as a Petri net.
 The method constructs an \emph{analysis net}---a bipartite graph of catalytic source places and drain transitions---and solves the induced mass-action ODE system to equilibrium, applying the classical chemical reaction network theory of Horn, Jackson, and Feinberg to a novel network topology.
 The central structural result is a \emph{decoupling lemma}: catalytic source places hold constant concentration, causing each accumulator to obey an independent first-order ODE $\dot{x}_i = 1 - n_i x_i$, where $n_i$ is the number of drain transitions.
 Because these ODEs are fully decoupled, the equilibrium $x_i^* = 1/n_i$ is available in closed form---no iterative eigenvector computation or coupled fixed-point convergence is required.
 After normalization, the equilibrium concentrations yield exact rational (often integer) strategic values determined entirely by net topology.
-We further prove a \emph{spectral ranking preservation theorem}: integer reduction is a diagonal approximation to eigenvector centrality of the entity co-occurrence matrix $BB^T$, and both methods produce the same ordinal ranking for all games tested.
+We further prove a \emph{spectral ranking preservation theorem}: incidence reduction is a diagonal approximation to eigenvector centrality of the entity co-occurrence matrix $BB^T$, and both methods produce the same ordinal ranking for all games tested.
 We validate the technique on $n \times n$ tic-tac-toe grids ($n = 3, 5, 7$), recovering the classical center--corner--edge hierarchy $\{4, 3, 2\}$ in every case; on poker hand rankings, recovering the full nine-tier hierarchy from drain counts derived from combinatorial frequencies; on Connect Four ($7 \times 6$, 4-in-a-row), recovering center-column dominance with a 13:3 value ratio; and on Hex ($5 \times 5$, shortest-path win conditions), recovering anti-diagonal dominance with a 16:1 value ratio from non-Cartesian topology.
 The same incidence matrix admits three complementary readings---discrete (Petri net firing rules), continuous (ODE equilibrium), and cryptographic (Groth16 ZK proofs)---with the decoupling lemma ensuring lossless round-trip between discrete and continuous semantics.
 \end{abstract}
@@ -95,8 +95,8 @@ Normalization by the minimum concentration yields integers whenever the minimum 
 
 \paragraph{Contributions.}
 \begin{itemize}
-  \item A formal definition of the \emph{analysis net} construction and a proof that its equilibrium concentrations are exact reciprocals of drain counts (Theorem~\ref{thm:integer-reduction}), applying the classical mass-action kinetics of chemical reaction network theory~\cite{horn1972,feinberg2019} to a novel catalytic-pump topology.
-  \item A \emph{spectral ranking preservation theorem} (Theorem~\ref{thm:spectral}): integer reduction is a diagonal approximation to eigenvector centrality of the entity co-occurrence matrix, preserving all ordinal ranking information while remaining closed-form.
+  \item A formal definition of the \emph{analysis net} construction and a proof that its equilibrium concentrations are exact reciprocals of drain counts (Theorem~\ref{thm:incidence-reduction}), applying the classical mass-action kinetics of chemical reaction network theory~\cite{horn1972,feinberg2019} to a novel catalytic-pump topology.
+  \item A \emph{spectral ranking preservation theorem} (Theorem~\ref{thm:spectral}): incidence reduction is a diagonal approximation to eigenvector centrality of the entity co-occurrence matrix, preserving all ordinal ranking information while remaining closed-form.
   \item Experimental validation on $3 \times 3$, $5 \times 5$, and $7 \times 7$ tic-tac-toe, poker hand rankings, Connect Four, and Hex---spanning uniform grids, frequency-weighted hierarchies, non-square grids, and non-Cartesian topologies.
   \item A characterization of the incidence matrix as a \emph{semantic bridge} admitting three readings (discrete, continuous, cryptographic), with the decoupling lemma guaranteeing lossless discrete $\to$ continuous $\to$ discrete round-trip.
 \end{itemize}
@@ -135,7 +135,7 @@ This is precisely the deterministic rate equation of CRNT~\cite{horn1972}.
 
 When the system reaches a steady state $\mathbf{x}^*$ with $\dot{\mathbf{x}} = \mathbf{0}$, the concentrations encode a balance between production and consumption that reflects the topological connectivity of the net.
 The existence, uniqueness, and stability of such equilibria are the central concern of CRNT; Feinberg's \emph{deficiency zero theorem}~\cite{feinberg1979} gives sufficient conditions for unique positive equilibria in mass-action systems.
-Our analysis net construction satisfies stronger conditions---full decoupling---so we prove equilibrium properties directly (Theorem~\ref{thm:integer-reduction}) rather than invoking the general theory.
+Our analysis net construction satisfies stronger conditions---full decoupling---so we prove equilibrium properties directly (Theorem~\ref{thm:incidence-reduction}) rather than invoking the general theory.
 
 \subsection{Equilibrium Detection}
 
@@ -157,7 +157,7 @@ Convergence requires iterating to a tolerance, and the resulting values are irra
 Our approach differs fundamentally.
 The analysis net's catalytic-pump construction produces a system that \emph{decouples analytically} (Lemma~\ref{lem:decoupling}): each accumulator's ODE depends only on its own concentration and a structural constant $n_i$.
 This means (a)~equilibrium values are available in closed form without iterative convergence, (b)~the values are provably exact rationals (not floating-point approximations of irrational eigenvector components), and (c)~the computation operates on a \emph{bipartite} Petri net rather than a simple graph, naturally encoding the entity--constraint duality of game topologies.
-Despite these computational differences, the two approaches produce the same ordinal ranking: Theorem~\ref{thm:spectral} establishes that integer reduction is a diagonal approximation to eigenvector centrality of the entity co-occurrence matrix, preserving all ranking information.
+Despite these computational differences, the two approaches produce the same ordinal ranking: Theorem~\ref{thm:spectral} establishes that incidence reduction is a diagonal approximation to eigenvector centrality of the entity co-occurrence matrix, preserving all ranking information.
 
 \subsection{Zero-Knowledge Proofs}
 
@@ -166,7 +166,7 @@ We use the Groth16 protocol~\cite{groth2016}, which produces constant-size proof
 The statement we prove is: ``transition $t$ transforms marking $\mathbf{m}$ into $\mathbf{m}'$,'' which reduces to checking $\mathbf{m}' = \mathbf{m} + \Delta_t$ and the enabledness condition $\mathbf{m}(p) \geq A^-(t,p)$.
 
 % ------------------------------------------------------------------
-\section{The Integer Reduction Technique}
+\section{The Incidence Reduction Technique}
 \label{sec:technique}
 
 \subsection{The Analysis Net Construction}
@@ -218,7 +218,7 @@ $\dot{x}_i = v_i^{\mathrm{play}} - \sum_{j : e_i \in C_j} v_{i,j}^{\mathrm{drain
 This ODE involves only $x_i$ and the structural constant $n_i$, so the accumulator ODEs are fully decoupled.
 \end{proof}
 
-\begin{theorem}[Integer Reduction]\label{thm:integer-reduction}
+\begin{theorem}[Incidence Reduction]\label{thm:incidence-reduction}
 The unique stable equilibrium of the analysis net satisfies
 \begin{equation}\label{eq:equilibrium}
   x_i^* = \frac{1}{n_i}
@@ -246,7 +246,7 @@ More generally, the values $\{V_i\}$ are always positive rationals, and multiply
 
 \begin{remark}
 The inversion step ($x_i^* \mapsto 1/x_i^*$) is essential: entities with \emph{more} constraints accumulate \emph{less} concentration at equilibrium, but are strategically \emph{more} valuable because they participate in more winning configurations.
-The integer reduction technique turns this inverse relationship into a direct, interpretable ranking.
+The incidence reduction technique turns this inverse relationship into a direct, interpretable ranking.
 \end{remark}
 
 \subsection{Generalization to Weighted Drains}
@@ -268,8 +268,8 @@ For the ODE solver, this implies that a modest integration horizon (a few time c
 \subsection{Relationship to Eigenvector Centrality}
 \label{sec:spectral}
 
-Integer reduction uses only the \emph{diagonal} of a natural matrix associated with the entity--constraint structure.
-We now show that the \emph{full} spectral analysis of this matrix produces the same ranking, establishing that integer reduction captures all ordinal information of eigenvector centrality while remaining closed-form.
+Incidence reduction uses only the \emph{diagonal} of a natural matrix associated with the entity--constraint structure.
+We now show that the \emph{full} spectral analysis of this matrix produces the same ranking, establishing that incidence reduction captures all ordinal information of eigenvector centrality while remaining closed-form.
 
 \begin{definition}[Entity Co-occurrence Matrix]\label{def:cooccurrence}
 Let $B \in \{0,1\}^{n \times m}$ be the \emph{biadjacency matrix} of an entity--constraint system $(E, \mathcal{C})$, with $B_{ij} = 1$ iff $e_i \in C_j$.
@@ -281,7 +281,7 @@ counts the number of constraints containing both $e_i$ and $e_j$.
 In particular, $M_{ii} = n_i$ (the drain count of entity~$e_i$).
 \end{definition}
 
-Integer reduction uses only the diagonal of~$M$: $V_i = n_i / n_{\min} = M_{ii} / \min_j M_{jj}$.
+Incidence reduction uses only the diagonal of~$M$: $V_i = n_i / n_{\min} = M_{ii} / \min_j M_{jj}$.
 Eigenvector centrality uses the full matrix~$M$, computing the Perron--Frobenius eigenvector $\boldsymbol{\pi}$ satisfying $M\boldsymbol{\pi} = \lambda_1 \boldsymbol{\pi}$, where $\lambda_1$ is the spectral radius.
 
 \begin{theorem}[Spectral Ranking Preservation]\label{thm:spectral}
@@ -290,7 +290,7 @@ Let $M = BB^T$ be irreducible, and let $\boldsymbol{\pi}$ be the Perron--Frobeni
 \begin{enumerate}
   \item[\emph{(i)}] \textbf{(Symmetry.)} If an automorphism of $(E, \mathcal{C})$ maps $e_i$ to $e_j$, then $\pi_i = \pi_j$.
   \item[\emph{(ii)}] \textbf{(Row-sum ordering.)} If every constraint has the same cardinality $|C_j| = k$, then the row sums of $M$ satisfy $r_i = k \cdot n_i$.  In particular, the row-sum ranking agrees with the drain-count ranking.
-  \item[\emph{(iii)}] \textbf{(Ranking agreement.)} For $n \times n$ tic-tac-toe with $n$ odd, eigenvector centrality and integer reduction produce the same three-level ranking: center $>$ corner $>$ edge.
+  \item[\emph{(iii)}] \textbf{(Ranking agreement.)} For $n \times n$ tic-tac-toe with $n$ odd, eigenvector centrality and incidence reduction produce the same three-level ranking: center $>$ corner $>$ edge.
 \end{enumerate}
 \end{theorem}
 
@@ -322,26 +322,26 @@ For general odd $n$, the orbit structure is identical (three classes with drain 
 \end{proof}
 
 \begin{corollary}[Spectral Amplification]\label{cor:amplification}
-Eigenvector centrality amplifies degree differences relative to integer reduction.
+Eigenvector centrality amplifies degree differences relative to incidence reduction.
 Defining normalized values $\hat{V}_i = V_i / V_{\min}$ and $\hat{\pi}_i = \pi_i / \pi_{\min}$, the spectral ratio exceeds the drain-count ratio:
 \[
   \frac{\hat{\pi}_i}{\hat{\pi}_j} > \frac{\hat{V}_i}{\hat{V}_j}
   \quad\text{whenever}\quad n_i > n_j > 0 \text{ and } M \text{ has non-zero off-diagonal entries.}
 \]
-For $3 \times 3$ tic-tac-toe, the center-to-edge ratio is $(1 + \sqrt{13})/2 \approx 2.303$ spectrally versus $4/2 = 2$ by integer reduction.
-The amplification arises because the off-diagonal entries of $M$ encode shared win-line structure: entities with high drain counts tend to share more constraints with other high-drain entities, creating mutual reinforcement in the eigenvector computation that the diagonal-only integer reduction does not capture.
+For $3 \times 3$ tic-tac-toe, the center-to-edge ratio is $(1 + \sqrt{13})/2 \approx 2.303$ spectrally versus $4/2 = 2$ by incidence reduction.
+The amplification arises because the off-diagonal entries of $M$ encode shared win-line structure: entities with high drain counts tend to share more constraints with other high-drain entities, creating mutual reinforcement in the eigenvector computation that the diagonal-only incidence reduction does not capture.
 \end{corollary}
 
 \begin{remark}
-The spectral ranking theorem positions integer reduction as a \emph{diagonal approximation} to eigenvector centrality: both use the same co-occurrence matrix $M = BB^T$, but integer reduction reads only $\mathrm{diag}(M) = (n_1, \ldots, n_n)$ while eigenvector centrality solves the full eigenvalue problem.
-The approximation preserves ranking (ordinal equivalence) while sacrificing the finer spectral magnitudes---a favorable trade-off, since integer reduction is closed-form ($O(1)$ per entity) while power iteration on $M$ requires $O(n^2)$ per step.
+The spectral ranking theorem positions incidence reduction as a \emph{diagonal approximation} to eigenvector centrality: both use the same co-occurrence matrix $M = BB^T$, but incidence reduction reads only $\mathrm{diag}(M) = (n_1, \ldots, n_n)$ while eigenvector centrality solves the full eigenvalue problem.
+The approximation preserves ranking (ordinal equivalence) while sacrificing the finer spectral magnitudes---a favorable trade-off, since incidence reduction is closed-form ($O(1)$ per entity) while power iteration on $M$ requires $O(n^2)$ per step.
 \end{remark}
 
 % ------------------------------------------------------------------
 \section{Experimental Results}
 \label{sec:experiments}
 
-We validate integer reduction on four families of games: $n \times n$ tic-tac-toe (uniform grid, same win structure for all $n$), poker hand rankings (frequency-weighted hierarchy), Connect Four (non-square grid with higher drain-count variation), and Hex (non-Cartesian hexagonal topology with path-based win conditions).
+We validate incidence reduction on four families of games: $n \times n$ tic-tac-toe (uniform grid, same win structure for all $n$), poker hand rankings (frequency-weighted hierarchy), Connect Four (non-square grid with higher drain-count variation), and Hex (non-Cartesian hexagonal topology with path-based win conditions).
 All experiments use the \texttt{pflow-rs} Rust implementation with the Tsitouras 5(4) adaptive Runge--Kutta solver.
 
 \subsection{Tic-Tac-Toe}
@@ -378,7 +378,7 @@ In all cases, the ODE solver converges to equilibrium and the normalized values 
 
 \begin{table}[ht]
 \centering
-\caption{Integer reduction results for $n \times n$ tic-tac-toe.}
+\caption{Incidence reduction results for $n \times n$ tic-tac-toe.}
 \label{tab:ttt}
 \begin{tabular}{@{}lcccccc@{}}
 \toprule
@@ -404,12 +404,12 @@ The spatial pattern of values for the $5 \times 5$ grid (after inversion and nor
 The diagonal symmetry of the value matrix reflects the symmetry of the constraint structure: cells on both diagonals have strictly higher value than off-diagonal cells.
 
 \paragraph{Comparison with eigenvector centrality.}
-Table~\ref{tab:spectral} compares integer reduction values with eigenvector centrality of the co-occurrence matrix $M = BB^T$ (Theorem~\ref{thm:spectral}).
+Table~\ref{tab:spectral} compares incidence reduction values with eigenvector centrality of the co-occurrence matrix $M = BB^T$ (Theorem~\ref{thm:spectral}).
 Both methods produce the same ranking across all board sizes, but eigenvector centrality amplifies the spread between degree classes.
 
 \begin{table}[ht]
 \centering
-\caption{Integer reduction vs.\ eigenvector centrality for $n \times n$ tic-tac-toe.  Normalized values ($\hat{V}$ and $\hat{\pi}$) set the edge class to~1.}
+\caption{Incidence reduction vs.\ eigenvector centrality for $n \times n$ tic-tac-toe.  Normalized values ($\hat{V}$ and $\hat{\pi}$) set the edge class to~1.}
 \label{tab:spectral}
 \begin{tabular}{@{}llcccccc@{}}
 \toprule
@@ -431,7 +431,7 @@ $n$ & Class & Degree & $\hat{V}$ (IR) & $\hat{\pi}$ (EV) & $\hat{V}/\hat{\pi}$ &
 \end{table}
 
 The ratio $\hat{V}/\hat{\pi}$ decreases with board size because larger boards have more shared-constraint paths through high-degree cells, amplifying the spectral reinforcement effect (Corollary~\ref{cor:amplification}).
-Despite this magnitude gap, the ordinal ranking is identical across all tested sizes, confirming that integer reduction captures all ranking information without solving an eigenvalue problem.
+Despite this magnitude gap, the ordinal ranking is identical across all tested sizes, confirming that incidence reduction captures all ranking information without solving an eigenvalue problem.
 
 \subsection{Poker Hand Rankings}
 \label{sec:poker}
@@ -442,7 +442,7 @@ We encode this hierarchy using weighted drains: each hand type $h$ receives $n_h
 
 \begin{table}[ht]
 \centering
-\caption{Poker hand drain counts and integer reduction results.}
+\caption{Poker hand drain counts and incidence reduction results.}
 \label{tab:poker}
 \begin{tabular}{@{}lrrc@{}}
 \toprule
@@ -473,7 +473,7 @@ The strict monotonic ordering is preserved:
 \[
   V_{\mathrm{SF}} > V_{\mathrm{4K}} > V_{\mathrm{FH}} > V_{\mathrm{Flush}} > V_{\mathrm{Str}} > V_{\mathrm{3K}} > V_{\mathrm{2P}} > V_{\mathrm{Pair}} > V_{\mathrm{HC}}.
 \]
-This demonstrates that integer reduction generalizes beyond spatial games to any domain where entity importance can be encoded via constraint multiplicity.
+This demonstrates that incidence reduction generalizes beyond spatial games to any domain where entity importance can be encoded via constraint multiplicity.
 
 \subsection{Connect Four}
 \label{sec:connect4}
@@ -547,7 +547,7 @@ Two players claim cells; one wins by connecting the top edge to the bottom edge,
 We analyze a $5 \times 5$ board using axial coordinates $(r, c)$ with hex adjacency: each cell has up to six neighbors $(r \pm 1, c)$, $(r, c \pm 1)$, $(r-1, c+1)$, and $(r+1, c-1)$.
 
 Unlike tic-tac-toe and Connect Four, Hex win conditions are \emph{path-based} rather than fixed-length lines: a player wins by forming any path of adjacent cells connecting opposite edges.
-This fundamentally different constraint type tests integer reduction on non-Cartesian topology.
+This fundamentally different constraint type tests incidence reduction on non-Cartesian topology.
 
 \paragraph{Shortest winning paths.}
 We restrict attention to \emph{shortest} winning paths---those visiting exactly $n = 5$ cells (one per row for top-to-bottom, one per column for left-to-right).
@@ -606,7 +606,7 @@ The results reveal structural properties specific to Hex:
 
 \paragraph{Comparison with tic-tac-toe.}
 While tic-tac-toe produces only three distinct value levels regardless of board size, Hex on a $5 \times 5$ board produces seven distinct levels, and Connect Four produces nine.
-This illustrates how richer game topologies---non-square grids, variable-length constraints, non-Cartesian adjacency---yield more nuanced strategic assessments, all captured exactly by integer reduction.
+This illustrates how richer game topologies---non-square grids, variable-length constraints, non-Cartesian adjacency---yield more nuanced strategic assessments, all captured exactly by incidence reduction.
 
 % ------------------------------------------------------------------
 \section{Integration with Zero-Knowledge Proofs}
@@ -630,7 +630,7 @@ The incidence matrix thus serves as a \emph{semantic bridge}: a single mathemati
 \paragraph{Discrete--continuous duality.}
 The passage between discrete and continuous readings is bidirectional.
 In the \emph{forward} direction, the \emph{exponential encoding} lifts integer token counts to real-valued concentrations: the discrete marking $\mathbf{m} \in \N^{|P|}$ becomes the initial condition $\mathbf{x}(0) \in \R_{\geq 0}^{|P|}$ for the ODE system.
-In the \emph{reverse} direction, \emph{integer reduction} recovers exact integers from continuous equilibrium: the steady-state concentrations $x_i^* = 1/n_i$ are inverted and normalized to yield $V_i = n_i/n_{\min} \in \mathbb{Q}^+$.
+In the \emph{reverse} direction, \emph{incidence reduction} recovers exact integers from continuous equilibrium: the steady-state concentrations $x_i^* = 1/n_i$ are inverted and normalized to yield $V_i = n_i/n_{\min} \in \mathbb{Q}^+$.
 
 The decoupling lemma (Lemma~\ref{lem:decoupling}) is what makes this round-trip lossless.
 Because the catalytic-pump construction produces fully decoupled ODEs, each equilibrium value depends on exactly one structural parameter~$n_i$---the discrete drain count.
@@ -655,7 +655,7 @@ This produces a 128-byte Groth16 proof that can be verified in constant time ($\
 The complete pipeline proceeds as follows:
 \begin{enumerate}
   \item \textbf{Model.}  Define the game as a Petri net (entities, constraints, game rules).
-  \item \textbf{Analyze.}  Construct the analysis net and run integer reduction to derive strategic values.
+  \item \textbf{Analyze.}  Construct the analysis net and run incidence reduction to derive strategic values.
   \item \textbf{Play.}  Use the game net to track state; use strategic values to inform decisions (e.g., AI opponents, difficulty tuning).
   \item \textbf{Prove.}  For each move, generate a Groth16 proof of the state transition.
   \item \textbf{Verify.}  Check proofs on-chain via a Solidity verifier contract.
@@ -681,7 +681,7 @@ TTT $10 \times 10$ & 300 & 200 &  664 &  700 & 0.9 & 128\,B \\
 Verification time and proof size remain constant regardless of game complexity, a characteristic of the Groth16 protocol.
 Setup and prove times scale linearly with the number of R1CS constraints, which in turn scales linearly with the number of places and transitions.
 
-The combination of integer reduction and ZK proofs enables a concrete application: a \emph{verifiable AI opponent}.
+The combination of incidence reduction and ZK proofs enables a concrete application: a \emph{verifiable AI opponent}.
 The topology-derived strategic values from Section~\ref{sec:experiments} can drive an AI player's decisions (e.g., preferring the center cell in tic-tac-toe, or calibrating bet sizes by hand strength in poker), while every move the AI makes is accompanied by a Groth16 proof that the move is legal.
 An on-chain verifier can thus confirm that the AI followed the game rules without revealing its strategy or internal state---the strategic values inform play, and the ZK proofs guarantee integrity, both derived from the same Petri net model.
 
@@ -690,19 +690,19 @@ An on-chain verifier can thus confirm that the AI followed the game rules withou
 \label{sec:discussion}
 
 \paragraph{Exactness.}
-The integer reduction technique produces \emph{exact} rational values, not approximations.
-The ODE solver introduces floating-point error, but the theoretical values are known analytically (Theorem~\ref{thm:integer-reduction}), and rounding the normalized equilibrium concentrations to the nearest rational with small denominator recovers the exact result.
+The incidence reduction technique produces \emph{exact} rational values, not approximations.
+The ODE solver introduces floating-point error, but the theoretical values are known analytically (Theorem~\ref{thm:incidence-reduction}), and rounding the normalized equilibrium concentrations to the nearest rational with small denominator recovers the exact result.
 In all experiments, the relative error between the numerical equilibrium and the theoretical value was below $10^{-4}$.
 
 \paragraph{Expressiveness of drain counts.}
-The strategic values produced by integer reduction are determined entirely by the drain counts $\{n_i\}$, which count constraint memberships.
+The strategic values produced by incidence reduction are determined entirely by the drain counts $\{n_i\}$, which count constraint memberships.
 This is both a strength (simplicity, exactness, interpretability) and a limitation: the technique captures only the \emph{degree} of each entity's participation in constraints, not higher-order interactions between constraints.
-Theorem~\ref{thm:spectral} makes this precise: integer reduction reads only $\mathrm{diag}(BB^T)$ while eigenvector centrality reads the full co-occurrence matrix.
+Theorem~\ref{thm:spectral} makes this precise: incidence reduction reads only $\mathrm{diag}(BB^T)$ while eigenvector centrality reads the full co-occurrence matrix.
 The off-diagonal entries (shared constraints) create spectral amplification (Corollary~\ref{cor:amplification}) but do not change the ranking for the games tested here.
 Games where strategic value depends on constraint \emph{composition} (e.g., overlapping threat patterns in Go) may require the full spectral analysis or richer encodings.
 
 \paragraph{Scope.}
-Integer reduction is a \emph{static} analysis: it evaluates positions based on the game topology, not on the current state of play.
+Incidence reduction is a \emph{static} analysis: it evaluates positions based on the game topology, not on the current state of play.
 It is best suited for games with symmetric initial conditions where topological importance correlates with strategic value.
 For asymmetric or state-dependent evaluations, the analysis net can be conditioned on the current marking, but this is left for future work.
 
@@ -722,7 +722,7 @@ Our contribution is not the ODE simulation itself---which is classical---but the
 
 \paragraph{Game-theoretic evaluation.}
 Classical game theory evaluates positions via minimax, Nash equilibria, or potential functions~\cite{monderer1996}.
-Integer reduction offers a complementary \emph{topological} evaluation that requires no search and produces exact values.
+Incidence reduction offers a complementary \emph{topological} evaluation that requires no search and produces exact values.
 The approach is closest in spirit to influence-based evaluation functions in board games~\cite{allis1994}, but derives values from principled ODE equilibrium rather than heuristic feature counting.
 
 \paragraph{ZK proofs for games.}
@@ -733,9 +733,9 @@ Our contribution is the unified representation: the same Petri net model support
 \section{Conclusion}
 \label{sec:conclusion}
 
-We have presented integer reduction, a technique that extracts exact integer strategic values from game topologies encoded as Petri nets.
+We have presented incidence reduction, a technique that extracts exact integer strategic values from game topologies encoded as Petri nets.
 The method applies the classical mass-action kinetics of chemical reaction network theory~\cite{horn1972,feinberg2019} to a novel catalytic-pump topology, producing fully decoupled linear ODEs whose equilibria are exact reciprocals of topological drain counts.
-The spectral ranking preservation theorem (Theorem~\ref{thm:spectral}) further establishes that integer reduction is a diagonal approximation to eigenvector centrality of the entity co-occurrence matrix, preserving all ordinal ranking information while remaining closed-form.
+The spectral ranking preservation theorem (Theorem~\ref{thm:spectral}) further establishes that incidence reduction is a diagonal approximation to eigenvector centrality of the entity co-occurrence matrix, preserving all ordinal ranking information while remaining closed-form.
 Experimental validation on tic-tac-toe grids of varying size, poker hand rankings, Connect Four, and Hex confirms that the technique recovers correct strategic hierarchies across uniform grids, frequency-weighted domains, non-square boards, and non-Cartesian topologies.
 
 The incidence matrix bridges three semantic domains---discrete token dynamics, continuous ODE equilibrium, and cryptographic proof constraints---with the decoupling lemma ensuring a lossless round-trip between discrete and continuous readings.
@@ -744,7 +744,7 @@ This pipeline is implemented in the open-source \texttt{pflow-rs} library.
 
 \paragraph{Future work.}
 Several directions merit exploration:
-(1)~extending integer reduction to state-dependent analysis by conditioning the analysis net on partial game states;
+(1)~extending incidence reduction to state-dependent analysis by conditioning the analysis net on partial game states;
 (2)~encoding higher-order constraint interactions (beyond simple drain counts) via weighted or hierarchical drain structures;
 (3)~applying the technique to larger-scale games such as Go, where constraint composition (not just constraint degree) determines strategic value;
 (4)~leveraging the exact rational values for provably optimal play in restricted game classes.
