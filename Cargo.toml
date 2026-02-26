@@ -10,6 +10,7 @@ members = [
     "crates/pflow-zk-arkworks",
     "crates/pflow-zk-risc0",
     "crates/pflow",
+    "crates/pflow-mcp",
 ]
 
 [workspace.package]

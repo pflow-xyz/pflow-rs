@@ -1,0 +1,24 @@
+[package]
+name = "pflow-mcp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "MCP server for Petri net simulation and analysis"
+
+[[bin]]
+name = "pflow-mcp"
+path = "src/main.rs"
+
+[dependencies]
+pflow-core = { path = "../pflow-core", version = "0.2.1" }
+pflow-solver = { path = "../pflow-solver", version = "0.2.1" }
+pflow-tokenmodel = { path = "../pflow-tokenmodel", version = "0.2.1" }
+pflow-dsl = { path = "../pflow-dsl", version = "0.2.1" }
+rmcp = { version = "0.16", features = ["server", "transport-io"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+schemars = "0.8"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

@@ -1,0 +1,31 @@
+{
+  "name": "pflow",
+  "description": "Petri net simulation and analysis MCP server",
+  "version": "0.2.1",
+  "tools": [
+    {
+      "name": "pflow_build",
+      "description": "Parse a Petri net model and return its topology: places, transitions, arcs, and initial state"
+    },
+    {
+      "name": "pflow_validate",
+      "description": "Validate a Petri net model (DSL or JSON), return structure summary and content-addressed ID (CID)"
+    },
+    {
+      "name": "pflow_fire",
+      "description": "Fire discrete transitions step-by-step on a Petri net"
+    },
+    {
+      "name": "pflow_simulate",
+      "description": "Run ODE simulation of a Petri net over time"
+    },
+    {
+      "name": "pflow_equilibrium",
+      "description": "Find the equilibrium (steady state) of a Petri net ODE system"
+    },
+    {
+      "name": "pflow_analyze",
+      "description": "Analyze Petri net structure: incidence matrix, enabled transitions"
+    }
+  ]
+}
