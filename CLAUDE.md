@@ -83,7 +83,7 @@ The incidence reduction paper is in `papers/integer-reduction/main.tex`. No loca
 
 ```bash
 ssh pflow.dev "cd ~/Workspace/pflow-rs && git pull && cd papers/integer-reduction && pdflatex -interaction=nonstopmode main.tex"
-scp pflow.dev:~/Workspace/pflow-rs/papers/integer-reduction/main.pdf papers/integer-reduction/main.pdf
+scp pflow.dev:~/Workspace/pflow-rs/papers/integer-reduction/main.pdf papers/integer-reduction/incidence-reduction.pdf
 ```
 
 ## Architecture Notes
