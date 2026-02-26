@@ -10,4 +10,4 @@ keywords = ["ode-solver", "petri-net", "simulation", "runge-kutta"]
 categories = ["simulation", "science", "mathematics"]
 
 [dependencies]
-pflow-core = { path = "../pflow-core", version = "0.2.1" }
+pflow-core = { path = "../pflow-core", version = "0.3.0" }

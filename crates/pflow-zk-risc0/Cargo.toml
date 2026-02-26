@@ -10,8 +10,8 @@ keywords = ["petri-net", "zero-knowledge", "risc0", "zkvm"]
 categories = ["cryptography"]
 
 [dependencies]
-pflow-zk = { path = "../pflow-zk", version = "0.2.1" }
-pflow-core = { path = "../pflow-core", version = "0.2.1" }
+pflow-zk = { path = "../pflow-zk", version = "0.3.0" }
+pflow-core = { path = "../pflow-core", version = "0.3.0" }
 serde = { version = "1", features = ["derive"] }
 bincode = "1"
 thiserror = "2"
@@ -29,4 +29,4 @@ prove = ["dep:risc0-zkvm", "dep:risc0-build"]
 methods = ["guest"]
 
 [dev-dependencies]
-pflow-zk = { path = "../pflow-zk", version = "0.2.1" }
+pflow-zk = { path = "../pflow-zk", version = "0.3.0" }

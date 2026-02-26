@@ -10,6 +10,6 @@ keywords = ["petri-net", "zero-knowledge", "zk-proof"]
 categories = ["cryptography"]
 
 [dependencies]
-pflow-core = { path = "../pflow-core", version = "0.2.1" }
+pflow-core = { path = "../pflow-core", version = "0.3.0" }
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }

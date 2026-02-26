@@ -12,10 +12,10 @@ name = "pflow-mcp"
 path = "src/main.rs"
 
 [dependencies]
-pflow-core = { path = "../pflow-core", version = "0.2.1" }
-pflow-solver = { path = "../pflow-solver", version = "0.2.1" }
-pflow-tokenmodel = { path = "../pflow-tokenmodel", version = "0.2.1" }
-pflow-dsl = { path = "../pflow-dsl", version = "0.2.1" }
+pflow-core = { path = "../pflow-core", version = "0.3.0" }
+pflow-solver = { path = "../pflow-solver", version = "0.3.0" }
+pflow-tokenmodel = { path = "../pflow-tokenmodel", version = "0.3.0" }
+pflow-dsl = { path = "../pflow-dsl", version = "0.3.0" }
 rmcp = { version = "0.16", features = ["server", "transport-io"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
