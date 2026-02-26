@@ -14,6 +14,7 @@ Rust Petri net library with ODE simulation, token model DSL, and ZK proofs.
 | `pflow-zk` | ZK proof traits (`PetriProver`), `IncidenceMatrix` extraction, `fire_transition()` |
 | `pflow-zk-arkworks` | Groth16 prover over BN254 with Poseidon hashing (structural R1CS) |
 | `pflow-zk-risc0` | risc0 zkVM wrapper prover (simulation mode; full STARK requires toolchain) |
+| `pflow-mcp` | MCP server exposing Petri net tools (build, simulate, analyze, fire, equilibrium) |
 | `pflow` | Umbrella crate re-exporting all of the above |
 
 ## Build & Test
@@ -68,6 +69,60 @@ pflow = { features = ["zk-risc0"] }          # risc0 prover (simulation)
 pflow = { features = ["zk-risc0-prove"] }    # risc0 prover (real STARK)
 pflow = { features = ["zk"] }                # Shared traits only
 ```
+
+## MCP Server (`pflow-mcp`)
+
+An MCP (Model Context Protocol) server that exposes Petri net tools. Configured in `.mcp.json`:
+
+```json
+{ "mcpServers": { "pflow": { "command": "cargo", "args": ["run", "-p", "pflow-mcp"] } } }
+```
+
+### Tools
+
+| Tool | Purpose |
+|------|---------|
+| `pflow_validate` | Parse model, return structure summary and content-addressed ID (CID) |
+| `pflow_build` | Parse model, return places, transitions, arcs, and initial state |
+| `pflow_analyze` | Incidence matrix (input/output/delta per transition), enabled transitions |
+| `pflow_fire` | Fire discrete transitions step-by-step, return token state after each step |
+| `pflow_simulate` | ODE simulation over time, return downsampled time series |
+| `pflow_equilibrium` | Find steady state of ODE system |
+
+### DSL Syntax
+
+Models are passed as S-expression strings. The root keyword is `schema` (not `petri-net`):
+
+```lisp
+(schema MyNet
+  (version v1.0.0)
+  (states
+    (state p0 :kind token :initial 5)
+    (state p1 :kind token :initial 0)
+    (state data0 :type uint256)          ; :kind data is default
+  )
+  (actions
+    (action t0)
+    (action t1 :guard {p0 >= 2})
+  )
+  (arcs
+    (arc p0 -> t0)                       ; weight 1 (implicit)
+    (arc t0 -> p1)
+    (arc p1 -> t1 :keys (from))          ; keyed arc for mappings
+    (arc t1 -> p0 :value amount)
+  )
+  (constraints
+    (constraint conserve {sum(p0, p1) == 5})
+  )
+)
+```
+
+**Key DSL rules:**
+- `state` — `:kind token` for ODE/discrete places, `:kind data` (default) for metadata
+- `action` — transitions; optional `:guard {expr}` for enablement conditions
+- `arc` — `source -> target`; optional `:keys (...)` and `:value`
+- All arcs have implicit weight 1.0
+- Line comments with `;`
 
 ## Key Types
 
