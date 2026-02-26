@@ -65,10 +65,11 @@ from Game Topologies via Petri Net ODE Equilibrium}
 % ------------------------------------------------------------------
 \begin{abstract}
 We present \emph{integer reduction}, a technique that recovers exact integer-valued strategic assessments from the topology of a game encoded as a Petri net.
-The method constructs an \emph{analysis net}---a bipartite graph of catalytic source places and drain transitions---and solves the induced mass-action ODE system to equilibrium.
+The method constructs an \emph{analysis net}---a bipartite graph of catalytic source places and drain transitions---and solves the induced mass-action ODE system to equilibrium, applying the classical chemical reaction network theory of Horn, Jackson, and Feinberg to a novel network topology.
 The central structural result is a \emph{decoupling lemma}: catalytic source places hold constant concentration, causing each accumulator to obey an independent first-order ODE $\dot{x}_i = 1 - n_i x_i$, where $n_i$ is the number of drain transitions.
 Because these ODEs are fully decoupled, the equilibrium $x_i^* = 1/n_i$ is available in closed form---no iterative eigenvector computation or coupled fixed-point convergence is required.
 After normalization, the equilibrium concentrations yield exact rational (often integer) strategic values determined entirely by net topology.
+We further prove a \emph{spectral ranking preservation theorem}: integer reduction is a diagonal approximation to eigenvector centrality of the entity co-occurrence matrix $BB^T$, and both methods produce the same ordinal ranking for all games tested.
 We validate the technique on $n \times n$ tic-tac-toe grids ($n = 3, 5, 7$), recovering the classical center--corner--edge hierarchy $\{4, 3, 2\}$ in every case; on poker hand rankings, recovering the full nine-tier hierarchy from drain counts derived from combinatorial frequencies; on Connect Four ($7 \times 6$, 4-in-a-row), recovering center-column dominance with a 13:3 value ratio; and on Hex ($5 \times 5$, shortest-path win conditions), recovering anti-diagonal dominance with a 16:1 value ratio from non-Cartesian topology.
 The same incidence matrix admits three complementary readings---discrete (Petri net firing rules), continuous (ODE equilibrium), and cryptographic (Groth16 ZK proofs)---with the decoupling lemma ensuring lossless round-trip between discrete and continuous semantics.
 \end{abstract}
@@ -94,7 +95,8 @@ Normalization by the minimum concentration yields integers whenever the minimum 
 
 \paragraph{Contributions.}
 \begin{itemize}
-  \item A formal definition of the \emph{analysis net} construction and a proof that its equilibrium concentrations are exact reciprocals of drain counts (Theorem~\ref{thm:integer-reduction}).
+  \item A formal definition of the \emph{analysis net} construction and a proof that its equilibrium concentrations are exact reciprocals of drain counts (Theorem~\ref{thm:integer-reduction}), applying the classical mass-action kinetics of chemical reaction network theory~\cite{horn1972,feinberg2019} to a novel catalytic-pump topology.
+  \item A \emph{spectral ranking preservation theorem} (Theorem~\ref{thm:spectral}): integer reduction is a diagonal approximation to eigenvector centrality of the entity co-occurrence matrix, preserving all ordinal ranking information while remaining closed-form.
   \item Experimental validation on $3 \times 3$, $5 \times 5$, and $7 \times 7$ tic-tac-toe, poker hand rankings, Connect Four, and Hex---spanning uniform grids, frequency-weighted hierarchies, non-square grids, and non-Cartesian topologies.
   \item A characterization of the incidence matrix as a \emph{semantic bridge} admitting three readings (discrete, continuous, cryptographic), with the decoupling lemma guaranteeing lossless discrete $\to$ continuous $\to$ discrete round-trip.
 \end{itemize}
@@ -444,7 +446,7 @@ We encode this hierarchy using weighted drains: each hand type $h$ receives $n_h
 \label{tab:poker}
 \begin{tabular}{@{}lrrc@{}}
 \toprule
-Hand & Combinations & Drains ($n_h$) & Value ($V_h$) \\
+Hand & Combinations & Drains ($n_h$) & Value ($n_{\max}/n_h$) \\
 \midrule
 High Card       & 1{,}302{,}540 & 32 & 1.0 \\
 One Pair        & 1{,}098{,}240 & 24 & 1.33 \\
@@ -628,7 +630,7 @@ The incidence matrix thus serves as a \emph{semantic bridge}: a single mathemati
 \paragraph{Discrete--continuous duality.}
 The passage between discrete and continuous readings is bidirectional.
 In the \emph{forward} direction, the \emph{exponential encoding} lifts integer token counts to real-valued concentrations: the discrete marking $\mathbf{m} \in \N^{|P|}$ becomes the initial condition $\mathbf{x}(0) \in \R_{\geq 0}^{|P|}$ for the ODE system.
-In the \emph{reverse} direction, \emph{integer reduction} recovers exact integers from continuous equilibrium: the steady-state concentrations $x_i^* = 1/n_i$ are inverted and normalized to yield $V_i = n_{\max}/n_i \in \mathbb{Q}^+$.
+In the \emph{reverse} direction, \emph{integer reduction} recovers exact integers from continuous equilibrium: the steady-state concentrations $x_i^* = 1/n_i$ are inverted and normalized to yield $V_i = n_i/n_{\min} \in \mathbb{Q}^+$.
 
 The decoupling lemma (Lemma~\ref{lem:decoupling}) is what makes this round-trip lossless.
 Because the catalytic-pump construction produces fully decoupled ODEs, each equilibrium value depends on exactly one structural parameter~$n_i$---the discrete drain count.
@@ -732,7 +734,8 @@ Our contribution is the unified representation: the same Petri net model support
 \label{sec:conclusion}
 
 We have presented integer reduction, a technique that extracts exact integer strategic values from game topologies encoded as Petri nets.
-The method is grounded in a simple mathematical observation: under mass-action kinetics, catalytic source places and drain transitions produce decoupled linear ODEs whose equilibria are exact reciprocals of topological drain counts.
+The method applies the classical mass-action kinetics of chemical reaction network theory~\cite{horn1972,feinberg2019} to a novel catalytic-pump topology, producing fully decoupled linear ODEs whose equilibria are exact reciprocals of topological drain counts.
+The spectral ranking preservation theorem (Theorem~\ref{thm:spectral}) further establishes that integer reduction is a diagonal approximation to eigenvector centrality of the entity co-occurrence matrix, preserving all ordinal ranking information while remaining closed-form.
 Experimental validation on tic-tac-toe grids of varying size, poker hand rankings, Connect Four, and Hex confirms that the technique recovers correct strategic hierarchies across uniform grids, frequency-weighted domains, non-square boards, and non-Cartesian topologies.
 
 The incidence matrix bridges three semantic domains---discrete token dynamics, continuous ODE equilibrium, and cryptographic proof constraints---with the decoupling lemma ensuring a lossless round-trip between discrete and continuous readings.
@@ -784,11 +787,6 @@ C.~M.~Guldberg and P.~Waage.
 \newblock Studies concerning affinity.
 \newblock \emph{Forhandlinger: Videnskabs-Selskabet i Christiania}, 35, 1864.
 
-\bibitem{horn1972}
-F.~Horn and R.~Jackson.
-\newblock General mass action kinetics.
-\newblock \emph{Archive for Rational Mechanics and Analysis}, 47(2):81--116, 1972.
-
 \bibitem{gilbert2006}
 D.~Gilbert and M.~Heiner.
 \newblock From Petri nets to differential equations---an integrative framework for biochemical network analysis.
@@ -803,6 +801,11 @@ J.~Groth.
 M.~Heiner, D.~Gilbert, and R.~Donaldson.
 \newblock Petri nets for systems and synthetic biology.
 \newblock In \emph{SFM}, pages 215--264, 2008.
+
+\bibitem{horn1972}
+F.~Horn and R.~Jackson.
+\newblock General mass action kinetics.
+\newblock \emph{Archive for Rational Mechanics and Analysis}, 47(2):81--116, 1972.
 
 \bibitem{monderer1996}
 D.~Monderer and L.~S.~Shapley.
