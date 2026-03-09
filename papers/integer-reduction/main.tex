@@ -353,8 +353,10 @@ Constructing an explicit example of ranking disagreement, and characterizing \em
 The co-occurrence matrix $M = BB^T$ admits a natural decomposition that connects incidence reduction to the graph Laplacian and effective resistance theory~\cite{chandra1989,klein1993,spielman2011,ghosh2008}.
 
 \paragraph{Laplacian decomposition.}
-Write $M = D + A'$, where $D = \mathrm{diag}(n_1, \ldots, n_n)$ is the diagonal matrix of drain counts and $A'$ is the off-diagonal co-occurrence matrix with $A'_{ij} = M_{ij}$ for $i \neq j$ and $A'_{ii} = 0$.
-The \emph{combinatorial Laplacian} of the co-occurrence graph (with adjacency matrix $A'$) is $L = D - A'$, so
+Write $M = D + A'$, where $D = \mathrm{diag}(n_1, \ldots, n_n)$ is the diagonal matrix of drain counts and $A'$ is the off-diagonal part of~$M$, with $A'_{ij} = M_{ij}$ for $i \neq j$ and $A'_{ii} = 0$.
+We treat $A'$ as the adjacency matrix of the \emph{co-occurrence graph}: the weighted graph on the entity set~$E$ where edge $(i,j)$ has weight equal to the number of constraints containing both $e_i$ and $e_j$.
+(This graph is not defined separately; it is read directly from the off-diagonal entries of $BB^T$.)
+The \emph{combinatorial Laplacian} of this co-occurrence graph is $L = D - A'$, so
 \begin{equation}\label{eq:laplacian-decomp}
   M = BB^T = D + A' = 2D - L.
 \end{equation}
@@ -389,13 +391,17 @@ then $\pi_i > \pi_j$.
 
 \begin{proof}[Proof sketch]
 Write $M = D(I + E)$.
-The Perron eigenvector of~$D$ is $\mathbf{d} = (n_1, \ldots, n_n)^T$.
-By standard matrix perturbation theory (see, e.g., Stewart and Sun~\cite{spielman2011} for the symmetric case), the Perron eigenvector~$\boldsymbol{\pi}$ of $D(I + E)$ satisfies
+Note that $M$ is symmetric (since $M = BB^T$), but $E = D^{-1}A'$ is not symmetric in general because $D^{-1}$ rescales rows non-uniformly.
+However, $M$ itself is a non-negative irreducible matrix, so Perron--Frobenius theory applies directly to~$M$.
+
+The unperturbed matrix~$D$ has Perron eigenvector $\mathbf{d} = (n_1, \ldots, n_n)^T$ (any positive eigenvector of a diagonal matrix is proportional to its diagonal).
+We bound the perturbation of the Perron vector of $M = D + A'$ relative to that of~$D$ using the theory of non-negative matrix perturbations (Seneta~\cite{seneta2006}, Chapter~4).
+For a non-negative irreducible matrix with Perron root $\lambda_1$ and spectral gap $\gamma = \lambda_1 - |\lambda_2|$, the Perron eigenvector~$\boldsymbol{\pi}$ satisfies
 \[
-  \boldsymbol{\pi} = \frac{\mathbf{d}}{\|\mathbf{d}\|} + \boldsymbol{\delta}, \quad \|\boldsymbol{\delta}\| \leq \frac{\|E\|}{1 - \|E\|} \cdot \frac{\|\mathbf{d}\|}{\min_{k \neq 1}|\lambda_k(D) - \lambda_1(D)|}.
+  \boldsymbol{\pi} = \frac{\mathbf{d}}{\|\mathbf{d}\|} + \boldsymbol{\delta}, \quad \|\boldsymbol{\delta}\|_\infty \leq \frac{\|A'\|}{\gamma}.
 \]
 For the ranking of components $i$ and $j$ to be preserved, we need $d_i + \delta_i > d_j + \delta_j$, i.e., $n_i - n_j > \delta_j - \delta_i$.
-Since $|\delta_j - \delta_i| \leq 2\|\boldsymbol{\delta}\|_\infty$, the condition~\eqref{eq:ranking-condition} ensures the perturbation cannot close the gap between $n_i$ and $n_j$.
+Since $|\delta_j - \delta_i| \leq 2\|\boldsymbol{\delta}\|_\infty$, the condition~\eqref{eq:ranking-condition} (expressed in terms of the normalized perturbation $\|E\| = \|D^{-1}A'\|$) ensures the perturbation cannot close the gap between $n_i$ and $n_j$.
 
 The connection to effective resistance is as follows.
 When $\|E\|$ is small, the off-diagonal entries of $E$ are small relative to the degree normalization, which occurs precisely when the effective resistances between degree classes in the co-occurrence graph are large.
@@ -940,6 +946,11 @@ D.~A.~Spielman and S.-H.~Teng.
 A.~Ghosh, S.~Boyd, and A.~Saberi.
 \newblock Minimizing effective resistance of a graph.
 \newblock \emph{SIAM Review}, 50(1):37--66, 2008.
+
+\bibitem{seneta2006}
+E.~Seneta.
+\newblock \emph{Non-negative Matrices and Markov Chains}.
+\newblock Springer Series in Statistics. Springer, revised printing of 2nd edition, 2006.
 
 \end{thebibliography}
 
