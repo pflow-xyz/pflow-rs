@@ -518,6 +518,7 @@ Despite this magnitude gap, the ordinal ranking is identical across all tested s
 \paragraph{Topology.}
 In five-card poker, the nine hand categories (high card through straight flush) differ vastly in combinatorial frequency.
 We encode this hierarchy using weighted drains: each hand type $h$ receives $n_h$ drain transitions proportional to the logarithm of its frequency.
+Logarithmic scaling compresses the five-order-of-magnitude frequency range (40 to 1{,}302{,}540) into small integers; any monotonic mapping preserves the ranking, but log scaling yields manageable drain counts and value ratios.
 
 \begin{table}[ht]
 \centering
@@ -786,9 +787,24 @@ Incidence reduction is a \emph{static} analysis: it evaluates positions based on
 It is best suited for games with symmetric initial conditions where topological importance correlates with strategic value.
 For asymmetric or state-dependent evaluations, the analysis net can be conditioned on the current marking, but this is left for future work.
 
-\paragraph{Computational cost.}
+\paragraph{Computational cost and complexity class separation.}
 The ODE integration cost is $O(s \cdot A)$ where $s$ is the number of solver steps and $A$ is the total number of arcs.
 Because the system is decoupled, convergence is rapid (exponential, with rate $n_{\min}$), and in practice fewer than 100 solver steps suffice for all examples tested.
+
+The low cost reflects a deeper phenomenon: incidence reduction avoids the exponential blowup inherent in game-tree evaluation by asking a fundamentally different question.
+Classical game evaluation asks ``who wins from this position?''---a question that is PSPACE-complete for many combinatorial games and undecidable for unbounded ones.
+Incidence reduction asks ``what is the topological importance of each position?''---a question about the \emph{structure} of the game, not the \emph{outcome} of play.
+
+The distinction is analogous to the difference between solving an NP-hard problem and verifying a witness.
+The construction of the analysis net externalizes the combinatorial structure of the game into the net topology: entities, constraints, and their incidence relationships are encoded as places, transitions, and arcs.
+This encoding is where domain knowledge enters---knowing that tic-tac-toe has $2n + 2$ win lines, or that poker hands have specific combinatorial frequencies.
+Once the encoding is fixed, the decoupling lemma (Lemma~\ref{lem:decoupling}) ensures that reading the structural answer is $O(1)$ per entity: the equilibrium $x_i^* = 1/n_i$ is available in closed form, with no iteration, no search, and no approximation.
+The Petri net topology \emph{is} the traversal; executing it is simply reading the witness.
+
+This complexity separation has practical consequences.
+Game-tree search scales exponentially with depth and branching factor; incidence reduction scales linearly with the number of entities and constraints.
+The tradeoff is expressiveness: search answers state-dependent questions (``is this particular position winning?''), while incidence reduction answers structural questions (``which positions are topologically important?'').
+For games where topological importance correlates with strategic value---as demonstrated for all four game families in Section~\ref{sec:experiments}---the structural answer suffices, and the exponential cost of search is avoided entirely.
 
 \paragraph{Effective resistance and ranking divergence.}
 The Laplacian connection established in Section~\ref{sec:laplacian} opens a path toward quantitative bounds on ranking divergence.
