@@ -79,7 +79,7 @@ The same incidence matrix admits three complementary readings---discrete (Petri 
 \label{sec:intro}
 
 Evaluating positions in combinatorial games typically requires search: minimax, alpha-beta pruning, Monte Carlo tree search, or neural-network-guided lookahead.
-These methods are computationally expensive, opaque, and difficult to verify.
+These methods are computationally expensive, opaque, and difficult to verify---and the underlying complexity is inherent: game evaluation is PSPACE-complete for many combinatorial games (Section~\ref{sec:discussion}).
 We ask a different question: can the \emph{topology} of a game---the connectivity structure among positions and constraints---already encode strategic value, without any search at all?
 
 This paper answers affirmatively by introducing a three-step pipeline:
@@ -219,11 +219,6 @@ $\dot{x}_i = v_i^{\mathrm{play}} - \sum_{j : e_i \in C_j} v_{i,j}^{\mathrm{drain
 
 This ODE involves only $x_i$ and the structural constant $n_i$, so the accumulator ODEs are fully decoupled.
 \end{proof}
-
-\begin{remark}
-The analysis net has deficiency zero in the sense of Feinberg~\cite{feinberg1987}: because catalytic source places maintain constant concentration, the effective network reduces to $n$ independent pairs $\varnothing \rightleftharpoons X_i$, each with deficiency $\delta = 2 - 1 - 1 = 0$.
-The Deficiency Zero Theorem therefore guarantees a unique positive equilibrium; the direct proof below yields the stronger closed-form result $x_i^* = 1/n_i$.
-\end{remark}
 
 \begin{theorem}[Incidence Reduction]\label{thm:incidence-reduction}
 The unique stable equilibrium of the analysis net satisfies
@@ -730,17 +725,6 @@ The ZK circuit proves:
 
 This produces a 128-byte Groth16 proof that can be verified in constant time ($\sim$1\,ms) and deployed to an on-chain verifier.
 
-\subsection{From Analysis to Deployment}
-
-The complete pipeline proceeds as follows:
-\begin{enumerate}
-  \item \textbf{Model.}  Define the game as a Petri net (entities, constraints, game rules).
-  \item \textbf{Analyze.}  Construct the analysis net and run incidence reduction to derive strategic values.
-  \item \textbf{Play.}  Use the game net to track state; use strategic values to inform decisions (e.g., AI opponents, difficulty tuning).
-  \item \textbf{Prove.}  For each move, generate a Groth16 proof of the state transition.
-  \item \textbf{Verify.}  Check proofs on-chain via a Solidity verifier contract.
-\end{enumerate}
-
 Table~\ref{tab:zk-perf} shows proof generation performance for tic-tac-toe game nets of varying sizes using the \texttt{pflow-zk-arkworks} Groth16 prover.
 
 \begin{table}[ht]
@@ -760,10 +744,6 @@ TTT $10 \times 10$ & 300 & 200 &  664 &  700 & 0.9 & 128\,B \\
 
 Verification time and proof size remain constant regardless of game complexity, a characteristic of the Groth16 protocol.
 Setup and prove times scale linearly with the number of R1CS constraints, which in turn scales linearly with the number of places and transitions.
-
-The combination of incidence reduction and ZK proofs enables a concrete application: a \emph{verifiable AI opponent}.
-The topology-derived strategic values from Section~\ref{sec:experiments} can drive an AI player's decisions (e.g., preferring the center cell in tic-tac-toe, or calibrating bet sizes by hand strength in poker), while every move the AI makes is accompanied by a Groth16 proof that the move is legal.
-An on-chain verifier can thus confirm that the AI followed the game rules without revealing its strategy or internal state---the strategic values inform play, and the ZK proofs guarantee integrity, both derived from the same Petri net model.
 
 % ------------------------------------------------------------------
 \section{Discussion and Limitations}
