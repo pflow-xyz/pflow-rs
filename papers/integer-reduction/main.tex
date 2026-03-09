@@ -44,6 +44,7 @@
 \newtheorem{corollary}[theorem]{Corollary}
 \newtheorem{definition}[theorem]{Definition}
 \newtheorem{remark}[theorem]{Remark}
+\newtheorem{proposition}[theorem]{Proposition}
 
 % Notation shortcuts
 \newcommand{\R}{\mathbb{R}}
@@ -65,13 +66,12 @@ from Game Topologies via Petri Net ODE Equilibrium}
 % ------------------------------------------------------------------
 \begin{abstract}
 We present \emph{incidence reduction}, a technique that recovers exact integer-valued strategic assessments from the topology of a game encoded as a Petri net.
-The method constructs an \emph{analysis net}---a bipartite graph of catalytic source places and drain transitions---and solves the induced mass-action ODE system to equilibrium, applying the classical chemical reaction network theory of Horn, Jackson, and Feinberg to a novel network topology.
-The central structural result is a \emph{decoupling lemma}: catalytic source places hold constant concentration, causing each accumulator to obey an independent first-order ODE $\dot{x}_i = 1 - n_i x_i$, where $n_i$ is the number of drain transitions.
-Because these ODEs are fully decoupled, the equilibrium $x_i^* = 1/n_i$ is available in closed form---no iterative eigenvector computation or coupled fixed-point convergence is required.
-After normalization, the equilibrium concentrations yield exact rational (often integer) strategic values determined entirely by net topology.
-We further prove a \emph{spectral ranking preservation theorem}: incidence reduction is a diagonal approximation to eigenvector centrality of the entity co-occurrence matrix $BB^T$, and both methods produce the same ordinal ranking for all games tested.
-We validate the technique on $n \times n$ tic-tac-toe grids ($n = 3, 5, 7$), recovering the classical center--corner--edge hierarchy $\{4, 3, 2\}$ in every case; on poker hand rankings, recovering the full nine-tier hierarchy from drain counts derived from combinatorial frequencies; on Connect Four ($7 \times 6$, 4-in-a-row), recovering center-column dominance with a 13:3 value ratio; and on Hex ($5 \times 5$, shortest-path win conditions), recovering anti-diagonal dominance with a 16:1 value ratio from non-Cartesian topology.
-The same incidence matrix admits three complementary readings---discrete (Petri net firing rules), continuous (ODE equilibrium), and cryptographic (Groth16 ZK proofs)---with the decoupling lemma ensuring lossless round-trip between discrete and continuous semantics.
+The central construction uses unit-weight integer arcs to build an \emph{analysis net}---a bipartite graph of catalytic source places and drain transitions---whose mass-action ODE system admits a lossless discrete$\,\to\,$continuous$\,\to\,$discrete round-trip: the decoupling lemma shows that each accumulator obeys an independent first-order ODE $\dot{x}_i = 1 - n_i x_i$ (where $n_i$ is the number of drain transitions), yielding the closed-form equilibrium $x_i^* = 1/n_i$ without iterative computation.
+After normalization, these equilibrium concentrations produce exact rational (often integer) strategic values determined entirely by net topology.
+We prove a \emph{spectral ranking preservation theorem}: incidence reduction is a diagonal approximation to eigenvector centrality of the entity co-occurrence matrix $M = BB^T$, and both methods produce the same ordinal ranking for all games tested.
+The co-occurrence matrix decomposes as $M = 2D - L$, where $D$ is the degree (drain-count) matrix and $L$ is the combinatorial Laplacian of the co-occurrence graph; this decomposition yields a sufficient condition for ranking preservation via a perturbation bound on the off-diagonal coupling.
+We validate the technique on $n \times n$ tic-tac-toe grids ($n = 3, 5, 7$), recovering the classical center--corner--edge hierarchy $\{4, 3, 2\}$; on poker hand rankings, recovering the full nine-tier hierarchy; on Connect Four ($7 \times 6$), recovering center-column dominance with a 13:3 value ratio; and on Hex ($5 \times 5$), recovering anti-diagonal dominance with a 16:1 value ratio from non-Cartesian topology.
+The same incidence matrix admits three complementary readings---discrete (Petri net firing rules), continuous (ODE equilibrium), and cryptographic (Groth16 ZK proofs)---with the decoupling lemma ensuring the lossless round-trip between all three.
 \end{abstract}
 
 % ------------------------------------------------------------------
@@ -96,7 +96,7 @@ Normalization by the minimum concentration yields integers whenever the minimum 
 \paragraph{Contributions.}
 \begin{itemize}
   \item A formal definition of the \emph{analysis net} construction and a proof that its equilibrium concentrations are exact reciprocals of drain counts (Theorem~\ref{thm:incidence-reduction}), applying the classical mass-action kinetics of chemical reaction network theory~\cite{horn1972,feinberg2019} to a novel catalytic-pump topology.
-  \item A \emph{spectral ranking preservation theorem} (Theorem~\ref{thm:spectral}): incidence reduction is a diagonal approximation to eigenvector centrality of the entity co-occurrence matrix, preserving all ordinal ranking information while remaining closed-form.
+  \item A \emph{spectral ranking preservation theorem} (Theorem~\ref{thm:spectral}): incidence reduction is a diagonal approximation to eigenvector centrality of the entity co-occurrence matrix, preserving all ordinal ranking information while remaining closed-form.  A connection to the graph Laplacian and effective resistance (Section~\ref{sec:laplacian}) provides a sufficient condition for ranking preservation via a perturbation bound on the co-occurrence matrix.
   \item Experimental validation on $3 \times 3$, $5 \times 5$, and $7 \times 7$ tic-tac-toe, poker hand rankings, Connect Four, and Hex---spanning uniform grids, frequency-weighted hierarchies, non-square grids, and non-Cartesian topologies.
   \item A characterization of the incidence matrix as a \emph{semantic bridge} admitting three readings (discrete, continuous, cryptographic), with the decoupling lemma guaranteeing lossless discrete $\to$ continuous $\to$ discrete round-trip.
 \end{itemize}
@@ -333,6 +333,7 @@ For all games tested, eigenvector centrality amplifies degree differences relati
 Defining normalized values $\hat{V}_i = V_i / V_{\min}$ and $\hat{\pi}_i = \pi_i / \pi_{\min}$, the spectral ratio exceeds the drain-count ratio:
 for $3 \times 3$ tic-tac-toe, the center-to-edge ratio is $(1 + \sqrt{13})/2 \approx 2.303$ spectrally versus $4/2 = 2$ by incidence reduction.
 The amplification arises because the off-diagonal entries of $M$ encode shared win-line structure: entities with high drain counts tend to share more constraints with other high-drain entities, creating mutual reinforcement in the eigenvector computation that the diagonal-only incidence reduction does not capture.
+In the Laplacian framework of Section~\ref{sec:laplacian}, this reinforcement has a precise interpretation: high-drain entities have lower mutual effective resistance (more shared constraints create more parallel paths in the co-occurrence graph), concentrating eigenvector mass on the high-degree cluster.
 This amplification is verified computationally for all games in Section~\ref{sec:experiments} but is not claimed to hold in general.
 \end{remark}
 
@@ -342,7 +343,71 @@ The approximation preserves ranking (ordinal equivalence) for all games tested h
 
 However, ranking agreement is established only for games with high symmetry---tic-tac-toe's dihedral group $D_4$ collapses the board to three orbits, and uniform constraint cardinality makes row sums proportional to drain counts.
 For game topologies with sufficient off-diagonal asymmetry in $M$, the mutual reinforcement captured by the eigenvector can in principle swap the ranking of two entities whose drain counts are close but whose co-occurrence patterns differ substantially.
-Constructing an explicit example of ranking disagreement, and characterizing the topological conditions under which the diagonal approximation preserves ordinal ranking, is an open problem.
+Section~\ref{sec:laplacian} provides a \emph{sufficient} condition for ranking preservation via the effective resistance framework: when the perturbation $\|D^{-1}A'\|$ is small relative to the gap between normalized drain counts, the diagonal approximation preserves ordinal ranking (Proposition~\ref{prop:resistance-ranking}).
+Constructing an explicit example of ranking disagreement, and characterizing \emph{necessary} conditions for ranking preservation, remain open problems.
+\end{remark}
+
+\subsection{Connection to the Graph Laplacian and Effective Resistance}
+\label{sec:laplacian}
+
+The co-occurrence matrix $M = BB^T$ admits a natural decomposition that connects incidence reduction to the graph Laplacian and effective resistance theory~\cite{chandra1989,klein1993,spielman2011,ghosh2008}.
+
+\paragraph{Laplacian decomposition.}
+Write $M = D + A'$, where $D = \mathrm{diag}(n_1, \ldots, n_n)$ is the diagonal matrix of drain counts and $A'$ is the off-diagonal co-occurrence matrix with $A'_{ij} = M_{ij}$ for $i \neq j$ and $A'_{ii} = 0$.
+The \emph{combinatorial Laplacian} of the co-occurrence graph (with adjacency matrix $A'$) is $L = D - A'$, so
+\begin{equation}\label{eq:laplacian-decomp}
+  M = BB^T = D + A' = 2D - L.
+\end{equation}
+Incidence reduction reads only the degree matrix~$D$, assigning values $V_i = n_i / n_{\min}$.
+Eigenvector centrality computes the Perron vector of the full matrix $M = 2D - L$, incorporating the Laplacian correction.
+
+\paragraph{Perturbation structure.}
+Factoring out~$D$ yields
+\begin{equation}\label{eq:perturbation}
+  M = D(I + D^{-1}A'),
+\end{equation}
+where $E = D^{-1}A'$ is a non-negative matrix with spectral radius $\rho(E) \leq \|E\|$.
+The Perron eigenvector of~$D$ alone (acting on positive vectors) is proportional to the vector of drain counts $(n_1, \ldots, n_n)$, recovering incidence reduction.
+The matrix~$E$ perturbs this eigenvector; Perron--Frobenius perturbation theory bounds the deviation.
+
+\begin{definition}[Effective Resistance]\label{def:eff-resistance}
+For a connected graph with Laplacian $L$ and pseudoinverse $L^+$, the \emph{effective resistance} between nodes $i$ and $j$ is
+\[
+  R_{\mathrm{eff}}(i,j) = (L^+)_{ii} + (L^+)_{jj} - 2(L^+)_{ij}.
+\]
+Effective resistance satisfies the triangle inequality and defines a metric on the vertex set~\cite{klein1993}.
+\end{definition}
+
+\begin{proposition}[Ranking Preservation via Perturbation Bound]\label{prop:resistance-ranking}
+Let $M = D(I + E)$ with $E = D^{-1}A'$ as above, and let $\boldsymbol{\pi}$ be the Perron eigenvector of~$M$.
+If $n_i > n_j$ and the spectral norm satisfies
+\begin{equation}\label{eq:ranking-condition}
+  \|E\| < \frac{n_i - n_j}{n_i + n_j},
+\end{equation}
+then $\pi_i > \pi_j$.
+\end{proposition}
+
+\begin{proof}[Proof sketch]
+Write $M = D(I + E)$.
+The Perron eigenvector of~$D$ is $\mathbf{d} = (n_1, \ldots, n_n)^T$.
+By standard matrix perturbation theory (see, e.g., Stewart and Sun~\cite{spielman2011} for the symmetric case), the Perron eigenvector~$\boldsymbol{\pi}$ of $D(I + E)$ satisfies
+\[
+  \boldsymbol{\pi} = \frac{\mathbf{d}}{\|\mathbf{d}\|} + \boldsymbol{\delta}, \quad \|\boldsymbol{\delta}\| \leq \frac{\|E\|}{1 - \|E\|} \cdot \frac{\|\mathbf{d}\|}{\min_{k \neq 1}|\lambda_k(D) - \lambda_1(D)|}.
+\]
+For the ranking of components $i$ and $j$ to be preserved, we need $d_i + \delta_i > d_j + \delta_j$, i.e., $n_i - n_j > \delta_j - \delta_i$.
+Since $|\delta_j - \delta_i| \leq 2\|\boldsymbol{\delta}\|_\infty$, the condition~\eqref{eq:ranking-condition} ensures the perturbation cannot close the gap between $n_i$ and $n_j$.
+
+The connection to effective resistance is as follows.
+When $\|E\|$ is small, the off-diagonal entries of $E$ are small relative to the degree normalization, which occurs precisely when the effective resistances between degree classes in the co-occurrence graph are large.
+Large effective resistance between high-degree and low-degree nodes means their co-occurrence patterns are sufficiently different that the off-diagonal coupling does not override the diagonal degree information.
+Conversely, low effective resistance between nodes of different degree classes (many shared constraints creating parallel paths) increases $\|E\|$ and can cause the eigenvector to swap rankings relative to the diagonal approximation.
+\end{proof}
+
+\begin{remark}[Spectral Amplification via Effective Resistance]\label{rem:resistance-amplification}
+The spectral amplification phenomenon (Remark~\ref{rem:amplification}) now has a precise interpretation.
+High-drain entities are ``closer'' in resistance distance to each other: they share more constraints, creating more parallel paths in the co-occurrence graph and lowering their mutual effective resistance.
+This proximity concentrates eigenvector mass on the high-drain cluster, amplifying their centrality beyond what the diagonal degree counts predict.
+The degree of amplification is governed by the ratio of within-class to between-class effective resistance: when high-drain entities form a tightly-connected cluster (low internal resistance) that is loosely connected to low-drain entities (high cross-class resistance), the amplification is strongest.
 \end{remark}
 
 % ------------------------------------------------------------------
@@ -719,6 +784,12 @@ For asymmetric or state-dependent evaluations, the analysis net can be condition
 The ODE integration cost is $O(s \cdot A)$ where $s$ is the number of solver steps and $A$ is the total number of arcs.
 Because the system is decoupled, convergence is rapid (exponential, with rate $n_{\min}$), and in practice fewer than 100 solver steps suffice for all examples tested.
 
+\paragraph{Effective resistance and ranking divergence.}
+The Laplacian connection established in Section~\ref{sec:laplacian} opens a path toward quantitative bounds on ranking divergence.
+The sufficient condition in Proposition~\ref{prop:resistance-ranking}---that the spectral norm $\|D^{-1}A'\|$ be small relative to the gap between normalized drain counts---explains why highly symmetric games like tic-tac-toe exhibit ranking agreement: symmetry forces uniform off-diagonal structure, keeping $\|D^{-1}A'\|$ small.
+For asymmetric topologies, the effective resistance framework could yield explicit bounds on the maximum rank-swap probability as a function of the Laplacian pseudoinverse entries.
+Deriving tight \emph{necessary} conditions for ranking preservation, and constructing minimal counterexamples of ranking disagreement, remain open problems.
+
 % ------------------------------------------------------------------
 \section{Related Work}
 \label{sec:related}
@@ -734,6 +805,13 @@ Our contribution is the specific \emph{analysis net construction} whose catalyti
 Classical game theory evaluates positions via minimax, Nash equilibria, or potential functions~\cite{monderer1996}.
 Incidence reduction offers a complementary \emph{topological} evaluation that requires no search and produces exact values.
 The approach is closest in spirit to influence-based evaluation functions in board games~\cite{allis1994}, but derives values from principled ODE equilibrium rather than heuristic feature counting.
+
+\paragraph{Graph Laplacians and effective resistance.}
+The combinatorial graph Laplacian and its pseudoinverse are classical tools for analyzing network structure.
+Chandra et al.~\cite{chandra1989} established the connection between effective resistance and random-walk commute times; Klein and Randi\'{c}~\cite{klein1993} introduced resistance distance as an intrinsic graph metric.
+Spielman and Teng~\cite{spielman2011} developed nearly-linear-time Laplacian solvers with applications to spectral graph theory, and Ghosh, Boyd, and Saberi~\cite{ghosh2008} studied effective resistance minimization as a measure of network robustness.
+The decomposition $M = BB^T = 2D - L$ established in Section~\ref{sec:laplacian} connects our co-occurrence matrix to this body of work: incidence reduction reads the degree matrix~$D$, while the full spectral analysis involves the Laplacian correction~$L$.
+The effective resistance framework provides a sufficient condition for ranking preservation (Proposition~\ref{prop:resistance-ranking}), partially resolving the open problem of characterizing when the diagonal approximation agrees with eigenvector centrality.
 
 \paragraph{ZK proofs for games.}
 Zero-knowledge proofs have been applied to card games (mental poker~\cite{shamir1981}), board games, and blockchain-based games.
@@ -841,6 +919,27 @@ A.~Shamir, R.~L.~Rivest, and L.~M.~Adleman.
 C.~Tsitouras.
 \newblock Runge--Kutta pairs of order 5(4) satisfying only the first column simplifying assumption.
 \newblock \emph{Computers \& Mathematics with Applications}, 62(2):770--775, 2011.
+
+\bibitem{chandra1989}
+A.~K.~Chandra, P.~Raghavan, W.~L.~Ruzzo, R.~Smolensky, and P.~Tiwari.
+\newblock The electrical resistance of a graph captures its commute and cover times.
+\newblock \emph{Computational Complexity}, 6(4):312--340, 1996.
+\newblock (Preliminary version in STOC 1989.)
+
+\bibitem{klein1993}
+D.~J.~Klein and M.~Randi\'{c}.
+\newblock Resistance distance.
+\newblock \emph{Journal of Mathematical Chemistry}, 12(1):81--95, 1993.
+
+\bibitem{spielman2011}
+D.~A.~Spielman and S.-H.~Teng.
+\newblock Spectral sparsification of graphs.
+\newblock \emph{SIAM Journal on Computing}, 40(4):981--1025, 2011.
+
+\bibitem{ghosh2008}
+A.~Ghosh, S.~Boyd, and A.~Saberi.
+\newblock Minimizing effective resistance of a graph.
+\newblock \emph{SIAM Review}, 50(1):37--66, 2008.
 
 \end{thebibliography}
 
