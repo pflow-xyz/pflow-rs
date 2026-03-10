@@ -11,6 +11,7 @@ mod eigenvalue;
 mod factoring;
 mod extract;
 mod invariants;
+pub mod relu_net;
 
 pub use semiring::{Matrix, mat_mul, mat_pow, tropical_add, tropical_mul, NEG_INF};
 pub use eigenvalue::eigenvalue;
