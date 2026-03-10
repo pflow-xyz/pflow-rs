@@ -326,19 +326,22 @@ It is the Kolmogorov complexity claim: $S'$ is the shortest description of $S$ f
 \subsection{The Four Stages}
 
 \begin{center}
-\begin{tabular}{@{}llll@{}}
+\begin{tabular}{@{}lllll@{}}
 \toprule
-\textbf{Stage} & \textbf{Input} & \textbf{Output} & \textbf{Property preserved} \\
+\textbf{Stage} & \textbf{Input} & \textbf{Output} & \textbf{$\rho$} & \textbf{Property preserved} \\
 \midrule
-Domain $\to$ Net & Game rules & $C \in \Z^{|T| \times |P|}$ & All firing semantics \\
-Net $\to$ Eigenvalue & $C$ & $\lambda \in \Rmax$ & Throughput (core) \\
-Net $\to$ Invariants & $C$ & $\ker(C), \ker(C^T)$ & Conservation laws \\
-Net $\to$ ZK proof & $C, \mathbf{m}, t$ & $\pi \in \{0,1\}^{128}$ & Transition validity \\
+Domain $\to$ Net & Game rules & $C \in \Z^{|T| \times |P|}$ & --- & All firing semantics \\
+Net $\to$ Eigenvalue & $C$ ($35 \times 33$) & $\lambda \in \Rmax$ & 1155 & Throughput (core) \\
+Net $\to$ Invariants & $C$ & $\ker(C), \ker(C^T)$ & $|P|/\dim\ker$ & Conservation laws \\
+Net $\to$ Observation & $\mathbf{m}, t_{\mathrm{obs}}$ & verdict $\in \{w, l, d\}$ & 5--10 & Game outcome \\
+Net $\to$ ZK proof & $C, \mathbf{m}, t$ & $\pi \in \{0,1\}^{128}$ & $\sim 10^4$ & Transition validity \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 Each row is an earned compression: the output is strictly smaller than the input, the target property is exactly recoverable, and no smaller output suffices.
+The compression ratio $\rho$ quantifies what is earned at each stage---the ratio of input size to output size, measuring exactly how much irrelevant information is discarded.
+Observation (Section~\ref{sec:observer}) is the only stage that is \emph{irreversible}: the consumed tokens are destroyed, not merely summarized.
 
 \paragraph{Stage 1: Domain to net.}
 The incidence matrix $C$ is the compression of the game rules.
@@ -361,11 +364,82 @@ The incidence matrix $C$ is baked into the circuit as constants; the proof witne
 This is the ultimate compression: the verifier learns \emph{only} that the transition was valid, and nothing else about the state.
 
 % ------------------------------------------------------------------
-\section{Observer as Functor}
+\section{Observation as Irreversible Compression}
 \label{sec:observer}
 
-The core-observer decomposition has a categorical interpretation.
-Let $\Petri$ be the category of Petri nets (objects: nets, morphisms: simulations preserving marking and enabling) and $\mathbf{Set}$ the category of sets.
+\subsection{Observation = Irreversibility}
+
+The core-observer decomposition is not merely structural---it is \emph{thermodynamic}.
+The core subnet is reversible in the invariant-theoretic sense: P-invariants guarantee that every token consumed by a core transition is produced elsewhere.
+The total weighted token count is conserved across all core firings.
+No information is destroyed.
+
+The observer subnet is irreversible.
+A win transition consumes cell tokens and the \texttt{game\_active} flag, producing a single verdict token (\texttt{win\_x}, \texttt{win\_o}).
+The board state---which cells were marked, in what order---is destroyed.
+Only the verdict survives.
+
+\begin{definition}[Observation]
+\label{def:observation}
+An \emph{observation} on a Petri net $N$ is a transition $t \in T_{\mathrm{obs}}$ such that:
+\begin{enumerate}
+  \item $t$ consumes from places shared with $T_{\mathrm{core}}$ (it reads the core's state),
+  \item $t$ does not produce into any place shared with $T_{\mathrm{core}}$ (the read is destructive),
+  \item $t$ produces into places exclusive to $T_{\mathrm{obs}}$ (it emits a verdict).
+\end{enumerate}
+An observation is \emph{irreversible}: no firing sequence from the post-observation marking can restore the pre-observation marking.
+\end{definition}
+
+This is not an analogy to measurement in physics---it is the same structure.
+A measurement apparatus couples irreversibly to a reversible system, producing a classical outcome that cannot be undone.
+The formalization here makes precise what ``irreversible'' means: the consumed tokens are not reproduced, so the pre-observation marking leaves the reachability set.
+
+\begin{proposition}[Observation requires irreversibility]
+\label{prop:irreversible}
+Let $t \in T_{\mathrm{obs}}$ be an observer transition.
+If $t$ were reversible---i.e., if there existed a transition $t^{-1}$ such that firing $t$ then $t^{-1}$ restores the original marking---then $t$ would not terminate the system.
+The game could be ``un-won.''
+Irreversibility is not overhead; it is the definition of having observed.
+\end{proposition}
+
+\subsection{Quantifying the Earned Compression}
+
+Each observation has a measurable \emph{compression ratio}: the information destroyed relative to the verdict produced.
+
+\begin{definition}[Observation Compression Ratio]
+\label{def:ratio}
+For an observer transition $t$, let $\mathrm{consumed}(t) = \sum_{p} A^-(t, p)$ be the total tokens consumed and $\mathrm{produced}(t) = \sum_{p} A^+(t, p)$ be the total tokens produced.
+The \emph{compression ratio} is:
+\[
+  \rho(t) = \frac{\mathrm{consumed}(t)}{\mathrm{produced}(t)}
+\]
+\end{definition}
+
+For TTT win transitions: each consumes 5 tokens (3 cell tokens $+$ \texttt{game\_active} $+$ turn token) and produces 1 token (\texttt{win\_x} or \texttt{win\_o}), giving $\rho = 5$.
+The draw transition consumes 10 tokens (9 \texttt{move\_tokens} $+$ \texttt{game\_active}) and produces 1, giving $\rho = 10$.
+
+The compression ratio quantifies what is \emph{earned}: 5 tokens of board state are irreversibly consumed to produce 1 bit of verdict.
+The 4 tokens of information destroyed are exactly the tokens that are irrelevant to the verdict---the specific cells that formed the winning line don't matter once you know who won.
+
+\begin{center}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{Observer transition} & \textbf{Consumed} & \textbf{Produced} & $\rho$ & \textbf{Information discarded} \\
+\midrule
+\texttt{x\_win\_*} (8 transitions) & 5 & 1 & 5 & Which 3 cells formed the line \\
+\texttt{o\_win\_*} (8 transitions) & 5 & 1 & 5 & Which 3 cells formed the line \\
+\texttt{draw} & 10 & 1 & 10 & Full move history (9 moves) \\
+\midrule
+Core transitions (18) & 3 & 3 & 1 & None (reversible) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The core transitions have $\rho = 1$: every token consumed is produced elsewhere.
+This is the formal signature of reversibility.
+Observer transitions have $\rho > 1$: more is consumed than produced, and the difference is the earned compression---the exact amount of state that the verdict makes irrelevant.
+
+\subsection{Categorical Interpretation}
 
 The observer defines a functor $F : \Petri \to \mathbf{Set}$ that maps each net $N$ to its set of terminal states (win, loss, draw) and each simulation morphism to the induced map on terminal states.
 
@@ -373,8 +447,9 @@ The observer defines a functor $F : \Petri \to \mathbf{Set}$ that maps each net 
 The observer functor $F$ preserves the core's reachability: for any marking $\mathbf{m}$ reachable in $N_{\mathrm{core}}$, the set of terminal states reachable from $\mathbf{m}$ in $N$ is determined by the observer transitions enabled at $\mathbf{m}$.
 \end{proposition}
 
-This is a formal statement of the intuition that the observer ``reads'' the core's state without modifying it.
-The sink property (Definition~\ref{def:decomposition}) is the categorical condition ensuring that $F$ is well-defined: observer transitions cannot create new core-reachable markings.
+The functor $F$ is the categorical formalization of the compression: it maps the exponentially large reachability graph to a finite set of verdicts.
+The compression ratio $\rho$ measures the per-transition cost of applying $F$---the tokens of state traded for one token of verdict.
+The sink property (Definition~\ref{def:decomposition}) ensures $F$ is well-defined: observer transitions cannot create new core-reachable markings, so observation is a one-way projection from dynamics to outcome.
 
 % ------------------------------------------------------------------
 \section{Experiments}
