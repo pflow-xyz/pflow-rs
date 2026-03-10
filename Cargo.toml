@@ -11,6 +11,7 @@ members = [
     "crates/pflow-zk-risc0",
     "crates/pflow",
     "crates/pflow-mcp",
+    "crates/pflow-tropical",
 ]
 
 [workspace.package]

@@ -1,0 +1,12 @@
+[package]
+name = "pflow-tropical"
+description = "Tropical semiring (max-plus algebra) for Petri net analysis"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+pflow-zk = { path = "../pflow-zk" }
+pflow-core = { path = "../pflow-core" }
