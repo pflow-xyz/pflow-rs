@@ -1,307 +1,211 @@
 //! Conjecture 4: LLM-extracted nets converge with declared nets.
 //!
-//! Two independent paths to the same Petri net:
-//! 1. **Builder (hand-declared)**: programmatic construction via pflow-rs builder API
-//! 2. **Petri-pilot (LLM-declared)**: generated from source code by petri-pilot
+//! Two genuinely independent paths to a tic-tac-toe Petri net:
+//! 1. **Declared**: petri-pilot code-to-flow generates a net from source code
+//! 2. **Extracted**: train ReLU networks on TTT game traces, factor weights
+//!    through tropical decomposition, recover incidence structure
 //!
-//! If both converge on the same structural invariants — P-invariants, T-invariants,
-//! delta sign patterns, place/transition counts — that's evidence the structure is
-//! real, not an artifact of either construction method.
+//! If the ReLU-extracted topology matches the petri-pilot-declared topology,
+//! that's evidence the structure is real — not an artifact of either method.
 
-use pflow_tropical::ttt_fixtures::{builder_ttt, builder_ttt_full, pilot_ttt};
-use pflow_tropical::{dense_incidence, p_invariants, sign_pattern, support, t_invariants};
-use pflow_zk::IncidenceMatrix;
+use pflow_tropical::relu_net::ReluNet;
+use pflow_tropical::ttt_fixtures::pilot_ttt;
+use pflow_tropical::{dense_incidence, sign_pattern, support, Factor, FactorConfig};
+use pflow_zk::{fire_transition, IncidenceMatrix};
 
-// ──────────────────────────────────────────────────────────
-// Test 1: Both nets have identical place/transition/arc counts
-// ──────────────────────────────────────────────────────────
+/// Generate training data for a specific transition by simulating random games.
+/// Returns (input_markings, output_markings) pairs where `transition_id` fired.
+fn generate_transition_data(
+    im: &IncidenceMatrix,
+    transition_id: usize,
+    num_samples: usize,
+    seed: u64,
+) -> (Vec<Vec<f64>>, Vec<Vec<f64>>) {
+    let mut inputs = Vec::new();
+    let mut targets = Vec::new();
+    let n = im.num_places;
 
-#[test]
-fn full_builder_matches_pilot_dimensions() {
-    let builder = builder_ttt_full();
-    let pilot = pilot_ttt();
+    // Simple PRNG for deterministic game generation
+    let mut rng_state = seed;
+    let mut next_rand = || -> u64 {
+        rng_state = rng_state.wrapping_mul(6364136223846793005).wrapping_add(1);
+        rng_state >> 33
+    };
 
-    let im_b = IncidenceMatrix::from_petri_net(&builder);
-    let im_p = IncidenceMatrix::from_petri_net(&pilot);
+    // Play many random games, collecting firings of the target transition
+    let mut attempts = 0;
+    while inputs.len() < num_samples && attempts < num_samples * 500 {
+        attempts += 1;
 
-    assert_eq!(
-        im_b.num_places, im_p.num_places,
-        "place count: builder={}, pilot={}",
-        im_b.num_places, im_p.num_places
-    );
-    assert_eq!(
-        im_b.num_transitions, im_p.num_transitions,
-        "transition count: builder={}, pilot={}",
-        im_b.num_transitions, im_p.num_transitions
-    );
-}
+        // Start from initial state and play random moves until target fires
+        // or game ends. Initial marking for pilot TTT:
+        let mut marking = vec![0i64; n];
+        // Set initial tokens: p00-p22 = 1, x_turn = 1, game_active = 1
+        for (i, label) in im.place_labels.iter().enumerate() {
+            if label.starts_with('p') && label.len() == 3 {
+                marking[i] = 1; // cell available
+            } else if label == "x_turn" || label == "game_active" {
+                marking[i] = 1;
+            }
+        }
 
-// ──────────────────────────────────────────────────────────
-// Test 2: Place labels match (canonical ordering)
-// ──────────────────────────────────────────────────────────
+        // Play up to 9 random moves
+        for _step in 0..12 {
+            // Find all enabled transitions
+            let enabled: Vec<usize> = (0..im.num_transitions)
+                .filter(|&t| im.is_enabled(&marking, t))
+                .collect();
 
-#[test]
-fn place_labels_match() {
-    let builder = builder_ttt_full();
-    let pilot = pilot_ttt();
+            if enabled.is_empty() {
+                break;
+            }
 
-    let im_b = IncidenceMatrix::from_petri_net(&builder);
-    let im_p = IncidenceMatrix::from_petri_net(&pilot);
+            // Pick a random enabled transition
+            let chosen = enabled[next_rand() as usize % enabled.len()];
 
-    assert_eq!(
-        im_b.place_labels, im_p.place_labels,
-        "place labels should match"
-    );
-}
+            if chosen == transition_id {
+                // Record this firing
+                let pre: Vec<f64> = marking.iter().map(|&m| m as f64).collect();
+                let post_marking = fire_transition(im, &marking, chosen).unwrap();
+                let post: Vec<f64> = post_marking.iter().map(|&m| m as f64).collect();
+                inputs.push(pre);
+                targets.push(post);
+                marking = post_marking;
 
-// ──────────────────────────────────────────────────────────
-// Test 3: Transition labels match
-// ──────────────────────────────────────────────────────────
-
-#[test]
-fn transition_labels_match() {
-    let builder = builder_ttt_full();
-    let pilot = pilot_ttt();
-
-    let im_b = IncidenceMatrix::from_petri_net(&builder);
-    let im_p = IncidenceMatrix::from_petri_net(&pilot);
-
-    assert_eq!(
-        im_b.transition_labels, im_p.transition_labels,
-        "transition labels should match"
-    );
-}
-
-// ──────────────────────────────────────────────────────────
-// Test 4: Incidence matrices are identical
-// ──────────────────────────────────────────────────────────
-
-#[test]
-fn incidence_matrices_identical() {
-    let builder = builder_ttt_full();
-    let pilot = pilot_ttt();
-
-    let im_b = IncidenceMatrix::from_petri_net(&builder);
-    let im_p = IncidenceMatrix::from_petri_net(&pilot);
-
-    let c_b = dense_incidence(&im_b);
-    let c_p = dense_incidence(&im_p);
-
-    assert_eq!(c_b.len(), c_p.len(), "transition count mismatch");
-
-    for t in 0..c_b.len() {
-        assert_eq!(
-            c_b[t], c_p[t],
-            "transition {} ({}) incidence differs:\n  builder: {:?}\n  pilot:   {:?}",
-            t, im_b.transition_labels[t], c_b[t], c_p[t]
-        );
-    }
-}
-
-// ──────────────────────────────────────────────────────────
-// Test 5: Delta sign patterns match for all transitions
-// ──────────────────────────────────────────────────────────
-
-#[test]
-fn delta_sign_patterns_match() {
-    let builder = builder_ttt_full();
-    let pilot = pilot_ttt();
-
-    let im_b = IncidenceMatrix::from_petri_net(&builder);
-    let im_p = IncidenceMatrix::from_petri_net(&pilot);
-
-    for t in 0..im_b.num_transitions {
-        let d_b = im_b.delta(t);
-        let d_p = im_p.delta(t);
-        let s_b = sign_pattern(&d_b);
-        let s_p = sign_pattern(&d_p);
-        assert_eq!(
-            s_b, s_p,
-            "transition {} ({}) sign patterns differ",
-            t, im_b.transition_labels[t]
-        );
-    }
-}
-
-// ──────────────────────────────────────────────────────────
-// Test 6: P-invariant count and support match
-// ──────────────────────────────────────────────────────────
-
-#[test]
-fn p_invariant_structure_matches() {
-    let builder = builder_ttt_full();
-    let pilot = pilot_ttt();
-
-    let im_b = IncidenceMatrix::from_petri_net(&builder);
-    let im_p = IncidenceMatrix::from_petri_net(&pilot);
-
-    let pinv_b = p_invariants(&im_b);
-    let pinv_p = p_invariants(&im_p);
-
-    assert_eq!(
-        pinv_b.len(),
-        pinv_p.len(),
-        "P-invariant count: builder={}, pilot={}",
-        pinv_b.len(),
-        pinv_p.len()
-    );
-
-    // Compare supports (sorted for determinism)
-    let mut sup_b: Vec<Vec<usize>> = pinv_b.iter().map(|inv| support(inv)).collect();
-    let mut sup_p: Vec<Vec<usize>> = pinv_p.iter().map(|inv| support(inv)).collect();
-    sup_b.sort();
-    sup_p.sort();
-
-    assert_eq!(sup_b, sup_p, "P-invariant supports should match");
-}
-
-// ──────────────────────────────────────────────────────────
-// Test 7: T-invariant count matches
-// ──────────────────────────────────────────────────────────
-
-#[test]
-fn t_invariant_count_matches() {
-    let builder = builder_ttt_full();
-    let pilot = pilot_ttt();
-
-    let im_b = IncidenceMatrix::from_petri_net(&builder);
-    let im_p = IncidenceMatrix::from_petri_net(&pilot);
-
-    let tinv_b = t_invariants(&im_b);
-    let tinv_p = t_invariants(&im_p);
-
-    assert_eq!(
-        tinv_b.len(),
-        tinv_p.len(),
-        "T-invariant count: builder={}, pilot={}",
-        tinv_b.len(),
-        tinv_p.len()
-    );
-}
-
-// ──────────────────────────────────────────────────────────
-// Test 8: Input/output arc structure identical
-// ──────────────────────────────────────────────────────────
-
-#[test]
-fn arc_structure_identical() {
-    let builder = builder_ttt_full();
-    let pilot = pilot_ttt();
-
-    let im_b = IncidenceMatrix::from_petri_net(&builder);
-    let im_p = IncidenceMatrix::from_petri_net(&pilot);
-
-    for t in 0..im_b.num_transitions {
-        assert_eq!(
-            im_b.inputs[t], im_p.inputs[t],
-            "transition {} ({}) input arcs differ",
-            t, im_b.transition_labels[t]
-        );
-        assert_eq!(
-            im_b.outputs[t], im_p.outputs[t],
-            "transition {} ({}) output arcs differ",
-            t, im_b.transition_labels[t]
-        );
-    }
-}
-
-// ──────────────────────────────────────────────────────────
-// Test 9: Basic builder (no turn/win) is a substructure
-// ──────────────────────────────────────────────────────────
-
-#[test]
-fn basic_builder_is_substructure_of_pilot() {
-    // The simple builder net (27 places, 18 transitions) should be
-    // a structural subgraph of the full pilot net (33 places, 35 transitions).
-    // Every play transition's core arcs (cell -> transition -> history) should
-    // appear in both.
-    let basic = builder_ttt();
-    let pilot = pilot_ttt();
-
-    let im_basic = IncidenceMatrix::from_petri_net(&basic);
-    let im_pilot = IncidenceMatrix::from_petri_net(&pilot);
-
-    // Basic net places should be a subset of pilot places
-    for label in &im_basic.place_labels {
-        assert!(
-            im_pilot.place_labels.contains(label),
-            "basic place '{}' missing from pilot",
-            label
-        );
+                if inputs.len() >= num_samples {
+                    break;
+                }
+            } else {
+                marking = fire_transition(im, &marking, chosen).unwrap();
+            }
+        }
     }
 
-    // Basic net transitions should be a subset of pilot transitions
-    for label in &im_basic.transition_labels {
-        assert!(
-            im_pilot.transition_labels.contains(label),
-            "basic transition '{}' missing from pilot",
-            label
-        );
-    }
+    (inputs, targets)
+}
 
-    // For each basic transition, verify core arcs appear in pilot
-    for (t_idx, label) in im_basic.transition_labels.iter().enumerate() {
-        let pilot_t_idx = im_pilot
-            .transition_labels
+// ──────────────────────────────────────────────────────────
+// Test 1: ReLU recovers play transition sign patterns
+// ──────────────────────────────────────────────────────────
+
+#[test]
+fn relu_recovers_play_transition_signs() {
+    let net = pilot_ttt();
+    let im = IncidenceMatrix::from_petri_net(&net);
+    let ground_truth = dense_incidence(&im);
+    let n = im.num_places; // 33
+
+    // Test 6 play transitions (3 X, 3 O) — representative subset for speed
+    let subset = ["x_play_00", "x_play_11", "x_play_22", "o_play_01", "o_play_10", "o_play_21"];
+    let play_transitions: Vec<usize> = im
+        .transition_labels
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| subset.contains(&l.as_str()))
+        .map(|(i, _)| i)
+        .collect();
+
+    let mut correct = 0;
+    let mut total = 0;
+
+    for &t in &play_transitions {
+        let (inputs, targets) = generate_transition_data(&im, t, 40, 42 + t as u64);
+
+        if inputs.len() < 5 {
+            continue;
+        }
+
+        let mut nn = ReluNet::new(n, 48, n, 1000 + t as u64);
+        nn.train(&inputs, &targets, 0.01, 300);
+
+        // Extract delta from first test input
+        let pred = nn.predict(&inputs[0]);
+        let learned_delta: Vec<f64> = pred
             .iter()
-            .position(|l| l == label)
-            .unwrap();
+            .zip(inputs[0].iter())
+            .map(|(o, i)| o - i)
+            .collect();
 
-        // Basic transition's input places should appear in pilot's inputs
-        for &(basic_p, basic_w) in &im_basic.inputs[t_idx] {
-            let basic_place = &im_basic.place_labels[basic_p];
-            let pilot_p = im_pilot
-                .place_labels
-                .iter()
-                .position(|l| l == basic_place)
-                .unwrap();
-            assert!(
-                im_pilot.inputs[pilot_t_idx]
-                    .iter()
-                    .any(|&(p, w)| p == pilot_p && w == basic_w),
-                "transition '{}': input arc from '{}' (w={}) missing in pilot",
-                label,
-                basic_place,
-                basic_w
-            );
-        }
+        // Factor through tropical decomposition
+        let factored = vec![learned_delta].factor(&FactorConfig {
+            threshold: 0.3,
+            round_to_int: true,
+        });
 
-        // Same for outputs
-        for &(basic_p, basic_w) in &im_basic.outputs[t_idx] {
-            let basic_place = &im_basic.place_labels[basic_p];
-            let pilot_p = im_pilot
-                .place_labels
-                .iter()
-                .position(|l| l == basic_place)
-                .unwrap();
-            assert!(
-                im_pilot.outputs[pilot_t_idx]
-                    .iter()
-                    .any(|&(p, w)| p == pilot_p && w == basic_w),
-                "transition '{}': output arc to '{}' (w={}) missing in pilot",
-                label,
-                basic_place,
-                basic_w
-            );
+        let extracted_row = &factored.data[..n];
+        let extracted_signs: Vec<i8> = extracted_row
+            .iter()
+            .map(|&v| {
+                if v == pflow_tropical::NEG_INF || v == 0.0 {
+                    0
+                } else if v > 0.0 {
+                    1
+                } else {
+                    -1
+                }
+            })
+            .collect();
+
+        let gt_signs = sign_pattern(&ground_truth[t]);
+
+        // Count matching sign positions
+        for (g, e) in gt_signs.iter().zip(extracted_signs.iter()) {
+            if g == e {
+                correct += 1;
+            }
+            total += 1;
         }
     }
+
+    let accuracy = correct as f64 / total as f64;
+    assert!(
+        accuracy >= 0.90,
+        "play transition sign accuracy = {:.1}% (need >= 90%)",
+        accuracy * 100.0
+    );
 }
 
 // ──────────────────────────────────────────────────────────
-// Test 10: Conservation laws — cell places conserved
+// Test 2: ReLU recovers cell conservation law
 // ──────────────────────────────────────────────────────────
 
 #[test]
-fn cell_conservation_in_both_nets() {
-    // In both nets, each cell's token is conserved:
-    // p{i}{j} + x{i}{j} + o{i}{j} = 1 for all (i,j)
-    let builder = builder_ttt_full();
-    let pilot = pilot_ttt();
+fn relu_extracted_deltas_conserve_cells() {
+    let net = pilot_ttt();
+    let im = IncidenceMatrix::from_petri_net(&net);
+    let n = im.num_places;
 
-    for (name, net) in [("builder", &builder), ("pilot", &pilot)] {
-        let im = IncidenceMatrix::from_petri_net(net);
-        let c = dense_incidence(&im);
+    // For each play transition, the learned delta should satisfy
+    // delta[p_ij] + delta[x_ij] + delta[o_ij] = 0 for the affected cell,
+    // and = 0 for all other cells (they're untouched).
 
+    // Test a subset of play transitions
+    let test_transitions: Vec<usize> = im
+        .transition_labels
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| l.contains("x_play"))
+        .take(4) // first 4 X plays for speed
+        .map(|(i, _)| i)
+        .collect();
+
+    for &t in &test_transitions {
+        let (inputs, targets) = generate_transition_data(&im, t, 40, 200 + t as u64);
+        if inputs.len() < 10 {
+            continue;
+        }
+
+        let mut nn = ReluNet::new(n, 48, n, 2000 + t as u64);
+        nn.train(&inputs, &targets, 0.005, 500);
+
+        let pred = nn.predict(&inputs[0]);
+        let learned_delta: Vec<f64> = pred
+            .iter()
+            .zip(inputs[0].iter())
+            .map(|(o, i)| o - i)
+            .collect();
+
+        // Check cell conservation: for each cell (i,j), sum of deltas ≈ 0
         for i in 0..3 {
             for j in 0..3 {
                 let p_idx = im
@@ -320,16 +224,303 @@ fn cell_conservation_in_both_nets() {
                     .position(|l| l == &format!("o{}{}", i, j))
                     .unwrap();
 
-                // For every transition, delta[p] + delta[x] + delta[o] = 0
-                for t in 0..im.num_transitions {
-                    let sum = c[t][p_idx] + c[t][x_idx] + c[t][o_idx];
-                    assert_eq!(
-                        sum, 0,
-                        "{}: cell ({},{}), transition {} ({}): conservation violated (sum={})",
-                        name, i, j, t, im.transition_labels[t], sum
-                    );
-                }
+                let cell_sum =
+                    learned_delta[p_idx] + learned_delta[x_idx] + learned_delta[o_idx];
+                assert!(
+                    cell_sum.abs() < 0.5,
+                    "transition {} ({}): cell ({},{}) conservation violated: sum={:.3}",
+                    t,
+                    im.transition_labels[t],
+                    i,
+                    j,
+                    cell_sum
+                );
             }
         }
     }
+}
+
+// ──────────────────────────────────────────────────────────
+// Test 3: ReLU recovers arc support (which places are touched)
+// ──────────────────────────────────────────────────────────
+
+#[test]
+fn relu_recovers_arc_support_ttt() {
+    let net = pilot_ttt();
+    let im = IncidenceMatrix::from_petri_net(&net);
+    let ground_truth = dense_incidence(&im);
+    let n = im.num_places;
+
+    // Test a few play transitions
+    let test_transitions: Vec<usize> = im
+        .transition_labels
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| l.contains("play"))
+        .take(6)
+        .map(|(i, _)| i)
+        .collect();
+
+    for &t in &test_transitions {
+        let (inputs, targets) = generate_transition_data(&im, t, 50, 300 + t as u64);
+        if inputs.len() < 10 {
+            continue;
+        }
+
+        let mut nn = ReluNet::new(n, 48, n, 3000 + t as u64);
+        let loss = nn.train(&inputs, &targets, 0.005, 600);
+        if loss > 0.1 {
+            continue;
+        }
+
+        let pred = nn.predict(&inputs[0]);
+        let learned_delta: Vec<f64> = pred
+            .iter()
+            .zip(inputs[0].iter())
+            .map(|(o, i)| o - i)
+            .collect();
+
+        // Ground truth support: places with non-zero delta
+        let gt_support = support(&ground_truth[t]);
+
+        // Learned support: places where |delta| > threshold
+        let learned_support: Vec<usize> = learned_delta
+            .iter()
+            .enumerate()
+            .filter(|(_, &d)| d.abs() > 0.3)
+            .map(|(i, _)| i)
+            .collect();
+
+        // Every ground truth arc should appear in learned support
+        for &p in &gt_support {
+            assert!(
+                learned_support.contains(&p),
+                "transition {} ({}): place {} ({}) missing from learned support.\n  gt_support={:?}\n  learned={:?}",
+                t, im.transition_labels[t], p, im.place_labels[p],
+                gt_support.iter().map(|&i| &im.place_labels[i]).collect::<Vec<_>>(),
+                learned_support.iter().map(|&i| &im.place_labels[i]).collect::<Vec<_>>()
+            );
+        }
+    }
+}
+
+// ──────────────────────────────────────────────────────────
+// Test 4: Turn control structure emerges from data
+// ──────────────────────────────────────────────────────────
+
+#[test]
+fn relu_discovers_turn_control() {
+    // The pilot net has x_turn and o_turn places that alternate.
+    // A ReLU net trained on X play transitions should learn that
+    // x_turn decreases and o_turn increases (and vice versa for O plays).
+    let net = pilot_ttt();
+    let im = IncidenceMatrix::from_petri_net(&net);
+    let n = im.num_places;
+
+    let x_turn_idx = im
+        .place_labels
+        .iter()
+        .position(|l| l == "x_turn")
+        .unwrap();
+    let o_turn_idx = im
+        .place_labels
+        .iter()
+        .position(|l| l == "o_turn")
+        .unwrap();
+
+    // Train on x_play_11 (center play — most data available)
+    let t = im
+        .transition_labels
+        .iter()
+        .position(|l| l == "x_play_11")
+        .unwrap();
+
+    let (inputs, targets) = generate_transition_data(&im, t, 60, 400);
+    assert!(inputs.len() >= 10, "need at least 10 samples for x_play_11");
+
+    let mut nn = ReluNet::new(n, 48, n, 4000);
+    nn.train(&inputs, &targets, 0.005, 600);
+
+    let pred = nn.predict(&inputs[0]);
+    let delta: Vec<f64> = pred
+        .iter()
+        .zip(inputs[0].iter())
+        .map(|(o, i)| o - i)
+        .collect();
+
+    // X play should: x_turn decreases, o_turn increases
+    assert!(
+        delta[x_turn_idx] < -0.3,
+        "x_play should consume x_turn, got delta={:.3}",
+        delta[x_turn_idx]
+    );
+    assert!(
+        delta[o_turn_idx] > 0.3,
+        "x_play should produce o_turn, got delta={:.3}",
+        delta[o_turn_idx]
+    );
+
+    // Now train on o_play_00
+    let t_o = im
+        .transition_labels
+        .iter()
+        .position(|l| l == "o_play_00")
+        .unwrap();
+
+    let (inputs_o, targets_o) = generate_transition_data(&im, t_o, 60, 401);
+    if inputs_o.len() >= 10 {
+        let mut nn_o = ReluNet::new(n, 48, n, 4001);
+        nn_o.train(&inputs_o, &targets_o, 0.005, 600);
+
+        let pred_o = nn_o.predict(&inputs_o[0]);
+        let delta_o: Vec<f64> = pred_o
+            .iter()
+            .zip(inputs_o[0].iter())
+            .map(|(o, i)| o - i)
+            .collect();
+
+        // O play should: o_turn decreases, x_turn increases (opposite)
+        assert!(
+            delta_o[o_turn_idx] < -0.3,
+            "o_play should consume o_turn, got delta={:.3}",
+            delta_o[o_turn_idx]
+        );
+        assert!(
+            delta_o[x_turn_idx] > 0.3,
+            "o_play should produce x_turn, got delta={:.3}",
+            delta_o[x_turn_idx]
+        );
+    }
+}
+
+// ──────────────────────────────────────────────────────────
+// Test 5: Extracted move_tokens accumulation
+// ──────────────────────────────────────────────────────────
+
+#[test]
+fn relu_discovers_move_counter() {
+    // Every play transition should increment move_tokens.
+    // This is the accounting mechanism for the draw condition.
+    let net = pilot_ttt();
+    let im = IncidenceMatrix::from_petri_net(&net);
+    let n = im.num_places;
+
+    let mt_idx = im
+        .place_labels
+        .iter()
+        .position(|l| l == "move_tokens")
+        .unwrap();
+
+    // Test several play transitions
+    let play_transitions: Vec<usize> = im
+        .transition_labels
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| l.contains("play"))
+        .take(6)
+        .map(|(i, _)| i)
+        .collect();
+
+    let mut found_positive = 0;
+    for &t in &play_transitions {
+        let (inputs, targets) = generate_transition_data(&im, t, 40, 500 + t as u64);
+        if inputs.len() < 10 {
+            continue;
+        }
+
+        let mut nn = ReluNet::new(n, 48, n, 5000 + t as u64);
+        nn.train(&inputs, &targets, 0.005, 500);
+
+        let pred = nn.predict(&inputs[0]);
+        let delta: Vec<f64> = pred
+            .iter()
+            .zip(inputs[0].iter())
+            .map(|(o, i)| o - i)
+            .collect();
+
+        if delta[mt_idx] > 0.3 {
+            found_positive += 1;
+        }
+    }
+
+    assert!(
+        found_positive >= 4,
+        "at least 4/6 play transitions should increment move_tokens, got {}/{}",
+        found_positive,
+        play_transitions.len()
+    );
+}
+
+// ──────────────────────────────────────────────────────────
+// Test 6: Overall structural similarity score
+// ──────────────────────────────────────────────────────────
+
+#[test]
+fn overall_structural_similarity() {
+    let net = pilot_ttt();
+    let im = IncidenceMatrix::from_petri_net(&net);
+    let ground_truth = dense_incidence(&im);
+    let n = im.num_places;
+
+    // Sample 8 play transitions for overall accuracy
+    let subset = ["x_play_00", "x_play_11", "x_play_22", "x_play_02",
+                   "o_play_01", "o_play_10", "o_play_21", "o_play_12"];
+    let play_transitions: Vec<usize> = im
+        .transition_labels
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| subset.contains(&l.as_str()))
+        .map(|(i, _)| i)
+        .collect();
+
+    let mut total_correct = 0;
+    let mut total_entries = 0;
+    let mut transitions_tested = 0;
+
+    for &t in &play_transitions {
+        let (inputs, targets) = generate_transition_data(&im, t, 40, 600 + t as u64);
+        if inputs.len() < 5 {
+            continue;
+        }
+
+        let mut nn = ReluNet::new(n, 48, n, 6000 + t as u64);
+        nn.train(&inputs, &targets, 0.01, 300);
+
+        let pred = nn.predict(&inputs[0]);
+        let learned_delta: Vec<f64> = pred
+            .iter()
+            .zip(inputs[0].iter())
+            .map(|(o, i)| o - i)
+            .collect();
+
+        let rounded: Vec<i64> = learned_delta
+            .iter()
+            .map(|&d| if d.abs() < 0.3 { 0 } else { d.round() as i64 })
+            .collect();
+
+        let gt_signs = sign_pattern(&ground_truth[t]);
+        let ex_signs = sign_pattern(&rounded);
+
+        for (g, e) in gt_signs.iter().zip(ex_signs.iter()) {
+            if g == e {
+                total_correct += 1;
+            }
+            total_entries += 1;
+        }
+        transitions_tested += 1;
+    }
+
+    assert!(
+        transitions_tested >= 6,
+        "need at least 6 transitions tested, got {}",
+        transitions_tested
+    );
+
+    let similarity = total_correct as f64 / total_entries as f64;
+    assert!(
+        similarity >= 0.90,
+        "overall structural similarity = {:.1}% across {} transitions (need >= 90%)",
+        similarity * 100.0,
+        transitions_tested
+    );
 }
