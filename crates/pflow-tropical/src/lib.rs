@@ -10,8 +10,10 @@ mod semiring;
 mod eigenvalue;
 mod factoring;
 mod extract;
+mod invariants;
 
 pub use semiring::{Matrix, mat_mul, mat_pow, tropical_add, tropical_mul, NEG_INF};
 pub use eigenvalue::eigenvalue;
 pub use factoring::{Factor, FactorConfig};
 pub use extract::{extract, PflowNet};
+pub use invariants::{dense_incidence, p_invariants, t_invariants, support, sign_pattern};
