@@ -8,14 +8,12 @@
 //! for a Petri net domain, its weights encode the net's topology — recoverable
 //! via tropical factoring.
 
-use pflow_core::PetriNet;
 use pflow_tropical::relu_net::ReluNet;
-use pflow_tropical::{dense_incidence, extract, sign_pattern, support, Factor, FactorConfig};
-use pflow_zk::{fire_transition, IncidenceMatrix};
+use pflow_tropical::{extract, sign_pattern, support, Factor, FactorConfig, NetMatrix};
 
-/// Generate training data from a Petri net: (marking, next_marking) pairs.
+/// Generate training data from a NetMatrix: (marking, next_marking) pairs.
 fn generate_data(
-    im: &IncidenceMatrix,
+    net: &NetMatrix,
     initial: &[i64],
     firing_sequence: &[usize],
 ) -> (Vec<Vec<f64>>, Vec<Vec<f64>>) {
@@ -24,8 +22,8 @@ fn generate_data(
     let mut marking = initial.to_vec();
 
     for &t in firing_sequence {
-        if im.is_enabled(&marking, t) {
-            let next = fire_transition(im, &marking, t).unwrap();
+        if net.is_enabled(&marking, t) {
+            let next = net.fire(&marking, t).unwrap();
             inputs.push(marking.iter().map(|&m| m as f64).collect());
             targets.push(next.iter().map(|&m| m as f64).collect());
             marking = next;
@@ -40,41 +38,22 @@ fn generate_data(
 
 #[test]
 fn relu_learns_loop_net_deltas() {
-    // Ground truth: P0 <-> P1 loop
-    let net = PetriNet::build()
-        .place("P0", 1.0)
-        .place("P1", 0.0)
-        .transition("T0")
-        .transition("T1")
-        .arc("P0", "T0", 1.0)
-        .arc("T0", "P1", 1.0)
-        .arc("P1", "T1", 1.0)
-        .arc("T1", "P0", 1.0)
-        .done();
+    let net = NetMatrix::from_incidence(
+        vec![vec![-1, 1], vec![1, -1]],
+        vec![1, 0],
+        vec!["P0".into(), "P1".into()],
+        vec!["T0".into(), "T1".into()],
+    );
 
-    let im = IncidenceMatrix::from_petri_net(&net);
-    let ground_truth = dense_incidence(&im);
-
-    // Generate training data: many cycles of T0, T1, T0, T1, ...
     let firing_seq: Vec<usize> = (0..200).map(|i| i % 2).collect();
-    let (inputs, targets) = generate_data(&im, &im.initial_marking(&net), &firing_seq);
+    let (inputs, targets) = generate_data(&net, &net.initial, &firing_seq);
 
-    // Train a ReLU net: 2 inputs (marking) -> hidden -> 2 outputs (next marking)
     let mut nn = ReluNet::new(2, 8, 2, 42);
     let loss = nn.train(&inputs, &targets, 0.01, 1000);
     assert!(loss < 0.01, "network didn't converge: loss = {loss}");
 
-    // The net learned to map markings. Now check: does the effective
-    // linear transformation approximate the incidence matrix?
-    //
-    // For a trained net predicting next_state = f(current_state),
-    // the Jacobian df/dx at a point approximates the state transition.
-    // For a Petri net, next = current + delta, so the Jacobian should
-    // approximate I + C[t] (identity + incidence row for transition t).
-
-    // Test prediction accuracy on the training transitions
-    let pred_t0 = nn.predict(&[1.0, 0.0]); // should be ~[0, 1]
-    let pred_t1 = nn.predict(&[0.0, 1.0]); // should be ~[1, 0]
+    let pred_t0 = nn.predict(&[1.0, 0.0]);
+    let pred_t1 = nn.predict(&[0.0, 1.0]);
 
     assert!(
         (pred_t0[0] - 0.0).abs() < 0.15 && (pred_t0[1] - 1.0).abs() < 0.15,
@@ -85,27 +64,24 @@ fn relu_learns_loop_net_deltas() {
         "T1 prediction off: {:?}", pred_t1
     );
 
-    // Extract the effective delta by subtracting input from output
     let delta_t0: Vec<f64> = pred_t0.iter().zip([1.0, 0.0].iter()).map(|(o, i)| o - i).collect();
     let delta_t1: Vec<f64> = pred_t1.iter().zip([0.0, 1.0].iter()).map(|(o, i)| o - i).collect();
 
-    // Factor these through tropical decomposition
     let deltas = vec![delta_t0, delta_t1];
     let factored = deltas.factor(&FactorConfig {
-        threshold: 0.3, // liberal threshold for neural net noise
+        threshold: 0.3,
         round_to_int: true,
     });
 
     let extracted = extract(&factored).unwrap();
 
-    // Compare sign patterns: the extracted incidence should match ground truth
     for t in 0..2 {
-        let gt_signs = sign_pattern(&ground_truth[t]);
+        let gt_signs = sign_pattern(&net.incidence[t]);
         let ex_signs = sign_pattern(&extracted.incidence[t]);
         assert_eq!(
             gt_signs, ex_signs,
             "transition {t}: sign pattern mismatch. ground_truth={:?}, extracted={:?}",
-            ground_truth[t], extracted.incidence[t]
+            net.incidence[t], extracted.incidence[t]
         );
     }
 }
@@ -116,44 +92,29 @@ fn relu_learns_loop_net_deltas() {
 
 #[test]
 fn relu_learns_pipeline_topology() {
-    let net = PetriNet::build()
-        .place("A", 1.0)
-        .place("B", 0.0)
-        .place("C", 0.0)
-        .transition("T0")
-        .transition("T1")
-        .transition("T2")
-        .arc("A", "T0", 1.0)
-        .arc("T0", "B", 1.0)
-        .arc("B", "T1", 1.0)
-        .arc("T1", "C", 1.0)
-        .arc("C", "T2", 1.0)
-        .arc("T2", "A", 1.0)
-        .done();
+    let net = NetMatrix::from_incidence(
+        vec![
+            vec![-1, 1, 0],
+            vec![0, -1, 1],
+            vec![1, 0, -1],
+        ],
+        vec![1, 0, 0],
+        vec!["A".into(), "B".into(), "C".into()],
+        vec!["T0".into(), "T1".into(), "T2".into()],
+    );
 
-    let im = IncidenceMatrix::from_petri_net(&net);
-    let ground_truth = dense_incidence(&im);
-
-    // Train 3 separate networks, one per transition, to isolate each delta
-    // (a single net can't distinguish which transition fires from marking alone)
-    let transitions = im.num_transitions;
-    let places = im.num_places;
+    let transitions = net.num_transitions();
+    let places = net.num_places();
 
     for t in 0..transitions {
-        // Generate data for this specific transition
         let firing_seq: Vec<usize> = (0..300).map(|i| (i + t) % 3).collect();
-        let (all_inputs, all_targets) =
-            generate_data(&im, &im.initial_marking(&net), &firing_seq);
+        let (all_inputs, all_targets) = generate_data(&net, &net.initial, &firing_seq);
 
-        // Filter to only this transition's firings
-        // For the pipeline, each transition fires on a specific marking pattern
         let (inputs, targets): (Vec<_>, Vec<_>) = all_inputs
             .iter()
             .zip(all_targets.iter())
             .filter(|(inp, _)| {
-                // This transition's input place should have a token
-                let gt_delta = &ground_truth[t];
-                // Find the consumed place (negative delta)
+                let gt_delta = &net.incidence[t];
                 gt_delta.iter().enumerate().any(|(p, &d)| d < 0 && inp[p] > 0.5)
             })
             .map(|(i, t)| (i.clone(), t.clone()))
@@ -167,25 +128,20 @@ fn relu_learns_pipeline_topology() {
 
         let mut nn = ReluNet::new(places, 12, places, 100 + t as u64);
         let loss = nn.train(&inputs, &targets, 0.005, 2000);
-        assert!(
-            loss < 0.05,
-            "transition {t}: network didn't converge, loss = {loss}"
-        );
+        assert!(loss < 0.05, "transition {t}: network didn't converge, loss = {loss}");
 
-        // Extract delta from learned mapping
         let test_input = &inputs[0];
         let pred = nn.predict(test_input);
         let learned_delta: Vec<f64> =
             pred.iter().zip(test_input.iter()).map(|(o, i)| o - i).collect();
 
-        // Factor and check sign pattern
         let factored = vec![learned_delta].factor(&FactorConfig {
             threshold: 0.3,
             round_to_int: true,
         });
         let extracted = extract(&factored).unwrap();
 
-        let gt_signs = sign_pattern(&ground_truth[t]);
+        let gt_signs = sign_pattern(&net.incidence[t]);
         let ex_signs = sign_pattern(&extracted.incidence[0]);
 
         assert_eq!(
@@ -202,29 +158,19 @@ fn relu_learns_pipeline_topology() {
 
 #[test]
 fn relu_recovers_arc_support() {
-    // The key structural question: does the ReLU net learn WHICH places
-    // are connected to each transition, regardless of exact weight?
-    let net = PetriNet::build()
-        .place("P0", 1.0)
-        .place("P1", 0.0)
-        .transition("T0")
-        .transition("T1")
-        .arc("P0", "T0", 1.0)
-        .arc("T0", "P1", 1.0)
-        .arc("P1", "T1", 1.0)
-        .arc("T1", "P0", 1.0)
-        .done();
-
-    let im = IncidenceMatrix::from_petri_net(&net);
-    let ground_truth = dense_incidence(&im);
+    let net = NetMatrix::from_incidence(
+        vec![vec![-1, 1], vec![1, -1]],
+        vec![1, 0],
+        vec!["P0".into(), "P1".into()],
+        vec!["T0".into(), "T1".into()],
+    );
 
     let firing_seq: Vec<usize> = (0..200).map(|i| i % 2).collect();
-    let (inputs, targets) = generate_data(&im, &im.initial_marking(&net), &firing_seq);
+    let (inputs, targets) = generate_data(&net, &net.initial, &firing_seq);
 
     let mut nn = ReluNet::new(2, 8, 2, 7);
     nn.train(&inputs, &targets, 0.01, 1000);
 
-    // For each training point, compute the effective delta
     let mut deltas: Vec<Vec<f64>> = Vec::new();
     for (input, _target) in inputs.iter().zip(targets.iter()) {
         let pred = nn.predict(input);
@@ -232,11 +178,9 @@ fn relu_recovers_arc_support() {
         deltas.push(delta);
     }
 
-    // Check that ALL learned deltas have the same support as ground truth
-    // (non-zero entries are in the same positions)
     for (i, delta) in deltas.iter().enumerate() {
-        let t = i % 2; // alternating transitions
-        let gt_support = support(&ground_truth[t]);
+        let t = i % 2;
+        let gt_support = support(&net.incidence[t]);
         let learned_support: Vec<usize> = delta
             .iter()
             .enumerate()
@@ -256,49 +200,31 @@ fn relu_recovers_arc_support() {
 
 #[test]
 fn w2_matrix_factors_to_incidence() {
-    // For a net where output = input + delta, a well-trained linear-ish
-    // network should have W2 · W1 ≈ I + C (identity + incidence).
-    // Factor W2 directly and look for incidence structure.
-    let net = PetriNet::build()
-        .place("P0", 1.0)
-        .place("P1", 0.0)
-        .transition("T0")
-        .transition("T1")
-        .arc("P0", "T0", 1.0)
-        .arc("T0", "P1", 1.0)
-        .arc("P1", "T1", 1.0)
-        .arc("T1", "P0", 1.0)
-        .done();
+    let net = NetMatrix::from_incidence(
+        vec![vec![-1, 1], vec![1, -1]],
+        vec![1, 0],
+        vec!["P0".into(), "P1".into()],
+        vec!["T0".into(), "T1".into()],
+    );
 
-    let im = IncidenceMatrix::from_petri_net(&net);
     let firing_seq: Vec<usize> = (0..200).map(|i| i % 2).collect();
-    let (inputs, targets) = generate_data(&im, &im.initial_marking(&net), &firing_seq);
+    let (inputs, targets) = generate_data(&net, &net.initial, &firing_seq);
 
     let mut nn = ReluNet::new(2, 4, 2, 99);
     let loss = nn.train(&inputs, &targets, 0.01, 2000);
     assert!(loss < 0.01, "network didn't converge: loss = {loss}");
 
-    // Compute effective weight: W_eff = W2 · diag(relu_active) · W1
-    // For the test inputs, see which hidden units are active
-    let (_pre_relu_0, _, _) = nn.forward(&[1.0, 0.0]);
-    let (_pre_relu_1, _, _) = nn.forward(&[0.0, 1.0]);
-
-    // The network must produce accurate predictions for both inputs
     let pred_0 = nn.predict(&[1.0, 0.0]);
     let pred_1 = nn.predict(&[0.0, 1.0]);
 
-    // Compute implied delta matrices
     let delta_0: Vec<f64> = pred_0.iter().zip([1.0, 0.0].iter()).map(|(o, i)| o - i).collect();
     let delta_1: Vec<f64> = pred_1.iter().zip([0.0, 1.0].iter()).map(|(o, i)| o - i).collect();
 
-    // The W2 matrix rows show which hidden units contribute to each output.
-    // After factoring, the non-zero pattern reveals the incidence structure.
     let w2_factored = nn.w2.factor(&FactorConfig {
         threshold: 0.05,
-        round_to_int: false, // keep precision for structure analysis
+        round_to_int: false,
     });
 
-    // W2 should have non-trivial structure (not all zeros or all ones)
     let nonzero_count = (0..w2_factored.rows * w2_factored.cols)
         .filter(|&idx| w2_factored.data[idx] != pflow_tropical::NEG_INF)
         .count();
@@ -309,18 +235,13 @@ fn w2_matrix_factors_to_incidence() {
         w2_factored.rows * w2_factored.cols
     );
 
-    // The deltas from the network should match ground truth sign pattern
-    let gt = dense_incidence(&im);
     for (t, delta) in [delta_0, delta_1].iter().enumerate() {
         let rounded: Vec<i64> = delta.iter().map(|&d| {
             if d.abs() < 0.3 { 0 } else { d.round() as i64 }
         }).collect();
         let learned_signs = sign_pattern(&rounded);
-        let gt_signs = sign_pattern(&gt[t]);
-        assert_eq!(
-            learned_signs, gt_signs,
-            "W2 path: transition {t} sign mismatch"
-        );
+        let gt_signs = sign_pattern(&net.incidence[t]);
+        assert_eq!(learned_signs, gt_signs, "W2 path: transition {t} sign mismatch");
     }
 }
 
@@ -330,24 +251,15 @@ fn w2_matrix_factors_to_incidence() {
 
 #[test]
 fn structural_similarity_high() {
-    // Quantify: how similar is the extracted incidence to ground truth?
-    // Metric: fraction of entries where sign matches.
-    let net = PetriNet::build()
-        .place("P0", 1.0)
-        .place("P1", 0.0)
-        .transition("T0")
-        .transition("T1")
-        .arc("P0", "T0", 1.0)
-        .arc("T0", "P1", 1.0)
-        .arc("P1", "T1", 1.0)
-        .arc("T1", "P0", 1.0)
-        .done();
-
-    let im = IncidenceMatrix::from_petri_net(&net);
-    let ground_truth = dense_incidence(&im);
+    let net = NetMatrix::from_incidence(
+        vec![vec![-1, 1], vec![1, -1]],
+        vec![1, 0],
+        vec!["P0".into(), "P1".into()],
+        vec!["T0".into(), "T1".into()],
+    );
 
     let firing_seq: Vec<usize> = (0..200).map(|i| i % 2).collect();
-    let (inputs, targets) = generate_data(&im, &im.initial_marking(&net), &firing_seq);
+    let (inputs, targets) = generate_data(&net, &net.initial, &firing_seq);
 
     let mut nn = ReluNet::new(2, 8, 2, 123);
     nn.train(&inputs, &targets, 0.01, 1500);
@@ -356,11 +268,7 @@ fn structural_similarity_high() {
     let mut total = 0;
 
     for t in 0..2 {
-        let input: Vec<f64> = if t == 0 {
-            vec![1.0, 0.0]
-        } else {
-            vec![0.0, 1.0]
-        };
+        let input: Vec<f64> = if t == 0 { vec![1.0, 0.0] } else { vec![0.0, 1.0] };
         let pred = nn.predict(&input);
         let delta: Vec<f64> = pred.iter().zip(input.iter()).map(|(o, i)| o - i).collect();
         let rounded: Vec<i64> = delta
@@ -368,13 +276,11 @@ fn structural_similarity_high() {
             .map(|&d| if d.abs() < 0.3 { 0 } else { d.round() as i64 })
             .collect();
 
-        let gt_signs = sign_pattern(&ground_truth[t]);
+        let gt_signs = sign_pattern(&net.incidence[t]);
         let ex_signs = sign_pattern(&rounded);
 
         for (g, e) in gt_signs.iter().zip(ex_signs.iter()) {
-            if g == e {
-                matches += 1;
-            }
+            if g == e { matches += 1; }
             total += 1;
         }
     }

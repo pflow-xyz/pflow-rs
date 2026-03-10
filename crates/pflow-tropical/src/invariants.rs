@@ -8,9 +8,13 @@
 //! their weights, but the *support* (which places/transitions participate)
 //! is determined by connectivity alone.
 
+#[cfg(feature = "pflow")]
 use pflow_zk::IncidenceMatrix;
 
 /// Dense incidence matrix C where C[t][p] = output_weight - input_weight.
+///
+/// Converts from pflow-zk's sparse `IncidenceMatrix` to dense form.
+#[cfg(feature = "pflow")]
 pub fn dense_incidence(im: &IncidenceMatrix) -> Vec<Vec<i64>> {
     let mut c = vec![vec![0i64; im.num_places]; im.num_transitions];
     for t in 0..im.num_transitions {
@@ -167,23 +171,34 @@ fn vec_gcd(v: &[i128]) -> i128 {
     v.iter().fold(0, |acc, &val| gcd(acc, val)).max(1)
 }
 
-/// Compute P-invariants: vectors y such that C · y = 0.
+/// Compute P-invariants from a dense incidence matrix.
 ///
-/// With pflow's convention (C is transitions x places), this finds
-/// place vectors whose weighted token sum is constant under all firings.
-pub fn p_invariants(im: &IncidenceMatrix) -> Vec<Vec<i64>> {
-    let c = dense_incidence(im);
-    integer_null_space(&c)
+/// `c[t][p]` is the net change at place `p` when transition `t` fires.
+/// Returns vectors y such that C · y = 0 (place conservation laws).
+pub fn p_invariants_from_dense(c: &[Vec<i64>]) -> Vec<Vec<i64>> {
+    integer_null_space(c)
 }
 
-/// Compute T-invariants: vectors x such that C^T · x = 0.
+/// Compute T-invariants from a dense incidence matrix.
 ///
-/// Each invariant represents a firing sequence that returns the net
-/// to its original marking (a reproducible cycle).
+/// Returns vectors x such that C^T · x = 0 (reproducible firing sequences).
+pub fn t_invariants_from_dense(c: &[Vec<i64>]) -> Vec<Vec<i64>> {
+    let ct = transpose(c);
+    integer_null_space(&ct)
+}
+
+/// Compute P-invariants from a pflow-zk `IncidenceMatrix`.
+#[cfg(feature = "pflow")]
+pub fn p_invariants(im: &IncidenceMatrix) -> Vec<Vec<i64>> {
+    let c = dense_incidence(im);
+    p_invariants_from_dense(&c)
+}
+
+/// Compute T-invariants from a pflow-zk `IncidenceMatrix`.
+#[cfg(feature = "pflow")]
 pub fn t_invariants(im: &IncidenceMatrix) -> Vec<Vec<i64>> {
     let c = dense_incidence(im);
-    let ct = transpose(&c);
-    integer_null_space(&ct)
+    t_invariants_from_dense(&c)
 }
 
 /// The support of an invariant: indices of non-zero entries.
@@ -204,49 +219,31 @@ pub fn sign_pattern(v: &[i64]) -> Vec<i8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pflow_core::PetriNet;
+    use crate::net_matrix::NetMatrix;
 
     #[test]
     fn test_simple_loop_p_invariant() {
-        // P0 <-> P1 loop: tokens are conserved (P0 + P1 = const)
-        let net = PetriNet::build()
-            .place("P0", 1.0)
-            .place("P1", 0.0)
-            .transition("T0")
-            .transition("T1")
-            .arc("P0", "T0", 1.0)
-            .arc("T0", "P1", 1.0)
-            .arc("P1", "T1", 1.0)
-            .arc("T1", "P0", 1.0)
-            .done();
-
-        let im = IncidenceMatrix::from_petri_net(&net);
-        let pinv = p_invariants(&im);
-
-        // Should have exactly 1 P-invariant: [1, 1] (P0 + P1 = const)
+        let net = NetMatrix::from_incidence(
+            vec![vec![-1, 1], vec![1, -1]],
+            vec![1, 0],
+            vec!["P0".into(), "P1".into()],
+            vec!["T0".into(), "T1".into()],
+        );
+        let pinv = net.p_invariants();
         assert_eq!(pinv.len(), 1, "expected 1 P-invariant, got {}", pinv.len());
-        // Both places participate (support = {0, 1})
         let sup = support(&pinv[0]);
         assert_eq!(sup.len(), 2, "invariant should span both places");
     }
 
     #[test]
     fn test_simple_loop_t_invariant() {
-        let net = PetriNet::build()
-            .place("P0", 1.0)
-            .place("P1", 0.0)
-            .transition("T0")
-            .transition("T1")
-            .arc("P0", "T0", 1.0)
-            .arc("T0", "P1", 1.0)
-            .arc("P1", "T1", 1.0)
-            .arc("T1", "P0", 1.0)
-            .done();
-
-        let im = IncidenceMatrix::from_petri_net(&net);
-        let tinv = t_invariants(&im);
-
-        // Should have 1 T-invariant: [1, 1] (fire T0 then T1 returns to start)
+        let net = NetMatrix::from_incidence(
+            vec![vec![-1, 1], vec![1, -1]],
+            vec![1, 0],
+            vec!["P0".into(), "P1".into()],
+            vec!["T0".into(), "T1".into()],
+        );
+        let tinv = net.t_invariants();
         assert_eq!(tinv.len(), 1, "expected 1 T-invariant, got {}", tinv.len());
         let sup = support(&tinv[0]);
         assert_eq!(sup.len(), 2, "both transitions participate in the cycle");
@@ -255,36 +252,30 @@ mod tests {
     #[test]
     fn test_sir_p_invariant() {
         // SIR: infect (S+I -> 2I), recover (I -> R)
-        // Conservation: S + I + R = const
-        let net = PetriNet::build().sir(10.0, 1.0, 0.0).done();
-        let im = IncidenceMatrix::from_petri_net(&net);
-        let pinv = p_invariants(&im);
-
+        // Places alphabetical: I(0), R(1), S(2)
+        // infect: consumes I+S, produces 2I => delta = [+1, 0, -1]
+        // recover: consumes I, produces R => delta = [-1, +1, 0]
+        let net = NetMatrix::from_incidence(
+            vec![vec![1, 0, -1], vec![-1, 1, 0]],
+            vec![1, 0, 10],
+            vec!["I".into(), "R".into(), "S".into()],
+            vec!["infect".into(), "recover".into()],
+        );
+        let pinv = net.p_invariants();
         assert!(!pinv.is_empty(), "SIR should have at least 1 P-invariant");
-        // The invariant should span all 3 places (total population conserved)
         let sup = support(&pinv[0]);
         assert_eq!(sup.len(), 3, "all places in SIR are conserved together");
     }
 
     #[test]
-    fn test_dense_incidence() {
-        let net = PetriNet::build()
-            .place("P0", 1.0)
-            .place("P1", 0.0)
-            .transition("T0")
-            .transition("T1")
-            .arc("P0", "T0", 1.0)
-            .arc("T0", "P1", 1.0)
-            .arc("P1", "T1", 1.0)
-            .arc("T1", "P0", 1.0)
-            .done();
-
-        let im = IncidenceMatrix::from_petri_net(&net);
-        let c = dense_incidence(&im);
-
-        // T0: consumes P0, produces P1 -> [-1, 1]
-        // T1: consumes P1, produces P0 -> [1, -1]
-        assert_eq!(c[0], vec![-1, 1]);
-        assert_eq!(c[1], vec![1, -1]);
+    fn test_dense_incidence_from_net_matrix() {
+        let net = NetMatrix::from_incidence(
+            vec![vec![-1, 1], vec![1, -1]],
+            vec![1, 0],
+            vec!["P0".into(), "P1".into()],
+            vec!["T0".into(), "T1".into()],
+        );
+        assert_eq!(net.incidence[0], vec![-1, 1]);
+        assert_eq!(net.incidence[1], vec![1, -1]);
     }
 }

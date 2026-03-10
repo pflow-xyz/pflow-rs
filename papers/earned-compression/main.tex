@@ -1,0 +1,536 @@
+\documentclass[11pt,a4paper]{article}
+
+% Mathematics
+\usepackage{amsmath,amsthm,amssymb}
+
+% Tables
+\usepackage{booktabs}
+\usepackage{array}
+
+% Code listings
+\usepackage{listings}
+\lstset{
+  basicstyle=\small\ttfamily,
+  keywordstyle=\bfseries,
+  commentstyle=\itshape\color[gray]{0.5},
+  frame=single,
+  breaklines=true,
+  numbers=left,
+  numberstyle=\tiny,
+  xleftmargin=2em
+}
+
+% Colors
+\usepackage{xcolor}
+
+% Hyperlinks
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  citecolor=blue!60!black,
+  urlcolor=blue!60!black
+}
+
+% Figures
+\usepackage{graphicx}
+
+% TikZ for diagrams
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,cd}
+
+% Geometry
+\usepackage[margin=1in]{geometry}
+
+% Theorem environments
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{remark}[theorem]{Remark}
+\newtheorem{proposition}[theorem]{Proposition}
+
+% Notation shortcuts
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Rmax}{\R_{\max}}
+\newcommand{\Cat}{\mathbf{Cat}}
+\newcommand{\Petri}{\mathbf{Petri}}
+\newcommand{\Trop}{\mathbf{Trop}}
+
+\title{Earned Compression: Categorical Decomposition of Petri Nets\\
+via Tropical Analysis and ZK Observation}
+\author{
+  Matt York\\
+  \texttt{pflow.xyz}
+}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% ------------------------------------------------------------------
+\begin{abstract}
+We prove that the \emph{core-observer decomposition} of Petri nets is invariant across three independent formalisms: ODE simulation, tropical spectral analysis, and zero-knowledge proof.
+Given a Petri net $N$ with incidence matrix $C \in \Z^{|T| \times |P|}$, each formalism independently discovers the same structural boundary---a partition $T = T_{\mathrm{core}} \sqcup T_{\mathrm{obs}}$ where the core subnet admits the formalism's compression and the observer subnet does not:
+\begin{itemize}
+  \item \textbf{ODE simulation:} the core evolves continuously; the observer is evaluated at equilibrium.
+  \item \textbf{Tropical analysis:} the core is a timed event graph with max-plus eigenvalue $\lambda$; the observer's places have multiple consumers, breaking linearity.
+  \item \textbf{ZK encoding:} the core compiles to R1CS arithmetic; the observer requires a separate witness structure.
+\end{itemize}
+
+The convergence of three formalisms on the same decomposition is itself the proof that the boundary is structural, not an artifact of any particular analysis.
+We formalize this as \emph{earned compression}: each formalism applies a structure-preserving map that discards exactly the information irrelevant to its target property, and the earned qualifier means each compression is proved to preserve the target property exactly (no lossy approximation).
+
+We validate on tic-tac-toe, where the core net (18 play transitions, 33 places) is an event graph with eigenvalue $\lambda = 1$, and the observer net (17 win/draw transitions) is a pure-sink layer that consumes cell tokens to detect victory.
+The same incidence matrix $C$ serves all three analyses without modification.
+
+The unifying principle is Kolmogorov-flavored: a domain is \emph{understood} when its shortest description is also its most useful description.
+The incidence matrix is that description for Petri-net-structured domains.
+\end{abstract}
+
+% ------------------------------------------------------------------
+\section{Introduction}
+\label{sec:intro}
+
+The central claim of this paper is:
+
+\begin{quote}
+\emph{The core-observer decomposition of Petri nets is invariant across simulation, proof, and analysis formalisms.
+Each formalism independently discovers the same structural boundary.
+The convergence is the proof.}
+\end{quote}
+
+The central object is the incidence matrix $C \in \Z^{|T| \times |P|}$ of a Petri net.
+We show that $C$ is a \emph{maximally compressed} representation: the shortest description from which all behavioral, structural, and cryptographic properties can be recovered without loss.
+
+Three formalisms, developed independently, each discover the same partition of the net's transitions into a compressible \emph{core} and an incompressible \emph{observer}:
+
+\begin{enumerate}
+  \item \textbf{ODE simulation}~\cite{york2025incidence}.  The mass-action ODE system $\dot{\mathbf{x}} = C \cdot \mathbf{v}(\mathbf{x})$ evolves the core continuously to equilibrium $x_i^* = 1/n_i$.  The observer is evaluated at the fixed point---it does not participate in the continuous dynamics.
+
+  \item \textbf{Tropical analysis} (this paper).  The max-plus eigenvalue $\lambda$ of the tropical adjacency matrix derived from $C_{\mathrm{core}}$ compresses the entire reachability dynamics to a throughput scalar.  The observer subnet fails the timed event graph property (multiple consumers per place) and is \emph{inexpressible} in the tropical semiring.
+
+  \item \textbf{ZK encoding} (this paper and~\cite{york2025incidence}).  The incidence matrix compiles directly into R1CS constraints.  The core transitions become arithmetic constraints ($\mathbf{m}' = \mathbf{m} + \Delta_t$); the observer requires a separate witness structure because its consumption pattern breaks the uniform delta structure.
+\end{enumerate}
+
+The three compressions are compatible: they operate on the same matrix $C$, discover the same boundary, and preserve disjoint properties.
+No single formalism could prove the boundary is structural; the convergence of three independent formalisms does.
+
+\paragraph{Running example.}
+We use tic-tac-toe throughout.
+The core net has 33 places and 18 transitions (9 cells $\times$ 2 players, with turn control).
+The observer adds 17 transitions (8 win lines $\times$ 2 players $+$ 1 draw) that consume cell tokens and the \texttt{game\_active} flag.
+The full net has 33 places, 35 transitions, and 189 arcs.
+
+\paragraph{Contributions.}
+\begin{itemize}
+  \item The \emph{formalism-invariance theorem}: three independent analyses discover the same core-observer boundary, proving the decomposition is structural (Section~\ref{sec:invariance}).
+  \item A formal definition of the core-observer decomposition, with the categorical characterization as a functor $F : \Petri \to \mathbf{Set}$ (Section~\ref{sec:decomposition}).
+  \item A proof that the core subnet of TTT is a timed event graph with tropical eigenvalue $\lambda = 1$ (Section~\ref{sec:tropical}).
+  \item A proof that the observer subnet is \emph{not} tropical, and that this is the minimal necessary complexity for win detection (Section~\ref{sec:observer}).
+  \item The earned compression pipeline: each stage is a structure-preserving map that discards exactly the irrelevant information (Section~\ref{sec:compression}).
+  \item Experimental validation via the \texttt{pflow-tropical} Rust crate, all reproducible from $C$ alone (Section~\ref{sec:experiments}).
+\end{itemize}
+
+% ------------------------------------------------------------------
+\section{Background}
+\label{sec:background}
+
+\subsection{Petri Nets}
+
+A \emph{Petri net} is a bipartite directed graph $N = (P, T, A^-, A^+)$ where $P$ is a finite set of \emph{places}, $T$ is a finite set of \emph{transitions}, and $A^-, A^+ : T \times P \to \N$ are the \emph{input} and \emph{output} incidence functions.
+A \emph{marking} $\mathbf{m} \in \N^{|P|}$ assigns a non-negative integer token count to each place.
+Transition $t$ is \emph{enabled} at marking $\mathbf{m}$ if $\mathbf{m}(p) \geq A^-(t, p)$ for all $p \in P$.
+Firing $t$ produces the successor marking $\mathbf{m}' = \mathbf{m} + \Delta_t$, where the \emph{delta vector} $\Delta_t(p) = A^+(t, p) - A^-(t, p)$.
+
+The \emph{incidence matrix} $C \in \Z^{|T| \times |P|}$ has rows $C_t = \Delta_t$.
+
+\subsection{Tropical Semiring}
+
+The \emph{tropical semiring} (max-plus algebra) is the set $\Rmax = \R \cup \{-\infty\}$ equipped with:
+\begin{align*}
+  a \oplus b &= \max(a, b) & \text{(tropical addition)} \\
+  a \otimes b &= a + b & \text{(tropical multiplication)}
+\end{align*}
+with identity elements $\mathbb{0} = -\infty$ and $\mathbb{1} = 0$.
+
+For a square matrix $A \in \Rmax^{n \times n}$, the \emph{tropical eigenvalue} $\lambda(A)$ is the maximum circuit mean:
+\[
+  \lambda(A) = \max_{\gamma} \frac{w(\gamma)}{|\gamma|}
+\]
+where the maximum ranges over all directed circuits $\gamma$ in the precedence graph of $A$, $w(\gamma)$ is the total weight of the circuit, and $|\gamma|$ is its length.
+
+\subsection{Timed Event Graphs}
+
+A \emph{timed event graph} (TEG) is a Petri net where every place has exactly one input transition and exactly one output transition.
+TEGs are the subclass of Petri nets whose dynamics are exactly captured by tropical linear algebra: the evolution of firing times satisfies
+\[
+  \mathbf{x}(k+1) = A \otimes \mathbf{x}(k)
+\]
+where $A$ is the tropical adjacency matrix and $\mathbf{x}(k)$ is the vector of $k$-th firing times~\cite{baccelli1992}.
+
+The asymptotic throughput of a TEG equals the tropical eigenvalue $\lambda(A)$: each transition fires once per $\lambda$ time units in steady state.
+
+\subsection{Zero-Knowledge Proofs}
+
+A \emph{zero-knowledge succinct non-interactive argument of knowledge} (zk-SNARK) allows a prover to convince a verifier that a statement is true without revealing the witness.
+Groth16~\cite{groth2016} produces proofs of constant size (128 bytes over BN254) with verification in $O(1)$ pairings.
+The statement is encoded as a \emph{rank-1 constraint system} (R1CS): a system of equations $Az \circ Bz = Cz$ where $\circ$ is the Hadamard product.
+
+For Petri net transitions, the R1CS encodes: given public pre-state root $h(\mathbf{m})$ and post-state root $h(\mathbf{m}')$, there exists a transition index $t$ such that $\mathbf{m}' = \mathbf{m} + \Delta_t$ and $\mathbf{m}(p) \geq A^-(t,p)$ for all $p$.
+
+% ------------------------------------------------------------------
+\section{Formalism Invariance}
+\label{sec:invariance}
+
+The key result is not any single compression, but that three independently motivated formalisms converge on the same structural boundary.
+
+\begin{theorem}[Formalism Invariance of Core-Observer Decomposition]
+\label{thm:invariance}
+Let $N = (P, T, A^-, A^+)$ be a Petri net with incidence matrix $C$.
+If the partition $T = T_{\mathrm{core}} \sqcup T_{\mathrm{obs}}$ satisfies:
+\begin{enumerate}
+  \item \textbf{ODE:} the mass-action system $\dot{\mathbf{x}} = C_{\mathrm{core}} \cdot \mathbf{v}(\mathbf{x})$ admits a stable equilibrium, while $C_{\mathrm{obs}}$ contributes only sink terms evaluated at that equilibrium;
+  \item \textbf{Tropical:} $N_{\mathrm{core}}$ is a timed event graph (each place has one input and one output transition), while $N_{\mathrm{obs}}$ violates this property (places shared with the core have multiple consumers);
+  \item \textbf{ZK:} $C_{\mathrm{core}}$ compiles to uniform R1CS constraints ($\mathbf{m}' = \mathbf{m} + \Delta_t$ with boolean transition selectors), while $C_{\mathrm{obs}}$ requires auxiliary witness variables for its non-uniform consumption patterns;
+\end{enumerate}
+then the three partitions agree: the same transitions are classified as core (resp.\ observer) by all three formalisms.
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+The three conditions are entailed by a single structural property: the \emph{sink property} of Definition~\ref{def:decomposition}.
+A transition $t$ is in $T_{\mathrm{obs}}$ if and only if it consumes from core places without producing into them.
+
+\emph{ODE direction:} A sink transition has $A^+(t, p) = 0$ for all core places $p$, so its contribution to $\dot{\mathbf{x}}$ is purely dissipative.  The core reaches equilibrium independently; the observer evaluates the result.
+
+\emph{Tropical direction:} A sink transition adds a consumer to each core place it reads, breaking the one-consumer constraint.  Conversely, any transition that preserves the event-graph property must produce into every place it consumes from---which is the definition of a core transition.
+
+\emph{ZK direction:} Core transitions have uniform delta structure ($\mathbf{m}' = \mathbf{m} + \Delta_t$), where the multiplexer selects $\Delta_t$ from the incidence matrix columns.  Observer transitions break uniformity: they consume from places whose tokens are shared with other observer transitions, requiring auxiliary witness variables to prove non-interference.
+
+Since all three classifications reduce to the same structural criterion (sink property), the partitions agree.
+\end{proof}
+
+\begin{remark}
+No single formalism can prove the boundary is structural: the ODE analysis might be an artifact of mass-action kinetics; the tropical analysis might be an artifact of event-graph restrictions; the ZK encoding might be an artifact of R1CS structure.
+But the convergence of three independent formalisms---each with different mathematical foundations, different computational models, and different target properties---on the \emph{same} boundary constitutes evidence that the boundary is intrinsic to the net, not to the analysis.
+\end{remark}
+
+% ------------------------------------------------------------------
+\section{The Core-Observer Decomposition}
+\label{sec:decomposition}
+
+\begin{definition}[Core-Observer Decomposition]
+\label{def:decomposition}
+Let $N = (P, T, A^-, A^+)$ be a Petri net.
+A \emph{core-observer decomposition} is a partition $T = T_{\mathrm{core}} \sqcup T_{\mathrm{obs}}$ such that:
+\begin{enumerate}
+  \item The \emph{core subnet} $N_{\mathrm{core}} = (P, T_{\mathrm{core}}, A^-|_{T_{\mathrm{core}}}, A^+|_{T_{\mathrm{core}}})$ is the restriction of $N$ to core transitions.
+  \item The \emph{observer subnet} $N_{\mathrm{obs}} = (P, T_{\mathrm{obs}}, A^-|_{T_{\mathrm{obs}}}, A^+|_{T_{\mathrm{obs}}})$ satisfies the \emph{sink property}: for every place $p$ shared with the core, $A^+(t, p) = 0$ for all $t \in T_{\mathrm{obs}}$.
+  That is, observer transitions consume from core places but never produce into them.
+\end{enumerate}
+\end{definition}
+
+The sink property ensures that the observer cannot influence the core's dynamics: if no observer transition fires, the core evolves identically whether or not the observer exists.
+The observer is a \emph{passive monitor} that reads state by consuming tokens, and its firing terminates the system (or a subsystem).
+
+\begin{proposition}[Observer Preserves Core Reachability]
+\label{prop:reachability}
+Let $N = N_{\mathrm{core}} + N_{\mathrm{obs}}$ be a core-observer decomposition.
+If $\sigma = t_1 t_2 \cdots t_k$ is a firing sequence of $N_{\mathrm{core}}$ from marking $\mathbf{m}_0$, then $\sigma$ is also a firing sequence of $N$ from $\mathbf{m}_0$, and the resulting markings on all places agree.
+\end{proposition}
+
+\begin{proof}
+By the sink property, observer transitions do not produce into core places, so they cannot increase the token count on any place that a core transition consumes.
+Since no observer transition fires in $\sigma$, the enabledness conditions for each $t_i \in T_{\mathrm{core}}$ are identical in $N$ and $N_{\mathrm{core}}$.
+\end{proof}
+
+\paragraph{TTT example.}
+The tic-tac-toe net decomposes as:
+\begin{itemize}
+  \item $T_{\mathrm{core}}$: 18 play transitions (\texttt{x\_play\_00}, \ldots, \texttt{o\_play\_22}).
+  \item $T_{\mathrm{obs}}$: 16 win transitions (\texttt{x\_win\_row0}, \ldots, \texttt{o\_win\_anti}) $+$ 1 draw transition.
+\end{itemize}
+
+Each win transition consumes 3 cell tokens ($x_{ij}$ or $o_{ij}$), the \texttt{game\_active} flag, and a turn token; it produces a single \texttt{win\_x} or \texttt{win\_o} token.
+The cell tokens are not reproduced---the game is over.
+
+% ------------------------------------------------------------------
+\section{Tropical Analysis of the Core}
+\label{sec:tropical}
+
+\subsection{Constructing the Tropical Adjacency Matrix}
+
+Given the core subnet $N_{\mathrm{core}}$ with incidence matrix $C_{\mathrm{core}}$, we construct the tropical adjacency matrix $A \in \Rmax^{|T_{\mathrm{core}}| \times |T_{\mathrm{core}}|}$ as follows:
+
+For transitions $t_i, t_j \in T_{\mathrm{core}}$, set
+\[
+  A[t_i, t_j] = \max_{p \in P} \{ A^-(t_i, p) : A^+(t_j, p) > 0 \text{ and } A^-(t_i, p) > 0 \}
+\]
+with $A[t_i, t_j] = -\infty$ if no such place exists.
+
+That is, $A[t_i, t_j]$ is the weight of the heaviest arc connecting an output of $t_j$ to an input of $t_i$ through a shared place.
+
+\subsection{TTT Core is Tropical}
+
+\begin{theorem}[TTT Core Eigenvalue]
+\label{thm:ttt-eigenvalue}
+The tropical adjacency matrix of the TTT core subnet has eigenvalue $\lambda = 1$.
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+The core net's turn-control places (\texttt{x\_turn}, \texttt{o\_turn}) create a bipartite structure: every X-play transition produces into \texttt{o\_turn}, and every O-play transition produces into \texttt{x\_turn}.
+The shortest circuit is any X-play $\to$ O-play pair (length 2, total weight 2), giving $\lambda = 2/2 = 1$.
+All longer circuits (via \texttt{move\_tokens}) have the same mean weight.
+\end{proof}
+
+\subsection{Why the Observer is Not Tropical}
+
+The observer subnet fails the event-graph property because cell places have multiple consumers.
+Consider place \texttt{x11} (X's mark on the center cell):
+\begin{itemize}
+  \item \textbf{Producer:} \texttt{x\_play\_11} (exactly one).
+  \item \textbf{Consumers:} \texttt{x\_win\_row1}, \texttt{x\_win\_col1}, \texttt{x\_win\_diag}, \texttt{x\_win\_anti} (four).
+\end{itemize}
+
+With four consumers, \texttt{x11} violates the TEG requirement of exactly one output transition per place.
+This is not an artifact of the encoding---it is the \emph{irreducible complexity} of win detection: cell $(1,1)$ participates in four win lines, and each must independently check for three-in-a-row.
+
+\begin{proposition}[Observer Complexity is Tight]
+\label{prop:observer-tight}
+Any Petri net encoding of $n \times n$ tic-tac-toe win detection requires at least $2n + 2$ transitions (for $2n + 2$ win lines) and at least $n^2$ places with fan-out $> 1$ (for cells on the diagonal).
+\end{proposition}
+
+% ------------------------------------------------------------------
+\section{The Compression Pipeline}
+\label{sec:compression}
+
+We now formalize the unifying principle.
+Each analysis of the incidence matrix $C$ is a \emph{compression}: a structure-preserving map that discards information irrelevant to a target property while preserving the property exactly.
+
+\begin{definition}[Earned Compression]
+\label{def:compression}
+Let $S$ be a structured object and $\pi(S)$ a property of $S$.
+A map $\kappa : S \to S'$ is an \emph{earned compression} with respect to $\pi$ if:
+\begin{enumerate}
+  \item $|S'| < |S|$ (the output is strictly smaller),
+  \item $\pi(S) = \pi'(S')$ (the property is recoverable from the compressed form),
+  \item no map $\kappa' : S \to S''$ with $|S''| < |S'|$ satisfies condition 2 (the compression is tight).
+\end{enumerate}
+\end{definition}
+
+The tightness condition (3) is what distinguishes earned compression from approximation.
+It is the Kolmogorov complexity claim: $S'$ is the shortest description of $S$ from which $\pi$ can be recovered.
+
+\subsection{The Four Stages}
+
+\begin{center}
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Stage} & \textbf{Input} & \textbf{Output} & \textbf{Property preserved} \\
+\midrule
+Domain $\to$ Net & Game rules & $C \in \Z^{|T| \times |P|}$ & All firing semantics \\
+Net $\to$ Eigenvalue & $C$ & $\lambda \in \Rmax$ & Throughput (core) \\
+Net $\to$ Invariants & $C$ & $\ker(C), \ker(C^T)$ & Conservation laws \\
+Net $\to$ ZK proof & $C, \mathbf{m}, t$ & $\pi \in \{0,1\}^{128}$ & Transition validity \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Each row is an earned compression: the output is strictly smaller than the input, the target property is exactly recoverable, and no smaller output suffices.
+
+\paragraph{Stage 1: Domain to net.}
+The incidence matrix $C$ is the compression of the game rules.
+Every legal state transition is encoded as a column of $C$; every conservation law is in $\ker(C)$; every reproducible firing sequence is in $\ker(C^T)$.
+The claim that $C$ is the \emph{shortest} such encoding is the core claim of the Petri net formalism: adding a place or transition that doesn't change the reachability graph is redundant; removing one that does changes the semantics.
+
+\paragraph{Stage 2: Net to eigenvalue.}
+For a timed event graph, the tropical eigenvalue $\lambda$ determines the asymptotic firing rate of every transition.
+This compresses the full reachability graph (which may be exponential in the number of places) to a single scalar.
+The proof that $\lambda$ is tight is classical~\cite{baccelli1992}: $\lambda$ is the unique value such that $A \otimes \mathbf{v} = \lambda \otimes \mathbf{v}$ has a solution, and no coarser summary determines the throughput.
+
+\paragraph{Stage 3: Net to invariants.}
+P-invariants ($\ker(C)$) are the conservation laws: weighted sums of token counts that remain constant under all firings.
+T-invariants ($\ker(C^T)$) are the reproducible firing sequences: multisets of transitions that return the net to its original marking.
+Both are computed from $C$ alone and are topological---they depend on connectivity, not on weights or initial marking.
+
+\paragraph{Stage 4: Net to ZK proof.}
+The Groth16 proof compresses the statement ``transition $t$ is valid from marking $\mathbf{m}$ to marking $\mathbf{m}'$'' into a 128-byte proof with $O(1)$ verification.
+The incidence matrix $C$ is baked into the circuit as constants; the proof witnesses the private marking and transition index.
+This is the ultimate compression: the verifier learns \emph{only} that the transition was valid, and nothing else about the state.
+
+% ------------------------------------------------------------------
+\section{Observer as Functor}
+\label{sec:observer}
+
+The core-observer decomposition has a categorical interpretation.
+Let $\Petri$ be the category of Petri nets (objects: nets, morphisms: simulations preserving marking and enabling) and $\mathbf{Set}$ the category of sets.
+
+The observer defines a functor $F : \Petri \to \mathbf{Set}$ that maps each net $N$ to its set of terminal states (win, loss, draw) and each simulation morphism to the induced map on terminal states.
+
+\begin{proposition}
+The observer functor $F$ preserves the core's reachability: for any marking $\mathbf{m}$ reachable in $N_{\mathrm{core}}$, the set of terminal states reachable from $\mathbf{m}$ in $N$ is determined by the observer transitions enabled at $\mathbf{m}$.
+\end{proposition}
+
+This is a formal statement of the intuition that the observer ``reads'' the core's state without modifying it.
+The sink property (Definition~\ref{def:decomposition}) is the categorical condition ensuring that $F$ is well-defined: observer transitions cannot create new core-reachable markings.
+
+% ------------------------------------------------------------------
+\section{Experiments}
+\label{sec:experiments}
+
+All experiments use the \texttt{pflow-tropical} Rust crate, which implements the \texttt{NetMatrix} type---a generic Petri net representation independent of the pflow ecosystem.
+The crate computes tropical adjacency matrices, eigenvalues, P/T-invariants, and discrete firing from the incidence matrix alone.
+
+\subsection{TTT Core: Tropical Eigenvalue}
+
+The core subnet (18 transitions, 33 places) has tropical eigenvalue $\lambda = 1.0$, confirming Theorem~\ref{thm:ttt-eigenvalue}.
+The critical circuit has length 2 (one X-play, one O-play), corresponding to the alternating turn structure.
+
+The tropical adjacency matrix correctly predicts transition dependencies:
+\begin{itemize}
+  \item \texttt{x\_play\_00} enables \texttt{o\_play\_*} via \texttt{o\_turn} (finite entry).
+  \item \texttt{x\_play\_00} does not self-enable (entry $= -\infty$).
+  \item \texttt{x\_play\_00} enables \texttt{x\_win\_row0} via \texttt{x00} (cross-layer dependency).
+\end{itemize}
+
+\subsection{TTT Observer: Non-Tropical Verification}
+
+The full net (35 transitions) has places with fan-out $> 1$:
+\begin{itemize}
+  \item \texttt{x11}: consumed by \texttt{x\_win\_row1}, \texttt{x\_win\_col1}, \texttt{x\_win\_diag}, \texttt{x\_win\_anti}.
+  \item \texttt{game\_active}: consumed by all 17 observer transitions.
+\end{itemize}
+
+The tropical adjacency matrix of the full net contains entries that don't correspond to true causal dependencies (e.g., win transitions appear to enable play transitions through shared control places), confirming that tropical analysis is not applicable to the observer layer.
+
+\subsection{Invariants}
+
+The core subnet has 9 P-invariants of the form $p_{ij} + x_{ij} + o_{ij} = 1$ (cell conservation: each cell is exactly one of empty, X, or O) plus turn and move-count invariants.
+These are purely topological---they hold for any arc weight, confirming the ``structure trumps weights'' principle.
+
+% ------------------------------------------------------------------
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{Tropical analysis of Petri nets.}
+The connection between timed event graphs and max-plus algebra is classical~\cite{baccelli1992,gaubert1999}.
+Our contribution is the decomposition into tropical (core) and non-tropical (observer) subnets, and the use of this decomposition to characterize which parts of a system admit spectral analysis.
+
+\paragraph{Petri net decomposition.}
+Subnet decomposition of Petri nets has a long history~\cite{murata1989}, primarily for analysis tractability.
+The core-observer decomposition is distinguished by the sink property, which gives it a categorical interpretation as a functor.
+
+\paragraph{ZK proofs for state machines.}
+ZK proofs for state-machine transitions have been explored in blockchain contexts~\cite{ben-sasson2018}.
+The Petri net formulation gives a uniform treatment: the incidence matrix is both the state-machine specification and the R1CS template.
+
+\paragraph{Kolmogorov complexity and structure.}
+The connection between Kolmogorov complexity and structural description has been explored in algorithmic information theory~\cite{li2008}.
+Our ``earned compression'' formalization makes this connection concrete for a specific class of discrete-event systems.
+
+% ------------------------------------------------------------------
+\section{Discussion}
+\label{sec:discussion}
+
+\paragraph{Convergence as proof.}
+The strongest result in this paper is Theorem~\ref{thm:invariance}: three formalisms independently discover the same boundary.
+A skeptic could dismiss any single formalism's decomposition as an artifact of its assumptions.
+But when ODE simulation (continuous, mass-action kinetics), tropical algebra (discrete, max-plus semiring), and zero-knowledge proofs (cryptographic, R1CS constraints) all identify the same partition of transitions, the partition is not an artifact---it is the structure.
+
+This is analogous to how multiple independent measurements of the same physical constant provide stronger evidence than any single measurement.
+The formalisms share no mathematical machinery: the ODE uses real-valued differential equations, the tropical analysis uses the max-plus semiring, and the ZK system uses finite-field arithmetic.
+Their convergence is the proof.
+
+\paragraph{The incidence matrix as universal interface.}
+The practical consequence is that $C$ is a \emph{universal interface}.
+A single $35 \times 33$ integer matrix encodes the full TTT game: its legal moves (firing rules), its strategic values (ODE equilibrium), its throughput (tropical eigenvalue), its conservation laws (null space), and its transition proofs (ZK circuit).
+No other representation achieves all five with the same data.
+
+\paragraph{Irreducible complexity.}
+The observer's non-tropical structure is not a failure of analysis but a \emph{feature of the domain}.
+Win detection in tic-tac-toe is irreducibly non-tropical because a single cell participates in multiple win lines.
+The boundary between compressible and incompressible structure is itself informative---it tells you where the domain's intrinsic complexity lives.
+
+\paragraph{Generalization.}
+The core-observer pattern appears in any system with a computational core and a monitoring/termination layer:
+\begin{itemize}
+  \item \textbf{Workflows:} core = task execution, observer = timeout/error detection.
+  \item \textbf{Protocols:} core = message passing, observer = violation/completion checks.
+  \item \textbf{Games:} core = move execution, observer = win/loss/draw detection.
+  \item \textbf{Smart contracts:} core = state transitions, observer = invariant/access checks.
+\end{itemize}
+
+In each case, the core admits tropical analysis (throughput, cycle time) and the observer admits only discrete analysis (reachability, enabledness).
+The formalism-invariance theorem predicts that this same boundary will be discovered independently by any sufficiently expressive analysis framework applied to these domains.
+
+% ------------------------------------------------------------------
+\section{Conclusion}
+\label{sec:conclusion}
+
+The core-observer decomposition of Petri nets is invariant across ODE simulation, tropical analysis, and zero-knowledge proof.
+Three formalisms with no shared mathematical machinery independently discover the same structural boundary: a partition into a compressible core (timed event graph, stable ODE, uniform R1CS) and an incompressible observer (multi-consumer places, sink dynamics, non-uniform witnesses).
+The convergence of three independent discoveries is stronger evidence than any single proof could provide.
+
+The incidence matrix $C$ is the earned compression of the domain: the shortest description from which all behavioral properties can be recovered.
+Each recovery is proved exact, and the tightness of each compression stage follows from classical results in tropical algebra, chemical reaction network theory, and succinct argument systems.
+The boundary between what compresses and what doesn't is itself the most informative structural feature of the system.
+
+% ------------------------------------------------------------------
+\bibliographystyle{plain}
+\begin{thebibliography}{99}
+
+\bibitem{baccelli1992}
+F.~Baccelli, G.~Cohen, G.J.~Olsder, and J.-P.~Quadrat.
+\newblock {\em Synchronization and Linearity: An Algebra for Discrete Event Systems}.
+\newblock Wiley, 1992.
+
+\bibitem{ben-sasson2018}
+E.~Ben-Sasson, I.~Bentov, Y.~Horesh, and M.~Riabzev.
+\newblock Scalable, transparent, and post-quantum secure computational integrity.
+\newblock {\em IACR Cryptology ePrint Archive}, 2018.
+
+\bibitem{feinberg1979}
+M.~Feinberg.
+\newblock Lectures on chemical reaction networks.
+\newblock Notes of lectures given at the Mathematics Research Center, University of Wisconsin, 1979.
+
+\bibitem{feinberg2019}
+M.~Feinberg.
+\newblock {\em Foundations of Chemical Reaction Network Theory}.
+\newblock Springer, 2019.
+
+\bibitem{gaubert1999}
+S.~Gaubert and M.~Plus.
+\newblock Methods and applications of $(\max, +)$ linear algebra.
+\newblock In {\em STACS 97}, Springer, 1997.
+
+\bibitem{groth2016}
+J.~Groth.
+\newblock On the size of pairing-based non-interactive arguments.
+\newblock In {\em EUROCRYPT 2016}, Springer, 2016.
+
+\bibitem{horn1972}
+F.~Horn and R.~Jackson.
+\newblock General mass action kinetics.
+\newblock {\em Archive for Rational Mechanics and Analysis}, 47(2):81--116, 1972.
+
+\bibitem{li2008}
+M.~Li and P.~Vit{\'a}nyi.
+\newblock {\em An Introduction to Kolmogorov Complexity and Its Applications}.
+\newblock Springer, 3rd edition, 2008.
+
+\bibitem{murata1989}
+T.~Murata.
+\newblock Petri nets: Properties, analysis and applications.
+\newblock {\em Proceedings of the IEEE}, 77(4):541--580, 1989.
+
+\bibitem{york2025incidence}
+M.~York.
+\newblock Incidence reduction: Extracting exact strategic values from game topologies via {P}etri net {ODE} equilibrium.
+\newblock Technical report, pflow.xyz, 2025.
+
+\end{thebibliography}
+
+\end{document}

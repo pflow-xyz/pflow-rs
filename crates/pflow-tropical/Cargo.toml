@@ -7,6 +7,10 @@ license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 
+[features]
+default = ["pflow"]
+pflow = ["dep:pflow-core", "dep:pflow-zk"]
+
 [dependencies]
-pflow-zk = { path = "../pflow-zk" }
-pflow-core = { path = "../pflow-core" }
+pflow-zk = { path = "../pflow-zk", optional = true }
+pflow-core = { path = "../pflow-core", optional = true }
