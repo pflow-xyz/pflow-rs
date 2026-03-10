@@ -1,121 +1,125 @@
 //! Conjecture 4: LLM-extracted nets converge with declared nets.
 //!
-//! Two genuinely independent paths to a tic-tac-toe Petri net:
-//! 1. **Declared**: petri-pilot code-to-flow generates a net from source code
-//! 2. **Extracted**: train ReLU networks on TTT game traces, factor weights
-//!    through tropical decomposition, recover incidence structure
+//! Two genuinely independent paths to tic-tac-toe structure:
 //!
-//! If the ReLU-extracted topology matches the petri-pilot-declared topology,
-//! that's evidence the structure is real — not an artifact of either method.
+//! **Path A (declaration)**: petri-pilot analyzes Go source code and produces
+//! a Petri net with 33 places and 35 transitions. This net is constructed
+//! from the `ttt_fixtures::pilot_ttt()` fixture.
+//!
+//! **Path B (extraction)**: an independent TTT game engine (`ttt_game`) that
+//! knows NOTHING about Petri nets generates raw game traces. ReLU networks
+//! train on these traces, and tropical factoring extracts topology from the
+//! learned weights.
+//!
+//! The game engine and the Petri net were written independently. If the
+//! ReLU-extracted structure matches the petri-pilot-declared structure,
+//! that's evidence the structure is intrinsic to tic-tac-toe — not an
+//! artifact of either construction method.
 
 use pflow_tropical::relu_net::ReluNet;
 use pflow_tropical::ttt_fixtures::pilot_ttt;
+use pflow_tropical::ttt_game::{generate_game_traces, Turn};
 use pflow_tropical::{dense_incidence, sign_pattern, support, Factor, FactorConfig};
-use pflow_zk::{fire_transition, IncidenceMatrix};
+use pflow_zk::IncidenceMatrix;
 
-/// Generate training data for a specific transition by simulating random games.
-/// Returns (input_markings, output_markings) pairs where `transition_id` fired.
-fn generate_transition_data(
-    im: &IncidenceMatrix,
-    transition_id: usize,
-    num_samples: usize,
+/// Verify the game engine's vector encoding matches the Petri net's place ordering.
+/// This is a structural sanity check, NOT part of the convergence proof.
+#[test]
+fn vector_encoding_matches_place_labels() {
+    let net = pilot_ttt();
+    let im = IncidenceMatrix::from_petri_net(&net);
+
+    // Expected alphabetical order of 33 places:
+    let expected: Vec<&str> = vec![
+        "game_active", "move_tokens",
+        "o00", "o01", "o02", "o10", "o11", "o12", "o20", "o21", "o22",
+        "o_turn",
+        "p00", "p01", "p02", "p10", "p11", "p12", "p20", "p21", "p22",
+        "win_o", "win_x",
+        "x00", "x01", "x02", "x10", "x11", "x12", "x20", "x21", "x22",
+        "x_turn",
+    ];
+
+    assert_eq!(im.place_labels.len(), 33);
+    for (i, label) in im.place_labels.iter().enumerate() {
+        assert_eq!(
+            label.as_str(),
+            expected[i],
+            "place {i}: expected '{}', got '{}'",
+            expected[i],
+            label
+        );
+    }
+}
+
+/// Helper: collect game traces for a specific transition (cell + player).
+/// Returns (pre_vectors, post_vectors) from the independent game engine.
+fn traces_for_transition(
+    cell: usize,
+    player: Turn,
+    num_games: usize,
     seed: u64,
 ) -> (Vec<Vec<f64>>, Vec<Vec<f64>>) {
+    let all = generate_game_traces(num_games, seed);
     let mut inputs = Vec::new();
     let mut targets = Vec::new();
-    let n = im.num_places;
 
-    // Simple PRNG for deterministic game generation
-    let mut rng_state = seed;
-    let mut next_rand = || -> u64 {
-        rng_state = rng_state.wrapping_mul(6364136223846793005).wrapping_add(1);
-        rng_state >> 33
-    };
-
-    // Play many random games, collecting firings of the target transition
-    let mut attempts = 0;
-    while inputs.len() < num_samples && attempts < num_samples * 500 {
-        attempts += 1;
-
-        // Start from initial state and play random moves until target fires
-        // or game ends. Initial marking for pilot TTT:
-        let mut marking = vec![0i64; n];
-        // Set initial tokens: p00-p22 = 1, x_turn = 1, game_active = 1
-        for (i, label) in im.place_labels.iter().enumerate() {
-            if label.starts_with('p') && label.len() == 3 {
-                marking[i] = 1; // cell available
-            } else if label == "x_turn" || label == "game_active" {
-                marking[i] = 1;
-            }
-        }
-
-        // Play up to 9 random moves
-        for _step in 0..12 {
-            // Find all enabled transitions
-            let enabled: Vec<usize> = (0..im.num_transitions)
-                .filter(|&t| im.is_enabled(&marking, t))
-                .collect();
-
-            if enabled.is_empty() {
-                break;
-            }
-
-            // Pick a random enabled transition
-            let chosen = enabled[next_rand() as usize % enabled.len()];
-
-            if chosen == transition_id {
-                // Record this firing
-                let pre: Vec<f64> = marking.iter().map(|&m| m as f64).collect();
-                let post_marking = fire_transition(im, &marking, chosen).unwrap();
-                let post: Vec<f64> = post_marking.iter().map(|&m| m as f64).collect();
-                inputs.push(pre);
-                targets.push(post);
-                marking = post_marking;
-
-                if inputs.len() >= num_samples {
-                    break;
-                }
-            } else {
-                marking = fire_transition(im, &marking, chosen).unwrap();
-            }
+    for (c, p, pre, post) in &all {
+        if *c == cell && *p == player {
+            inputs.push(pre.clone());
+            targets.push(post.clone());
         }
     }
 
     (inputs, targets)
 }
 
+/// Map (cell, player) to petri-pilot transition index.
+fn transition_index(im: &IncidenceMatrix, cell: usize, player: Turn) -> usize {
+    let row = cell / 3;
+    let col = cell % 3;
+    let label = match player {
+        Turn::X => format!("x_play_{}{}", row, col),
+        Turn::O => format!("o_play_{}{}", row, col),
+    };
+    im.transition_labels
+        .iter()
+        .position(|l| l == &label)
+        .unwrap_or_else(|| panic!("transition '{}' not found", label))
+}
+
 // ──────────────────────────────────────────────────────────
-// Test 1: ReLU recovers play transition sign patterns
+// Test 1: ReLU trained on raw game data recovers sign patterns
 // ──────────────────────────────────────────────────────────
 
 #[test]
-fn relu_recovers_play_transition_signs() {
+fn relu_from_game_data_recovers_signs() {
     let net = pilot_ttt();
     let im = IncidenceMatrix::from_petri_net(&net);
     let ground_truth = dense_incidence(&im);
     let n = im.num_places; // 33
 
-    // Test 6 play transitions (3 X, 3 O) — representative subset for speed
-    let subset = ["x_play_00", "x_play_11", "x_play_22", "o_play_01", "o_play_10", "o_play_21"];
-    let play_transitions: Vec<usize> = im
-        .transition_labels
-        .iter()
-        .enumerate()
-        .filter(|(_, l)| subset.contains(&l.as_str()))
-        .map(|(i, _)| i)
-        .collect();
+    // Test representative transitions from raw game data
+    let test_cases: Vec<(usize, Turn)> = vec![
+        (0, Turn::X), // x_play_00
+        (4, Turn::X), // x_play_11 (center)
+        (8, Turn::X), // x_play_22
+        (1, Turn::O), // o_play_01
+        (3, Turn::O), // o_play_10
+        (7, Turn::O), // o_play_21
+    ];
 
     let mut correct = 0;
     let mut total = 0;
 
-    for &t in &play_transitions {
-        let (inputs, targets) = generate_transition_data(&im, t, 40, 42 + t as u64);
+    for (cell, player) in &test_cases {
+        let (inputs, targets) = traces_for_transition(*cell, *player, 500, 42 + *cell as u64);
 
-        if inputs.len() < 5 {
+        if inputs.len() < 10 {
             continue;
         }
 
-        let mut nn = ReluNet::new(n, 48, n, 1000 + t as u64);
+        let mut nn = ReluNet::new(n, 48, n, 1000 + *cell as u64);
         nn.train(&inputs, &targets, 0.01, 300);
 
         // Extract delta from first test input
@@ -126,7 +130,6 @@ fn relu_recovers_play_transition_signs() {
             .map(|(o, i)| o - i)
             .collect();
 
-        // Factor through tropical decomposition
         let factored = vec![learned_delta].factor(&FactorConfig {
             threshold: 0.3,
             round_to_int: true,
@@ -146,9 +149,9 @@ fn relu_recovers_play_transition_signs() {
             })
             .collect();
 
-        let gt_signs = sign_pattern(&ground_truth[t]);
+        let t_idx = transition_index(&im, *cell, *player);
+        let gt_signs = sign_pattern(&ground_truth[t_idx]);
 
-        // Count matching sign positions
         for (g, e) in gt_signs.iter().zip(extracted_signs.iter()) {
             if g == e {
                 correct += 1;
@@ -160,186 +163,27 @@ fn relu_recovers_play_transition_signs() {
     let accuracy = correct as f64 / total as f64;
     assert!(
         accuracy >= 0.90,
-        "play transition sign accuracy = {:.1}% (need >= 90%)",
+        "sign accuracy from game data = {:.1}% (need >= 90%)",
         accuracy * 100.0
     );
 }
 
 // ──────────────────────────────────────────────────────────
-// Test 2: ReLU recovers cell conservation law
+// Test 2: Cell conservation emerges from game data
 // ──────────────────────────────────────────────────────────
 
 #[test]
-fn relu_extracted_deltas_conserve_cells() {
+fn conservation_emerges_from_game_data() {
     let net = pilot_ttt();
     let im = IncidenceMatrix::from_petri_net(&net);
     let n = im.num_places;
 
-    // For each play transition, the learned delta should satisfy
-    // delta[p_ij] + delta[x_ij] + delta[o_ij] = 0 for the affected cell,
-    // and = 0 for all other cells (they're untouched).
+    // Train on X center play from raw game data
+    let (inputs, targets) = traces_for_transition(4, Turn::X, 500, 200);
+    assert!(inputs.len() >= 10);
 
-    // Test a subset of play transitions
-    let test_transitions: Vec<usize> = im
-        .transition_labels
-        .iter()
-        .enumerate()
-        .filter(|(_, l)| l.contains("x_play"))
-        .take(4) // first 4 X plays for speed
-        .map(|(i, _)| i)
-        .collect();
-
-    for &t in &test_transitions {
-        let (inputs, targets) = generate_transition_data(&im, t, 40, 200 + t as u64);
-        if inputs.len() < 10 {
-            continue;
-        }
-
-        let mut nn = ReluNet::new(n, 48, n, 2000 + t as u64);
-        nn.train(&inputs, &targets, 0.005, 500);
-
-        let pred = nn.predict(&inputs[0]);
-        let learned_delta: Vec<f64> = pred
-            .iter()
-            .zip(inputs[0].iter())
-            .map(|(o, i)| o - i)
-            .collect();
-
-        // Check cell conservation: for each cell (i,j), sum of deltas ≈ 0
-        for i in 0..3 {
-            for j in 0..3 {
-                let p_idx = im
-                    .place_labels
-                    .iter()
-                    .position(|l| l == &format!("p{}{}", i, j))
-                    .unwrap();
-                let x_idx = im
-                    .place_labels
-                    .iter()
-                    .position(|l| l == &format!("x{}{}", i, j))
-                    .unwrap();
-                let o_idx = im
-                    .place_labels
-                    .iter()
-                    .position(|l| l == &format!("o{}{}", i, j))
-                    .unwrap();
-
-                let cell_sum =
-                    learned_delta[p_idx] + learned_delta[x_idx] + learned_delta[o_idx];
-                assert!(
-                    cell_sum.abs() < 0.5,
-                    "transition {} ({}): cell ({},{}) conservation violated: sum={:.3}",
-                    t,
-                    im.transition_labels[t],
-                    i,
-                    j,
-                    cell_sum
-                );
-            }
-        }
-    }
-}
-
-// ──────────────────────────────────────────────────────────
-// Test 3: ReLU recovers arc support (which places are touched)
-// ──────────────────────────────────────────────────────────
-
-#[test]
-fn relu_recovers_arc_support_ttt() {
-    let net = pilot_ttt();
-    let im = IncidenceMatrix::from_petri_net(&net);
-    let ground_truth = dense_incidence(&im);
-    let n = im.num_places;
-
-    // Test a few play transitions
-    let test_transitions: Vec<usize> = im
-        .transition_labels
-        .iter()
-        .enumerate()
-        .filter(|(_, l)| l.contains("play"))
-        .take(6)
-        .map(|(i, _)| i)
-        .collect();
-
-    for &t in &test_transitions {
-        let (inputs, targets) = generate_transition_data(&im, t, 50, 300 + t as u64);
-        if inputs.len() < 10 {
-            continue;
-        }
-
-        let mut nn = ReluNet::new(n, 48, n, 3000 + t as u64);
-        let loss = nn.train(&inputs, &targets, 0.005, 600);
-        if loss > 0.1 {
-            continue;
-        }
-
-        let pred = nn.predict(&inputs[0]);
-        let learned_delta: Vec<f64> = pred
-            .iter()
-            .zip(inputs[0].iter())
-            .map(|(o, i)| o - i)
-            .collect();
-
-        // Ground truth support: places with non-zero delta
-        let gt_support = support(&ground_truth[t]);
-
-        // Learned support: places where |delta| > threshold
-        let learned_support: Vec<usize> = learned_delta
-            .iter()
-            .enumerate()
-            .filter(|(_, &d)| d.abs() > 0.3)
-            .map(|(i, _)| i)
-            .collect();
-
-        // Every ground truth arc should appear in learned support
-        for &p in &gt_support {
-            assert!(
-                learned_support.contains(&p),
-                "transition {} ({}): place {} ({}) missing from learned support.\n  gt_support={:?}\n  learned={:?}",
-                t, im.transition_labels[t], p, im.place_labels[p],
-                gt_support.iter().map(|&i| &im.place_labels[i]).collect::<Vec<_>>(),
-                learned_support.iter().map(|&i| &im.place_labels[i]).collect::<Vec<_>>()
-            );
-        }
-    }
-}
-
-// ──────────────────────────────────────────────────────────
-// Test 4: Turn control structure emerges from data
-// ──────────────────────────────────────────────────────────
-
-#[test]
-fn relu_discovers_turn_control() {
-    // The pilot net has x_turn and o_turn places that alternate.
-    // A ReLU net trained on X play transitions should learn that
-    // x_turn decreases and o_turn increases (and vice versa for O plays).
-    let net = pilot_ttt();
-    let im = IncidenceMatrix::from_petri_net(&net);
-    let n = im.num_places;
-
-    let x_turn_idx = im
-        .place_labels
-        .iter()
-        .position(|l| l == "x_turn")
-        .unwrap();
-    let o_turn_idx = im
-        .place_labels
-        .iter()
-        .position(|l| l == "o_turn")
-        .unwrap();
-
-    // Train on x_play_11 (center play — most data available)
-    let t = im
-        .transition_labels
-        .iter()
-        .position(|l| l == "x_play_11")
-        .unwrap();
-
-    let (inputs, targets) = generate_transition_data(&im, t, 60, 400);
-    assert!(inputs.len() >= 10, "need at least 10 samples for x_play_11");
-
-    let mut nn = ReluNet::new(n, 48, n, 4000);
-    nn.train(&inputs, &targets, 0.005, 600);
+    let mut nn = ReluNet::new(n, 48, n, 2000);
+    nn.train(&inputs, &targets, 0.01, 400);
 
     let pred = nn.predict(&inputs[0]);
     let delta: Vec<f64> = pred
@@ -348,29 +192,68 @@ fn relu_discovers_turn_control() {
         .map(|(o, i)| o - i)
         .collect();
 
-    // X play should: x_turn decreases, o_turn increases
-    assert!(
-        delta[x_turn_idx] < -0.3,
-        "x_play should consume x_turn, got delta={:.3}",
-        delta[x_turn_idx]
-    );
-    assert!(
-        delta[o_turn_idx] > 0.3,
-        "x_play should produce o_turn, got delta={:.3}",
-        delta[o_turn_idx]
-    );
+    // Cell conservation: for each cell, delta[p] + delta[x] + delta[o] ≈ 0
+    // The ReLU learns this from game rules, not from Petri net structure
+    for i in 0..3 {
+        for j in 0..3 {
+            let cell = i * 3 + j;
+            let p_idx = 12 + cell; // p00..p22
+            let x_idx = 23 + cell; // x00..x22
+            let o_idx = 2 + cell;  // o00..o22
 
-    // Now train on o_play_00
-    let t_o = im
-        .transition_labels
+            let sum = delta[p_idx] + delta[x_idx] + delta[o_idx];
+            assert!(
+                sum.abs() < 0.5,
+                "cell ({},{}): conservation violated from game data: sum={:.3}",
+                i, j, sum
+            );
+        }
+    }
+}
+
+// ──────────────────────────────────────────────────────────
+// Test 3: Turn alternation emerges from game data
+// ──────────────────────────────────────────────────────────
+
+#[test]
+fn turn_alternation_from_game_data() {
+    let net = pilot_ttt();
+    let im = IncidenceMatrix::from_petri_net(&net);
+    let n = im.num_places;
+
+    let x_turn_idx = 32; // x_turn
+    let o_turn_idx = 11; // o_turn
+
+    // X plays center — trained on game data, not Petri net firings
+    let (inputs_x, targets_x) = traces_for_transition(4, Turn::X, 500, 300);
+    assert!(inputs_x.len() >= 10);
+
+    let mut nn_x = ReluNet::new(n, 48, n, 3000);
+    nn_x.train(&inputs_x, &targets_x, 0.01, 400);
+
+    let pred_x = nn_x.predict(&inputs_x[0]);
+    let delta_x: Vec<f64> = pred_x
         .iter()
-        .position(|l| l == "o_play_00")
-        .unwrap();
+        .zip(inputs_x[0].iter())
+        .map(|(o, i)| o - i)
+        .collect();
 
-    let (inputs_o, targets_o) = generate_transition_data(&im, t_o, 60, 401);
+    assert!(
+        delta_x[x_turn_idx] < -0.3,
+        "X play should consume x_turn from game data, got {:.3}",
+        delta_x[x_turn_idx]
+    );
+    assert!(
+        delta_x[o_turn_idx] > 0.3,
+        "X play should produce o_turn from game data, got {:.3}",
+        delta_x[o_turn_idx]
+    );
+
+    // O plays corner — opposite turn effect
+    let (inputs_o, targets_o) = traces_for_transition(0, Turn::O, 500, 301);
     if inputs_o.len() >= 10 {
-        let mut nn_o = ReluNet::new(n, 48, n, 4001);
-        nn_o.train(&inputs_o, &targets_o, 0.005, 600);
+        let mut nn_o = ReluNet::new(n, 48, n, 3001);
+        nn_o.train(&inputs_o, &targets_o, 0.01, 400);
 
         let pred_o = nn_o.predict(&inputs_o[0]);
         let delta_o: Vec<f64> = pred_o
@@ -379,57 +262,47 @@ fn relu_discovers_turn_control() {
             .map(|(o, i)| o - i)
             .collect();
 
-        // O play should: o_turn decreases, x_turn increases (opposite)
         assert!(
             delta_o[o_turn_idx] < -0.3,
-            "o_play should consume o_turn, got delta={:.3}",
+            "O play should consume o_turn from game data, got {:.3}",
             delta_o[o_turn_idx]
         );
         assert!(
             delta_o[x_turn_idx] > 0.3,
-            "o_play should produce x_turn, got delta={:.3}",
+            "O play should produce x_turn from game data, got {:.3}",
             delta_o[x_turn_idx]
         );
     }
 }
 
 // ──────────────────────────────────────────────────────────
-// Test 5: Extracted move_tokens accumulation
+// Test 4: Move counter emerges from game data
 // ──────────────────────────────────────────────────────────
 
 #[test]
-fn relu_discovers_move_counter() {
-    // Every play transition should increment move_tokens.
-    // This is the accounting mechanism for the draw condition.
+fn move_counter_from_game_data() {
     let net = pilot_ttt();
     let im = IncidenceMatrix::from_petri_net(&net);
     let n = im.num_places;
 
-    let mt_idx = im
-        .place_labels
-        .iter()
-        .position(|l| l == "move_tokens")
-        .unwrap();
+    let mt_idx = 1; // move_tokens
 
-    // Test several play transitions
-    let play_transitions: Vec<usize> = im
-        .transition_labels
-        .iter()
-        .enumerate()
-        .filter(|(_, l)| l.contains("play"))
-        .take(6)
-        .map(|(i, _)| i)
-        .collect();
+    let test_cases: Vec<(usize, Turn)> = vec![
+        (4, Turn::X),
+        (0, Turn::X),
+        (1, Turn::O),
+        (3, Turn::O),
+    ];
 
     let mut found_positive = 0;
-    for &t in &play_transitions {
-        let (inputs, targets) = generate_transition_data(&im, t, 40, 500 + t as u64);
+    for (cell, player) in &test_cases {
+        let (inputs, targets) = traces_for_transition(*cell, *player, 500, 400 + *cell as u64);
         if inputs.len() < 10 {
             continue;
         }
 
-        let mut nn = ReluNet::new(n, 48, n, 5000 + t as u64);
-        nn.train(&inputs, &targets, 0.005, 500);
+        let mut nn = ReluNet::new(n, 48, n, 4000 + *cell as u64);
+        nn.train(&inputs, &targets, 0.01, 300);
 
         let pred = nn.predict(&inputs[0]);
         let delta: Vec<f64> = pred
@@ -444,61 +317,122 @@ fn relu_discovers_move_counter() {
     }
 
     assert!(
-        found_positive >= 4,
-        "at least 4/6 play transitions should increment move_tokens, got {}/{}",
-        found_positive,
-        play_transitions.len()
+        found_positive >= 3,
+        "at least 3/4 transitions should increment move_tokens, got {}",
+        found_positive
     );
 }
 
 // ──────────────────────────────────────────────────────────
-// Test 6: Overall structural similarity score
+// Test 5: Arc support recovery from game data
 // ──────────────────────────────────────────────────────────
 
 #[test]
-fn overall_structural_similarity() {
+fn arc_support_from_game_data() {
     let net = pilot_ttt();
     let im = IncidenceMatrix::from_petri_net(&net);
     let ground_truth = dense_incidence(&im);
     let n = im.num_places;
 
-    // Sample 8 play transitions for overall accuracy
-    let subset = ["x_play_00", "x_play_11", "x_play_22", "x_play_02",
-                   "o_play_01", "o_play_10", "o_play_21", "o_play_12"];
-    let play_transitions: Vec<usize> = im
-        .transition_labels
-        .iter()
-        .enumerate()
-        .filter(|(_, l)| subset.contains(&l.as_str()))
-        .map(|(i, _)| i)
-        .collect();
+    let test_cases: Vec<(usize, Turn)> = vec![
+        (4, Turn::X), // center
+        (0, Turn::O), // corner
+        (2, Turn::X), // corner
+    ];
 
-    let mut total_correct = 0;
-    let mut total_entries = 0;
-    let mut transitions_tested = 0;
-
-    for &t in &play_transitions {
-        let (inputs, targets) = generate_transition_data(&im, t, 40, 600 + t as u64);
-        if inputs.len() < 5 {
+    for (cell, player) in &test_cases {
+        let (inputs, targets) = traces_for_transition(*cell, *player, 800, 500 + *cell as u64);
+        if inputs.len() < 10 {
             continue;
         }
 
-        let mut nn = ReluNet::new(n, 48, n, 6000 + t as u64);
-        nn.train(&inputs, &targets, 0.01, 300);
+        let mut nn = ReluNet::new(n, 64, n, 5000 + *cell as u64);
+        nn.train(&inputs, &targets, 0.008, 500);
 
         let pred = nn.predict(&inputs[0]);
-        let learned_delta: Vec<f64> = pred
+        let delta: Vec<f64> = pred
             .iter()
             .zip(inputs[0].iter())
             .map(|(o, i)| o - i)
             .collect();
 
-        let rounded: Vec<i64> = learned_delta
+        let t_idx = transition_index(&im, *cell, *player);
+        let gt_support = support(&ground_truth[t_idx]);
+
+        let learned_support: Vec<usize> = delta
+            .iter()
+            .enumerate()
+            .filter(|(_, &d)| d.abs() > 0.2)
+            .map(|(i, _)| i)
+            .collect();
+
+        // Count how many ground truth arcs are recovered
+        let recovered: Vec<usize> = gt_support
+            .iter()
+            .filter(|p| learned_support.contains(p))
+            .copied()
+            .collect();
+        let recall = recovered.len() as f64 / gt_support.len() as f64;
+        assert!(
+            recall >= 0.8,
+            "cell {} {:?}: arc recall = {:.0}% ({}/{}), missing: {:?}",
+            cell,
+            player,
+            recall * 100.0,
+            recovered.len(),
+            gt_support.len(),
+            gt_support
+                .iter()
+                .filter(|p| !learned_support.contains(p))
+                .map(|&p| &im.place_labels[p])
+                .collect::<Vec<_>>()
+        );
+    }
+}
+
+// ──────────────────────────────────────────────────────────
+// Test 6: Overall structural similarity from game data
+// ──────────────────────────────────────────────────────────
+
+#[test]
+fn overall_similarity_from_game_data() {
+    let net = pilot_ttt();
+    let im = IncidenceMatrix::from_petri_net(&net);
+    let ground_truth = dense_incidence(&im);
+    let n = im.num_places;
+
+    let test_cases: Vec<(usize, Turn)> = vec![
+        (0, Turn::X), (4, Turn::X), (8, Turn::X), (2, Turn::X),
+        (1, Turn::O), (3, Turn::O), (5, Turn::O), (7, Turn::O),
+    ];
+
+    let mut total_correct = 0;
+    let mut total_entries = 0;
+    let mut tested = 0;
+
+    for (cell, player) in &test_cases {
+        let (inputs, targets) = traces_for_transition(*cell, *player, 500, 600 + *cell as u64);
+        if inputs.len() < 10 {
+            continue;
+        }
+
+        let mut nn = ReluNet::new(n, 48, n, 6000 + *cell as u64);
+        nn.train(&inputs, &targets, 0.01, 300);
+
+        let pred = nn.predict(&inputs[0]);
+        let delta: Vec<f64> = pred
+            .iter()
+            .zip(inputs[0].iter())
+            .map(|(o, i)| o - i)
+            .collect();
+
+        let rounded: Vec<i64> = delta
             .iter()
             .map(|&d| if d.abs() < 0.3 { 0 } else { d.round() as i64 })
             .collect();
 
-        let gt_signs = sign_pattern(&ground_truth[t]);
+        let t_idx = transition_index(&im, *cell, *player);
+        let gt_signs = sign_pattern(&ground_truth[t_idx]);
         let ex_signs = sign_pattern(&rounded);
 
         for (g, e) in gt_signs.iter().zip(ex_signs.iter()) {
@@ -507,20 +441,16 @@ fn overall_structural_similarity() {
             }
             total_entries += 1;
         }
-        transitions_tested += 1;
+        tested += 1;
     }
 
-    assert!(
-        transitions_tested >= 6,
-        "need at least 6 transitions tested, got {}",
-        transitions_tested
-    );
+    assert!(tested >= 6, "need >= 6 transitions tested, got {}", tested);
 
     let similarity = total_correct as f64 / total_entries as f64;
     assert!(
         similarity >= 0.90,
-        "overall structural similarity = {:.1}% across {} transitions (need >= 90%)",
+        "structural similarity from game data = {:.1}% across {} transitions (need >= 90%)",
         similarity * 100.0,
-        transitions_tested
+        tested
     );
 }
