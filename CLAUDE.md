@@ -2,6 +2,16 @@
 
 Rust Petri net library with ODE simulation, token model DSL, and ZK proofs.
 
+## Central Thesis
+
+Petri nets are a universal formal backbone. Define your system as a Petri net and you get three capabilities from the same source of truth:
+
+1. **Continuous simulation** — ODE solvers model token flow as differential equations, finding equilibria and dynamics
+2. **Discrete execution** — the same net fires transitions step-by-step as a state machine, with a DSL and content-addressed identity (CID) for deterministic specification
+3. **Zero-knowledge proofs** — the incidence matrix extracted from the net compiles directly into ZK circuits (Groth16 or STARK), proving "transition T legally transformed state M into M'" without revealing the full state
+
+The papers extend this further — showing the incidence matrix enables algebraic reductions (integer reduction for smaller circuits) and connections to tropical geometry (earned compression).
+
 ## Workspace Structure
 
 | Crate | Purpose |
@@ -132,14 +142,52 @@ Models are passed as S-expression strings. The root keyword is `schema` (not `pe
 - `State = HashMap<String, f64>` — place label to token count
 - `Marking = Vec<i64>` — integer marking in canonical place order (ZK)
 
-## Paper (papers/integer-reduction/)
+## Papers
 
-The incidence reduction paper is in `papers/integer-reduction/main.tex`. No local LaTeX install — build on pflow.dev:
+Papers live in `papers/<slug>/main.tex`. No local LaTeX install — build on pflow.dev.
+
+### Existing papers
+
+| Slug | Title / Topic | PDF |
+|------|---------------|-----|
+| `integer-reduction` | Incidence matrix reduction for ZK circuits | `incidence-reduction.pdf` |
+| `earned-compression` | Tropical geometry and earned compression | `earned-compression.pdf` |
+
+### Creating a new paper
+
+1. Create the directory and `main.tex`:
+   ```bash
+   mkdir -p papers/<slug>
+   ```
+2. Use an existing paper as a template — both share a common LaTeX preamble (amsmath, booktabs, listings, hyperref, geometry). Copy one and replace the content:
+   ```bash
+   cp papers/earned-compression/main.tex papers/<slug>/main.tex
+   ```
+3. Edit `papers/<slug>/main.tex` with the new content.
+4. Add the paper to the table above in this file.
+
+### Building papers (remote, on pflow.dev)
 
 ```bash
+# Build any paper (replace <slug> and <output-name>)
+ssh pflow.dev "cd ~/Workspace/pflow-rs && git pull && cd papers/<slug> && pdflatex -interaction=nonstopmode main.tex"
+scp pflow.dev:~/Workspace/pflow-rs/papers/<slug>/main.pdf papers/<slug>/<output-name>.pdf
+
+# Examples:
 ssh pflow.dev "cd ~/Workspace/pflow-rs && git pull && cd papers/integer-reduction && pdflatex -interaction=nonstopmode main.tex"
 scp pflow.dev:~/Workspace/pflow-rs/papers/integer-reduction/main.pdf papers/integer-reduction/incidence-reduction.pdf
+
+ssh pflow.dev "cd ~/Workspace/pflow-rs && git pull && cd papers/earned-compression && pdflatex -interaction=nonstopmode main.tex"
+scp pflow.dev:~/Workspace/pflow-rs/papers/earned-compression/main.pdf papers/earned-compression/earned-compression.pdf
 ```
+
+### Conventions
+
+- Each paper directory contains `main.tex` (source) and a named PDF (committed for distribution)
+- Papers can cross-reference each other and reference pflow-rs crate code/tests as evidence
+- Use `\cite{}` with a local `\begin{thebibliography}` block (no .bib files needed for single papers)
+- Figures: prefer TikZ or listings over external image files
+- Keep PDFs up to date: rebuild and commit after edits
 
 ## Architecture Notes
 
