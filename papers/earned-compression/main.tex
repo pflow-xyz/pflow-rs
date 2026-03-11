@@ -313,9 +313,31 @@ Observer & \texttt{win\_x}, \texttt{win\_o} & $\times$ & $\times$ \\
 \end{tabular}
 \end{center}
 
+The standard Petri net subclass hierarchy sharpens the distinction.
+A \emph{free choice net}~\cite{desel1995} requires that choice and synchronization never overlap: if a place $p$ has arcs to transitions $t_1$ and $t_2$, then $p$ must be the only input place of both.
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Net variant} & \textbf{Petri net class} & \textbf{Why} \\
+\midrule
+Core without turns & State machine & Each transition has 1 input, 1 output place \\
+Core with turns & Not free choice & Choice ($p_{ij} \to$ X or O) overlaps sync ($+$ turn token) \\
+Full (with observer) & General & Win transitions synchronize on 3 cell places \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Without turn places, the core is 9 independent state machines (each cell has states $\{p, x, o\}$ with transitions $\{$\texttt{x\_play}$,$ \texttt{o\_play}$\}$)---a strict subclass of free choice nets.
+Adding turn enforcement breaks free choice: \texttt{x\_play\_11} requires both \texttt{p11} (cell empty) and \texttt{x\_turn} (correct turn), so choice and synchronization overlap at \texttt{p11}.
+
+This means the turn-enforced core sits in a gap in the standard taxonomy.
+It is not a timed event graph (turn places have 9:9 fan), not a state machine (transitions synchronize on two inputs), and not a free choice net (choice/sync overlap).
+Yet behaviorally it acts like an event graph: the turn token ping-pongs deterministically, and mutual exclusion ensures at most one transition fires per turn.
+
 The distinction is testable: an RNN trained on the core net \emph{without} turn places learns to ``cheat'' by firing the same player's transitions consecutively (exploiting the structural gap), while the same RNN on the turn-enforced core is structurally prevented from doing so---alternation is guaranteed by the net, not by the policy.
-This confirms that turn enforcement is a structural property even though it does not satisfy the strict TEG definition.
-Whether there exists a useful formal weakening of the TEG property---``tropical under mutual exclusion''---is an open question.
+This confirms that turn enforcement is a genuine structural constraint, even though it falls outside every standard Petri net subclass that admits tropical analysis.
+Whether there exists a useful formal weakening---``tropical under mutual exclusion''---that captures the turn-enforced core's behavioral event-graph property is an open question.
 \end{remark}
 
 \subsection{Why the Observer is Not Tropical}
@@ -805,6 +827,11 @@ J.C.~Baez and J.~Master.
 E.~Ben-Sasson, I.~Bentov, Y.~Horesh, and M.~Riabzev.
 \newblock Scalable, transparent, and post-quantum secure computational integrity.
 \newblock {\em IACR Cryptology ePrint Archive}, 2018.
+
+\bibitem{desel1995}
+J.~Desel and J.~Esparza.
+\newblock {\em Free Choice Petri Nets}.
+\newblock Cambridge Tracts in Theoretical Computer Science 40, Cambridge University Press, 1995.
 
 \bibitem{feinberg1979}
 M.~Feinberg.
