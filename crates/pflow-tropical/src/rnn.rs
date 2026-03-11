@@ -519,6 +519,148 @@ impl ElmanRnn {
         loss
     }
 
+    /// Train with per-move reward weighting.
+    ///
+    /// Like `train_weighted`, but each timestep in a sequence has its own reward.
+    /// This enables symmetric training: X moves get `+r` and O moves get `-r`
+    /// (or vice versa), so the policy learns to play well as both players.
+    pub fn train_weighted_per_move(
+        &mut self,
+        sequences: &[(Vec<Vec<f64>>, Vec<usize>, Vec<f64>)], // (inputs, targets, per-move rewards)
+        learning_rate: f64,
+        epochs: usize,
+    ) -> f64 {
+        let mut loss = 0.0;
+
+        for _epoch in 0..epochs {
+            loss = 0.0;
+
+            for (inputs, targets, rewards) in sequences {
+                let seq_len = inputs.len();
+                if seq_len == 0 { continue; }
+                let hs = self.hidden_size;
+
+                // Forward pass
+                let mut h_prevs = Vec::with_capacity(seq_len);
+                let mut h_posts = Vec::with_capacity(seq_len);
+                let mut logits_all = Vec::with_capacity(seq_len);
+                let mut h = vec![0.0; hs];
+
+                for input in inputs.iter() {
+                    h_prevs.push(h.clone());
+                    let mut h_pre = vec![0.0; hs];
+                    for i in 0..hs {
+                        let mut sum = self.b_h[i];
+                        for j in 0..self.input_size {
+                            sum += self.w_xh[i][j] * input[j];
+                        }
+                        for j in 0..hs {
+                            sum += self.w_hh[i][j] * h[j];
+                        }
+                        h_pre[i] = sum;
+                    }
+                    h = h_pre.iter().map(|&x| x.tanh()).collect();
+                    h_posts.push(h.clone());
+
+                    let mut y = vec![0.0; self.output_size];
+                    for i in 0..self.output_size {
+                        let mut sum = self.b_y[i];
+                        for j in 0..hs {
+                            sum += self.w_hy[i][j] * h[j];
+                        }
+                        y[i] = sum;
+                    }
+                    logits_all.push(y);
+                }
+
+                // Backward pass — per-move reward scaling
+                let mut dw_xh = vec![vec![0.0; self.input_size]; hs];
+                let mut dw_hh = vec![vec![0.0; hs]; hs];
+                let mut db_h = vec![0.0; hs];
+                let mut dw_hy = vec![vec![0.0; hs]; self.output_size];
+                let mut db_y = vec![0.0; self.output_size];
+                let mut dh_next = vec![0.0; hs];
+
+                for t in (0..seq_len).rev() {
+                    let probs = Self::softmax(&logits_all[t]);
+                    let target = targets[t];
+                    let reward = rewards[t];
+
+                    loss -= reward * probs[target].max(1e-10).ln();
+
+                    let mut d_logits: Vec<f64> = probs.iter().map(|&p| p * reward).collect();
+                    d_logits[target] -= reward;
+
+                    for i in 0..self.output_size {
+                        for j in 0..hs {
+                            dw_hy[i][j] += d_logits[i] * h_posts[t][j];
+                        }
+                        db_y[i] += d_logits[i];
+                    }
+
+                    let mut dh = vec![0.0; hs];
+                    for j in 0..hs {
+                        for i in 0..self.output_size {
+                            dh[j] += self.w_hy[i][j] * d_logits[i];
+                        }
+                        dh[j] += dh_next[j];
+                    }
+
+                    let mut dh_pre = vec![0.0; hs];
+                    for i in 0..hs {
+                        dh_pre[i] = dh[i] * (1.0 - h_posts[t][i] * h_posts[t][i]);
+                    }
+
+                    for i in 0..hs {
+                        for j in 0..self.input_size {
+                            dw_xh[i][j] += dh_pre[i] * inputs[t][j];
+                        }
+                        for j in 0..hs {
+                            dw_hh[i][j] += dh_pre[i] * h_prevs[t][j];
+                        }
+                        db_h[i] += dh_pre[i];
+                    }
+
+                    dh_next = vec![0.0; hs];
+                    for j in 0..hs {
+                        for i in 0..hs {
+                            dh_next[j] += self.w_hh[i][j] * dh_pre[i];
+                        }
+                    }
+                }
+
+                let clip = 5.0;
+                clip_vec2d(&mut dw_xh, clip);
+                clip_vec2d(&mut dw_hh, clip);
+                clip_vec1d(&mut db_h, clip);
+                clip_vec2d(&mut dw_hy, clip);
+                clip_vec1d(&mut db_y, clip);
+
+                let lr = learning_rate / seq_len as f64;
+                for i in 0..hs {
+                    for j in 0..self.input_size {
+                        self.w_xh[i][j] -= lr * dw_xh[i][j];
+                    }
+                    for j in 0..hs {
+                        self.w_hh[i][j] -= lr * dw_hh[i][j];
+                    }
+                    self.b_h[i] -= lr * db_h[i];
+                }
+                for i in 0..self.output_size {
+                    for j in 0..hs {
+                        self.w_hy[i][j] -= lr * dw_hy[i][j];
+                    }
+                    self.b_y[i] -= lr * db_y[i];
+                }
+            }
+
+            let count = sequences.len().max(1);
+            loss /= count as f64;
+        }
+
+        loss
+    }
+
     /// Self-play training loop: play games, score outcomes, train on rewards.
     ///
     /// `reward_fn` maps a final marking to a reward scalar.

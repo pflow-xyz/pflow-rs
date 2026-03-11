@@ -1005,3 +1005,129 @@ fn core_vs_full_ttt_comparison() {
     // Both should produce valid games
     assert!(core_x + full_x > 0, "at least one RNN should produce X wins");
 }
+
+// ──────────────────────────────────────────────────────────
+// Test 14: Symmetric self-play — reward each player's moves
+//          from that player's perspective → should converge
+//          toward draws (optimal TTT play)
+// ──────────────────────────────────────────────────────────
+
+#[test]
+fn rnn_symmetric_self_play_ttt() {
+    let net = pflow_tropical::ttt_fixtures::builder_ttt_turns();
+    let np = net.num_places();   // 29
+    let nt = net.num_transitions(); // 18
+
+    // Bootstrap on random games
+    let trajectories = generate_game_trajectories_capped(&net, 200, 9, 42);
+    let mut rnn = ElmanRnn::new(np, 32, nt, 42);
+    rnn.train(&trajectories, 0.05, 50);
+
+    let pretrained = rnn.clone();
+
+    // Symmetric self-play: each move gets reward from its player's perspective.
+    // X moves (transitions 0-8): +1 if X wins, -1 if O wins
+    // O moves (transitions 9-17): +1 if O wins, -1 if X wins
+    // This forces the policy to play well as BOTH players.
+    let mut rng = SimpleRng::new(123);
+
+    for round in 0..20 {
+        let mut weighted = Vec::new();
+
+        for _ in 0..50 {
+            let result = play_core_turns_game_stochastic(&rnn, &net, 9, &mut rng);
+            let (xw, ow) = core_turns_check_win(&result.final_marking);
+
+            // Base outcome from X's perspective
+            let x_reward = if xw { 1.0 } else if ow { -1.0 } else { 0.1 }; // small draw reward
+
+            // Per-move rewards: each player gets reward from their own perspective
+            let per_move_rewards: Vec<f64> = result.moves.iter().enumerate().map(|(i, _mv)| {
+                let is_x_move = i % 2 == 0; // turns enforced, so even=X, odd=O
+                if is_x_move { x_reward } else { -x_reward }
+            }).collect();
+
+            let inputs: Vec<Vec<f64>> = result.moves.iter()
+                .map(|m| m.marking.iter().map(|&v| v as f64).collect())
+                .collect();
+            let targets: Vec<usize> = result.moves.iter()
+                .map(|m| m.transition).collect();
+
+            weighted.push((inputs, targets, per_move_rewards));
+        }
+
+        rnn.train_weighted_per_move(&weighted, 0.02, 5);
+
+        // Log progress every 5 rounds
+        if (round + 1) % 5 == 0 {
+            let mut xw_count = 0;
+            let mut ow_count = 0;
+            let mut draws = 0;
+            let mut eval_rng = SimpleRng::new(round as u64 + 500);
+            for _ in 0..50 {
+                let r = play_core_turns_game_stochastic(&rnn, &net, 9, &mut eval_rng);
+                let (xw, ow) = core_turns_check_win(&r.final_marking);
+                if xw { xw_count += 1; }
+                else if ow { ow_count += 1; }
+                else { draws += 1; }
+            }
+            eprintln!(
+                "Round {}: X wins {xw_count}, O wins {ow_count}, draws {draws}",
+                round + 1
+            );
+        }
+    }
+
+    // Evaluate: play 100 stochastic games and count outcomes
+    let mut x_wins = 0;
+    let mut o_wins = 0;
+    let mut draws = 0;
+    let n = 100;
+    let mut eval_rng = SimpleRng::new(999);
+
+    for _ in 0..n {
+        let result = play_core_turns_game_stochastic(&rnn, &net, 9, &mut eval_rng);
+        let (xw, ow) = core_turns_check_win(&result.final_marking);
+        if xw { x_wins += 1; }
+        else if ow { o_wins += 1; }
+        else { draws += 1; }
+    }
+
+    // Also evaluate pretrained (asymmetric reward) for comparison
+    let mut pre_x = 0;
+    let mut pre_o = 0;
+    let mut pre_d = 0;
+    let mut pre_rng = SimpleRng::new(999);
+    for _ in 0..n {
+        let result = play_core_turns_game_stochastic(&pretrained, &net, 9, &mut pre_rng);
+        let (xw, ow) = core_turns_check_win(&result.final_marking);
+        if xw { pre_x += 1; }
+        else if ow { pre_o += 1; }
+        else { pre_d += 1; }
+    }
+
+    eprintln!("\nSymmetric self-play results ({n} games):");
+    eprintln!("  Pretrained: X={pre_x} O={pre_o} draws={pre_d}");
+    eprintln!("  Symmetric:  X={x_wins} O={o_wins} draws={draws}");
+
+    // Show a sample game
+    let mut show_rng = SimpleRng::new(42);
+    let sample = play_core_turns_game_stochastic(&rnn, &net, 9, &mut show_rng);
+    let (xw, ow) = core_turns_check_win(&sample.final_marking);
+    eprintln!("\nSample game ({} moves):", sample.moves.len());
+    for (i, mv) in sample.moves.iter().enumerate() {
+        let player = if i % 2 == 0 { "X" } else { "O" };
+        eprintln!("  {player} move {}: {} ({:.0}%)",
+            i + 1, net.transition_labels[mv.transition], mv.confidence * 100.0);
+    }
+    eprintln!("{}", render_core_turns_board(&sample.final_marking));
+    eprintln!("Result: {}",
+        if xw { "X wins" } else if ow { "O wins" } else { "draw" });
+
+    // Symmetric training should produce more draws than pretrained
+    // (pretrained is biased toward X; symmetric should balance)
+    assert!(
+        draws >= pre_d,
+        "symmetric self-play should produce at least as many draws: {draws} vs {pre_d}"
+    );
+}
