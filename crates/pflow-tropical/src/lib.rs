@@ -14,6 +14,7 @@ mod extract;
 mod invariants;
 pub mod net_matrix;
 pub mod relu_net;
+pub mod rnn;
 pub mod ttt_fixtures;
 
 

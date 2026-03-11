@@ -144,12 +144,12 @@ impl ReluNet {
 }
 
 /// Simple deterministic PRNG (xoshiro256**) for reproducible weight init.
-struct SimpleRng {
+pub struct SimpleRng {
     state: [u64; 4],
 }
 
 impl SimpleRng {
-    fn new(seed: u64) -> Self {
+    pub fn new(seed: u64) -> Self {
         // SplitMix64 to initialize state
         let mut s = seed;
         let mut state = [0u64; 4];
@@ -163,7 +163,7 @@ impl SimpleRng {
         Self { state }
     }
 
-    fn next_u64(&mut self) -> u64 {
+    pub fn next_u64(&mut self) -> u64 {
         let result = self.state[1].wrapping_mul(5).rotate_left(7).wrapping_mul(9);
         let t = self.state[1] << 17;
         self.state[2] ^= self.state[0];
@@ -175,12 +175,12 @@ impl SimpleRng {
         result
     }
 
-    fn uniform(&mut self) -> f64 {
+    pub fn uniform(&mut self) -> f64 {
         (self.next_u64() >> 11) as f64 / (1u64 << 53) as f64
     }
 
     /// Box-Muller transform for normal distribution.
-    fn normal(&mut self) -> f64 {
+    pub fn normal(&mut self) -> f64 {
         let u1 = self.uniform().max(1e-10); // avoid log(0)
         let u2 = self.uniform();
         (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
