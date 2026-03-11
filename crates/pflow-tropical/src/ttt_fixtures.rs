@@ -327,6 +327,265 @@ pub fn builder_ttt_turns() -> NetMatrix {
     NetMatrix::from_incidence(incidence, initial, place_labels, transition_labels)
 }
 
+/// NxN Tic-Tac-Toe with turn enforcement (core net, no win detection).
+///
+/// Places: n² empty cells + n² x cells + n² o cells + x_turn + o_turn = 3n² + 2
+/// Transitions: 2n² (n² x-plays + n² o-plays)
+/// Win condition: N-in-a-row (rows, columns, both diagonals)
+///
+/// Place layout (alphabetical): o00..o{n-1}{n-1}, o_turn, p00..p{n-1}{n-1}, x00..x{n-1}{n-1}, x_turn
+pub fn builder_ttt_nxn(n: usize) -> NetMatrix {
+    assert!(n >= 2, "board size must be at least 2");
+    let n2 = n * n;
+    let np = 3 * n2 + 2; // o cells + o_turn + p cells + x cells + x_turn
+    let nt = 2 * n2;
+
+    let mut place_labels = Vec::with_capacity(np);
+    let mut initial = vec![0i64; np];
+
+    // o00..o{n-1}{n-1} (indices 0..n²-1)
+    for i in 0..n {
+        for j in 0..n {
+            place_labels.push(format!("o{}{}", i, j));
+        }
+    }
+    // o_turn (index n²)
+    let o_turn = n2;
+    place_labels.push("o_turn".to_string());
+    // p00..p{n-1}{n-1} (indices n²+1..2n²)
+    let p_base = n2 + 1;
+    for i in 0..n {
+        for j in 0..n {
+            place_labels.push(format!("p{}{}", i, j));
+            initial[p_base + i * n + j] = 1;
+        }
+    }
+    // x00..x{n-1}{n-1} (indices 2n²+1..3n²)
+    let x_base = 2 * n2 + 1;
+    for i in 0..n {
+        for j in 0..n {
+            place_labels.push(format!("x{}{}", i, j));
+        }
+    }
+    // x_turn (index 3n²+1) — X goes first
+    let x_turn = 3 * n2 + 1;
+    place_labels.push("x_turn".to_string());
+    initial[x_turn] = 1;
+
+    let mut transition_labels = Vec::with_capacity(nt);
+    let mut incidence = Vec::with_capacity(nt);
+
+    // o_play_ij: consumes p_ij + o_turn, produces o_ij + x_turn
+    for i in 0..n {
+        for j in 0..n {
+            let cell = i * n + j;
+            transition_labels.push(format!("o_play_{}{}", i, j));
+            let mut row = vec![0i64; np];
+            row[p_base + cell] = -1;
+            row[cell] = 1;          // o cell
+            row[o_turn] = -1;
+            row[x_turn] = 1;
+            incidence.push(row);
+        }
+    }
+
+    // x_play_ij: consumes p_ij + x_turn, produces x_ij + o_turn
+    for i in 0..n {
+        for j in 0..n {
+            let cell = i * n + j;
+            transition_labels.push(format!("x_play_{}{}", i, j));
+            let mut row = vec![0i64; np];
+            row[p_base + cell] = -1;
+            row[x_base + cell] = 1; // x cell
+            row[x_turn] = -1;
+            row[o_turn] = 1;
+            incidence.push(row);
+        }
+    }
+
+    NetMatrix::from_incidence(incidence, initial, place_labels, transition_labels)
+}
+
+/// Generate win lines for an NxN board: N-in-a-row across rows, columns, and both diagonals.
+pub fn win_lines_nxn(n: usize) -> Vec<(String, Vec<(usize, usize)>)> {
+    let mut lines = Vec::new();
+    // Rows
+    for i in 0..n {
+        let cells: Vec<(usize, usize)> = (0..n).map(|j| (i, j)).collect();
+        lines.push((format!("row{}", i), cells));
+    }
+    // Columns
+    for j in 0..n {
+        let cells: Vec<(usize, usize)> = (0..n).map(|i| (i, j)).collect();
+        lines.push((format!("col{}", j), cells));
+    }
+    // Main diagonal
+    let diag: Vec<(usize, usize)> = (0..n).map(|i| (i, i)).collect();
+    lines.push(("diag".to_string(), diag));
+    // Anti-diagonal
+    let anti: Vec<(usize, usize)> = (0..n).map(|i| (i, n - 1 - i)).collect();
+    lines.push(("anti".to_string(), anti));
+    lines
+}
+
+/// NxN TTT with turn enforcement AND win detection + draw (full game net).
+///
+/// Places: 3n² + 4 (cells + turns + game_active + move_tokens + win_x + win_o)
+/// Transitions: 2n² plays + 2(n+1) win checks + 1 draw = 2n² + 2n + 3
+pub fn builder_ttt_nxn_full(n: usize) -> NetMatrix {
+    assert!(n >= 2, "board size must be at least 2");
+    let n2 = n * n;
+    let win_lines = win_lines_nxn(n);
+    let num_win_lines = win_lines.len(); // 2n + 2
+
+    // Places (alphabetical): game_active, move_tokens,
+    //   o00..o{n-1}{n-1}, o_turn, p00..p{n-1}{n-1},
+    //   win_o, win_x, x00..x{n-1}{n-1}, x_turn
+    let np = 3 * n2 + 6; // +game_active, +move_tokens, +o_turn, +win_o, +win_x, +x_turn
+    let nt = 2 * n2 + 2 * num_win_lines + 1; // plays + win transitions + draw
+
+    let mut place_labels = Vec::with_capacity(np);
+    let mut initial = vec![0i64; np];
+
+    // game_active (0)
+    place_labels.push("game_active".to_string());
+    initial[0] = 1;
+    // move_tokens (1)
+    place_labels.push("move_tokens".to_string());
+    // o00..o{n-1}{n-1} (2..n²+1)
+    let o_base = 2;
+    for i in 0..n {
+        for j in 0..n {
+            place_labels.push(format!("o{}{}", i, j));
+        }
+    }
+    // o_turn (n²+2)
+    let o_turn = n2 + 2;
+    place_labels.push("o_turn".to_string());
+    // p00..p{n-1}{n-1} (n²+3..2n²+2)
+    let p_base = n2 + 3;
+    for i in 0..n {
+        for j in 0..n {
+            place_labels.push(format!("p{}{}", i, j));
+            initial[p_base + i * n + j] = 1;
+        }
+    }
+    // win_o (2n²+3)
+    let win_o = 2 * n2 + 3;
+    place_labels.push("win_o".to_string());
+    // win_x (2n²+4)
+    let win_x = 2 * n2 + 4;
+    place_labels.push("win_x".to_string());
+    // x00..x{n-1}{n-1} (2n²+5..3n²+4)
+    let x_base = 2 * n2 + 5;
+    for i in 0..n {
+        for j in 0..n {
+            place_labels.push(format!("x{}{}", i, j));
+        }
+    }
+    // x_turn (3n²+5)
+    let x_turn = 3 * n2 + 5;
+    place_labels.push("x_turn".to_string());
+    initial[x_turn] = 1;
+
+    let ga = 0usize; // game_active
+    let mt = 1usize; // move_tokens
+
+    let mut transition_labels = Vec::with_capacity(nt);
+    let mut incidence = Vec::with_capacity(nt);
+    let mut input = Vec::with_capacity(nt);
+
+    // draw: consumes n² move_tokens + game_active, produces win_o (draw counts as O "win" placeholder)
+    {
+        let mut inc = vec![0i64; np];
+        let mut inp = vec![0i64; np];
+        inp[mt] = n2 as i64;
+        inc[mt] = -(n2 as i64);
+        inp[ga] = 1;
+        inc[ga] = -1;
+        inc[win_o] = 1;
+        transition_labels.push("draw".to_string());
+        incidence.push(inc);
+        input.push(inp);
+    }
+
+    // o_play_ij
+    for i in 0..n {
+        for j in 0..n {
+            let cell = i * n + j;
+            let mut inc = vec![0i64; np];
+            let mut inp = vec![0i64; np];
+            inp[p_base + cell] = 1;
+            inc[p_base + cell] = -1;
+            inp[o_turn] = 1;
+            inc[o_turn] = -1;
+            inc[o_base + cell] = 1;
+            inc[x_turn] = 1;
+            inc[mt] = 1;
+            transition_labels.push(format!("o_play_{}{}", i, j));
+            incidence.push(inc);
+            input.push(inp);
+        }
+    }
+
+    // o_win_* (alphabetical by win line name)
+    for (name, cells) in &win_lines {
+        let mut inc = vec![0i64; np];
+        let mut inp = vec![0i64; np];
+        for &(r, c) in cells {
+            inp[o_base + r * n + c] = 1;
+            inc[o_base + r * n + c] = -1;
+        }
+        inp[ga] = 1;
+        inc[ga] = -1;
+        inp[x_turn] = 1;
+        inc[x_turn] = -1;
+        inc[win_o] = 1;
+        transition_labels.push(format!("o_win_{}", name));
+        incidence.push(inc);
+        input.push(inp);
+    }
+
+    // x_play_ij
+    for i in 0..n {
+        for j in 0..n {
+            let cell = i * n + j;
+            let mut inc = vec![0i64; np];
+            let mut inp = vec![0i64; np];
+            inp[p_base + cell] = 1;
+            inc[p_base + cell] = -1;
+            inp[x_turn] = 1;
+            inc[x_turn] = -1;
+            inc[x_base + cell] = 1;
+            inc[o_turn] = 1;
+            inc[mt] = 1;
+            transition_labels.push(format!("x_play_{}{}", i, j));
+            incidence.push(inc);
+            input.push(inp);
+        }
+    }
+
+    // x_win_*
+    for (name, cells) in &win_lines {
+        let mut inc = vec![0i64; np];
+        let mut inp = vec![0i64; np];
+        for &(r, c) in cells {
+            inp[x_base + r * n + c] = 1;
+            inc[x_base + r * n + c] = -1;
+        }
+        inp[ga] = 1;
+        inc[ga] = -1;
+        inp[o_turn] = 1;
+        inc[o_turn] = -1;
+        inc[win_x] = 1;
+        transition_labels.push(format!("x_win_{}", name));
+        incidence.push(inc);
+        input.push(inp);
+    }
+
+    NetMatrix::new(incidence, input, initial, place_labels, transition_labels)
+}
+
 /// Builder TTT with win detection (matching pilot topology).
 pub fn builder_ttt_full() -> NetMatrix {
     // Same structure as pilot_ttt — this is the "hand-declared" equivalent

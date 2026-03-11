@@ -12,6 +12,7 @@ use pflow_tropical::rnn::{
     generate_game_trajectories, generate_game_trajectories_capped,
     ElmanRnn, GameResult, SimpleRng,
 };
+use pflow_tropical::ttt_fixtures::{builder_ttt_nxn, builder_ttt_nxn_full, win_lines_nxn};
 
 // ──────────────────────────────────────────────────────────
 // Test 1: Simple loop — RNN learns alternating transitions
@@ -1130,4 +1131,338 @@ fn rnn_symmetric_self_play_ttt() {
         draws >= pre_d,
         "symmetric self-play should produce at least as many draws: {draws} vs {pre_d}"
     );
+}
+
+// ──────────────────────────────────────────────────────────
+// NxN helpers
+// ──────────────────────────────────────────────────────────
+
+/// Render an NxN board from the nxn core net marking.
+/// Place layout: o cells (0..n²-1), o_turn (n²), p cells (n²+1..2n²), x cells (2n²+1..3n²), x_turn (3n²+1)
+fn render_nxn_board(marking: &[i64], n: usize) -> String {
+    let n2 = n * n;
+    let x_base = 2 * n2 + 1;
+    let x_turn_idx = 3 * n2 + 1;
+    let mut lines = Vec::new();
+    for i in 0..n {
+        let row: Vec<String> = (0..n).map(|j| {
+            let cell = i * n + j;
+            if marking[x_base + cell] > 0 { "X".to_string() }
+            else if marking[cell] > 0 { "O".to_string() }
+            else { ".".to_string() }
+        }).collect();
+        lines.push(format!(" {}", row.join(" | ")));
+        if i < n - 1 {
+            lines.push("-".repeat(4 * n - 1));
+        }
+    }
+    let turn = if marking[x_turn_idx] > 0 { "X" } else { "O" };
+    lines.push(format!("  (turn: {})", turn));
+    lines.join("\n")
+}
+
+/// Check win on NxN core net marking.
+fn nxn_check_win(marking: &[i64], n: usize) -> (bool, bool) {
+    let n2 = n * n;
+    let x_base = 2 * n2 + 1;
+    let lines = win_lines_nxn(n);
+    let x_wins = lines.iter().any(|(_, cells)| {
+        cells.iter().all(|&(r, c)| marking[x_base + r * n + c] > 0)
+    });
+    let o_wins = lines.iter().any(|(_, cells)| {
+        cells.iter().all(|&(r, c)| marking[r * n + c] > 0)
+    });
+    (x_wins, o_wins)
+}
+
+/// Play a stochastic game on the NxN core net.
+fn play_nxn_game_stochastic(
+    rnn: &ElmanRnn,
+    net: &NetMatrix,
+    n: usize,
+    max_moves: usize,
+    rng: &mut SimpleRng,
+) -> GameResult {
+    let mut marking = net.initial.clone();
+    let mut moves = Vec::new();
+    let mut hidden = vec![0.0; rnn.hidden_size];
+
+    for _ in 0..max_moves {
+        let enabled: Vec<usize> = (0..net.num_transitions())
+            .filter(|&t| net.is_enabled(&marking, t))
+            .collect();
+        if enabled.is_empty() { break; }
+
+        let input: Vec<f64> = marking.iter().map(|&v| v as f64).collect();
+        let (new_hidden, logits) = rnn.step(&input, &hidden);
+        hidden = new_hidden;
+
+        let mut masked = vec![f64::NEG_INFINITY; net.num_transitions()];
+        for &t in &enabled { masked[t] = logits[t]; }
+        let probs = ElmanRnn::softmax(&masked);
+
+        let r = rng.uniform();
+        let mut cumulative = 0.0;
+        let mut pick = enabled[0];
+        for (i, &p) in probs.iter().enumerate() {
+            cumulative += p;
+            if r < cumulative { pick = i; break; }
+        }
+
+        moves.push(pflow_tropical::rnn::GameMove {
+            marking: marking.clone(),
+            transition: pick,
+            probs: probs.clone(),
+            confidence: probs[pick],
+        });
+        marking = net.fire(&marking, pick).unwrap();
+
+        let (xw, ow) = nxn_check_win(&marking, n);
+        if xw || ow { break; }
+    }
+
+    GameResult { moves, final_marking: marking }
+}
+
+// ──────────────────────────────────────────────────────────
+// Test 15: NxN net structure verification
+// ──────────────────────────────────────────────────────────
+
+#[test]
+fn nxn_net_structure() {
+    // 3x3 should match the hardcoded builder_ttt_turns dimensions
+    let net3 = builder_ttt_nxn(3);
+    assert_eq!(net3.num_places(), 29);     // 3*9 + 2
+    assert_eq!(net3.num_transitions(), 18); // 2*9
+
+    // 4x4
+    let net4 = builder_ttt_nxn(4);
+    assert_eq!(net4.num_places(), 50);     // 3*16 + 2
+    assert_eq!(net4.num_transitions(), 32); // 2*16
+
+    // 5x5
+    let net5 = builder_ttt_nxn(5);
+    assert_eq!(net5.num_places(), 77);     // 3*25 + 2
+    assert_eq!(net5.num_transitions(), 50); // 2*25
+
+    // Verify turn enforcement on 4x4: only x_play enabled initially
+    let enabled4: Vec<usize> = (0..net4.num_transitions())
+        .filter(|&t| net4.is_enabled(&net4.initial, t))
+        .collect();
+    assert_eq!(enabled4.len(), 16, "all 16 x_play transitions should be enabled");
+    assert!(enabled4.iter().all(|&t| net4.transition_labels[t].starts_with("x_play")),
+        "only x_play transitions should be enabled at start");
+
+    // Verify alternation on 4x4
+    let mut marking = net4.initial.clone();
+    marking = net4.fire(&marking, enabled4[0]).unwrap(); // X plays
+    let enabled_after: Vec<usize> = (0..net4.num_transitions())
+        .filter(|&t| net4.is_enabled(&marking, t))
+        .collect();
+    assert!(enabled_after.iter().all(|&t| net4.transition_labels[t].starts_with("o_play")),
+        "after X plays, only o_play should be enabled");
+
+    // Full net: 3x3
+    let full3 = builder_ttt_nxn_full(3);
+    assert_eq!(full3.num_places(), 33);     // 3*9 + 6
+    let wl = win_lines_nxn(3);
+    assert_eq!(wl.len(), 8);              // 3 rows + 3 cols + 2 diags
+    assert_eq!(full3.num_transitions(), 35); // 18 plays + 16 wins + 1 draw
+
+    // Full net: 4x4
+    let full4 = builder_ttt_nxn_full(4);
+    assert_eq!(full4.num_places(), 54);      // 3*16 + 6
+    let wl4 = win_lines_nxn(4);
+    assert_eq!(wl4.len(), 10);             // 4 rows + 4 cols + 2 diags
+    assert_eq!(full4.num_transitions(), 53); // 32 plays + 20 wins + 1 draw
+
+    eprintln!("NxN net sizes:");
+    eprintln!("  3x3 core: {} places, {} transitions", net3.num_places(), net3.num_transitions());
+    eprintln!("  4x4 core: {} places, {} transitions", net4.num_places(), net4.num_transitions());
+    eprintln!("  5x5 core: {} places, {} transitions", net5.num_places(), net5.num_transitions());
+    eprintln!("  3x3 full: {} places, {} transitions", full3.num_places(), full3.num_transitions());
+    eprintln!("  4x4 full: {} places, {} transitions", full4.num_places(), full4.num_transitions());
+}
+
+// ──────────────────────────────────────────────────────────
+// Test 16: 4x4 RNN self-play
+// ──────────────────────────────────────────────────────────
+
+#[test]
+fn rnn_4x4_self_play() {
+    let n = 4;
+    let n2 = n * n;
+    let net = builder_ttt_nxn(n);
+    let np = net.num_places();
+    let nt = net.num_transitions();
+
+    eprintln!("4x4 TTT: {np} places, {nt} transitions");
+
+    // Generate random trajectories (capped — no win detection in core net)
+    let trajectories = generate_game_trajectories_capped(&net, 200, n2, 42);
+    assert!(!trajectories.is_empty(), "should generate trajectories");
+
+    // Pretrain on random play
+    let mut rnn = ElmanRnn::new(np, 32, nt, 42);
+    let loss = rnn.train(&trajectories, 0.05, 200);
+    let random_baseline = (n2 as f64) * (nt as f64).ln();
+    eprintln!("4x4 pretrain: loss={loss:.2} (random baseline={random_baseline:.2})");
+    assert!(loss < random_baseline, "should learn better than random");
+
+    // Self-play with symmetric per-move reward
+    for round in 0..10 {
+        let mut weighted = Vec::new();
+        let mut rng = SimpleRng::new(100 + round as u64);
+
+        for _ in 0..50 {
+            let result = play_nxn_game_stochastic(&rnn, &net, n, n2, &mut rng);
+            let (xw, ow) = nxn_check_win(&result.final_marking, n);
+            let x_reward = if xw { 1.0 } else if ow { -1.0 } else { 0.1 };
+
+            let per_move_rewards: Vec<f64> = result.moves.iter().enumerate().map(|(i, _)| {
+                if i % 2 == 0 { x_reward } else { -x_reward }
+            }).collect();
+
+            let inputs: Vec<Vec<f64>> = result.moves.iter()
+                .map(|m| m.marking.iter().map(|&v| v as f64).collect())
+                .collect();
+            let targets: Vec<usize> = result.moves.iter()
+                .map(|m| m.transition).collect();
+
+            weighted.push((inputs, targets, per_move_rewards));
+        }
+        rnn.train_weighted_per_move(&weighted, 0.02, 5);
+
+        if (round + 1) % 5 == 0 {
+            let mut xw_count = 0;
+            let mut ow_count = 0;
+            let mut draws = 0;
+            let mut eval_rng = SimpleRng::new(777);
+            for _ in 0..50 {
+                let r = play_nxn_game_stochastic(&rnn, &net, n, n2, &mut eval_rng);
+                let (xw, ow) = nxn_check_win(&r.final_marking, n);
+                if xw { xw_count += 1; }
+                else if ow { ow_count += 1; }
+                else { draws += 1; }
+            }
+            eprintln!("4x4 round {}: X={xw_count} O={ow_count} draws={draws}", round + 1);
+        }
+    }
+
+    // Show a sample game
+    let mut show_rng = SimpleRng::new(42);
+    let sample = play_nxn_game_stochastic(&rnn, &net, n, n2, &mut show_rng);
+    let (xw, ow) = nxn_check_win(&sample.final_marking, n);
+    eprintln!("\n4x4 sample game ({} moves):", sample.moves.len());
+    for (i, mv) in sample.moves.iter().enumerate() {
+        let player = if i % 2 == 0 { "X" } else { "O" };
+        eprintln!("  {player} move {}: {} ({:.0}%)",
+            i + 1, net.transition_labels[mv.transition], mv.confidence * 100.0);
+    }
+    eprintln!("{}", render_nxn_board(&sample.final_marking, n));
+    eprintln!("Result: {}",
+        if xw { "X wins" } else if ow { "O wins" } else { "draw" });
+}
+
+// ──────────────────────────────────────────────────────────
+// Test 17: 5x5 RNN self-play
+// ──────────────────────────────────────────────────────────
+
+#[test]
+fn rnn_5x5_self_play() {
+    let n = 5;
+    let n2 = n * n;
+    let net = builder_ttt_nxn(n);
+    let np = net.num_places();
+    let nt = net.num_transitions();
+
+    eprintln!("5x5 TTT: {np} places, {nt} transitions");
+
+    // Generate random trajectories
+    let trajectories = generate_game_trajectories_capped(&net, 200, n2, 42);
+    assert!(!trajectories.is_empty());
+
+    // Pretrain
+    let mut rnn = ElmanRnn::new(np, 48, nt, 42);
+    let loss = rnn.train(&trajectories, 0.05, 200);
+    let random_baseline = (n2 as f64) * (nt as f64).ln();
+    eprintln!("5x5 pretrain: loss={loss:.2} (random baseline={random_baseline:.2})");
+    assert!(loss < random_baseline, "should learn better than random");
+
+    // Self-play
+    for round in 0..10 {
+        let mut weighted = Vec::new();
+        let mut rng = SimpleRng::new(200 + round as u64);
+
+        for _ in 0..50 {
+            let result = play_nxn_game_stochastic(&rnn, &net, n, n2, &mut rng);
+            let (xw, ow) = nxn_check_win(&result.final_marking, n);
+            let x_reward = if xw { 1.0 } else if ow { -1.0 } else { 0.1 };
+
+            let per_move_rewards: Vec<f64> = result.moves.iter().enumerate().map(|(i, _)| {
+                if i % 2 == 0 { x_reward } else { -x_reward }
+            }).collect();
+
+            let inputs: Vec<Vec<f64>> = result.moves.iter()
+                .map(|m| m.marking.iter().map(|&v| v as f64).collect())
+                .collect();
+            let targets: Vec<usize> = result.moves.iter()
+                .map(|m| m.transition).collect();
+
+            weighted.push((inputs, targets, per_move_rewards));
+        }
+        rnn.train_weighted_per_move(&weighted, 0.02, 5);
+
+        if (round + 1) % 5 == 0 {
+            let mut xw_count = 0;
+            let mut ow_count = 0;
+            let mut draws = 0;
+            let mut eval_rng = SimpleRng::new(888);
+            for _ in 0..50 {
+                let r = play_nxn_game_stochastic(&rnn, &net, n, n2, &mut eval_rng);
+                let (xw, ow) = nxn_check_win(&r.final_marking, n);
+                if xw { xw_count += 1; }
+                else if ow { ow_count += 1; }
+                else { draws += 1; }
+            }
+            eprintln!("5x5 round {}: X={xw_count} O={ow_count} draws={draws}", round + 1);
+        }
+    }
+
+    // Show a sample game
+    let mut show_rng = SimpleRng::new(42);
+    let sample = play_nxn_game_stochastic(&rnn, &net, n, n2, &mut show_rng);
+    let (xw, ow) = nxn_check_win(&sample.final_marking, n);
+    eprintln!("\n5x5 sample game ({} moves):", sample.moves.len());
+    for (i, mv) in sample.moves.iter().enumerate() {
+        let player = if i % 2 == 0 { "X" } else { "O" };
+        eprintln!("  {player} move {}: {} ({:.0}%)",
+            i + 1, net.transition_labels[mv.transition], mv.confidence * 100.0);
+    }
+    eprintln!("{}", render_nxn_board(&sample.final_marking, n));
+    eprintln!("Result: {}",
+        if xw { "X wins" } else if ow { "O wins" } else { "draw" });
+}
+
+// ──────────────────────────────────────────────────────────
+// Test 18: Scaling comparison — net size vs RNN capacity
+// ──────────────────────────────────────────────────────────
+
+#[test]
+fn nxn_scaling_comparison() {
+    eprintln!("\nNxN scaling comparison:");
+    eprintln!("{:<6} {:>8} {:>8} {:>10} {:>10}",
+        "Size", "Places", "Trans", "Hidden", "Params");
+
+    for n in [3, 4, 5, 6] {
+        let net = builder_ttt_nxn(n);
+        let np = net.num_places();
+        let nt = net.num_transitions();
+        // Hidden size scales with sqrt of transitions
+        let hidden = ((nt as f64).sqrt() * 8.0) as usize;
+        // Parameter count: W_xh(h*np) + W_hh(h*h) + b_h(h) + W_hy(nt*h) + b_y(nt)
+        let params = hidden * np + hidden * hidden + hidden + nt * hidden + nt;
+        eprintln!("{:<6} {:>8} {:>8} {:>10} {:>10}",
+            format!("{}x{}", n, n), np, nt, hidden, params);
+    }
 }

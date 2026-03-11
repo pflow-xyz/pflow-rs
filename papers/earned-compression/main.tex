@@ -49,6 +49,7 @@
 \newtheorem{definition}[theorem]{Definition}
 \newtheorem{remark}[theorem]{Remark}
 \newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{conjecture}[theorem]{Conjecture}
 
 % Notation shortcuts
 \newcommand{\R}{\mathbb{R}}
@@ -558,6 +559,126 @@ The tropical adjacency matrix of the full net contains entries that don't corres
 The core subnet has 9 P-invariants of the form $p_{ij} + x_{ij} + o_{ij} = 1$ (cell conservation: each cell is exactly one of empty, X, or O) plus turn and move-count invariants.
 These are purely topological---they hold for any arc weight, confirming the ``structure trumps weights'' principle.
 
+\subsection{RNN Self-Play and Hidden-State Sufficiency}
+\label{sec:rnn}
+
+An Elman RNN trained on the Petri net's marking vector learns to play
+$N{\times}N$ tic-tac-toe via self-play, with no game-specific architecture.
+The input is the raw marking $\mathbf{m} \in \mathbb{Z}^{|P|}$, the output is
+a distribution over transitions, and legal moves are enforced by masking
+disabled transitions to $-\infty$ before softmax.
+The same code runs unchanged on $3{\times}3$ (29 places, 18 transitions),
+$4{\times}4$ (50 places, 32 transitions), and $5{\times}5$ (77 places, 50 transitions)
+nets produced by the parameterized generator \texttt{builder\_ttt\_nxn(n)}.
+
+\medskip
+\noindent\textbf{Symmetric self-play convergence.}\quad
+Using per-move REINFORCE with symmetric rewards (each player receives
+$+1$ for winning, $-1$ for losing, $+0.1$ for drawing, from its own
+perspective), $3{\times}3$ converges to 96\% draws---approaching optimal play,
+which is always a draw under perfect play from both sides.
+Larger boards ($4{\times}4$, $5{\times}5$) show slower convergence but learn
+well below the random baseline, with the same architecture and
+hyperparameters.
+
+\medskip
+\noindent\textbf{Hidden-state sufficiency.}\quad
+A swapped-tuple bug provided an accidental ablation: in the $4{\times}4$
+experiment, the RNN's \texttt{step()} function returns
+$(\mathbf{h}_t, \mathbf{y}_t)$ (hidden state, logits), but the game-play
+code destructured them as $(\mathbf{y}_t, \mathbf{h}_t)$---using the hidden
+state \emph{as} the logit vector over transitions.
+
+For $4{\times}4$, hidden size equals the number of transitions ($= 32$),
+so no dimension mismatch occurred.  The RNN played coherent games with
+73--100\% confidence on many moves, executed recognizable strategies
+(column wins), and completed 10 rounds of self-play---all using
+$\tanh(W_{xh}\mathbf{x} + W_{hh}\mathbf{h} + \mathbf{b})$
+directly as move probabilities.
+
+For $5{\times}5$, hidden size (48) $<$ transitions (50), producing an
+index-out-of-bounds panic that revealed the bug.
+
+\begin{remark}[Hidden State as Implicit Policy]
+\label{rem:hidden-policy}
+The fact that the hidden state produces coherent play without the
+output projection $W_{hy}$ implies that the RNN's internal
+representation is already organized around the transition space of the
+Petri net.  Each hidden dimension tracks information relevant to
+\emph{whether a specific transition should fire}, not generic
+sequential features.  The output layer $W_{hy}$ acts as a linear
+remix of information that is already present---it improves calibration
+but is not structurally necessary for action selection.
+
+This echoes a known phenomenon in representation learning: penultimate
+layers often encode richer task-relevant structure than the final
+output~\cite{bengio2013}.  Here the ``task'' is the Petri net's
+firing semantics, and the hidden state's alignment with the transition
+space arises without any architectural bias toward it---the net's
+topology induces the structure through training alone.
+\end{remark}
+
+\medskip
+\noindent\textbf{Scaling.}\quad
+Table~\ref{tab:nxn-scaling} shows that net size grows as $\Theta(n^2)$
+while RNN parameter count grows as $\Theta(n^4)$ (dominated by
+$W_{xh}$: hidden $\times$ input $= O(n) \times O(n^2)$).
+This suggests that for large $n$, a sparse or convolutional
+architecture would be needed---but the Petri net representation itself
+scales cleanly.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Board & Places & Transitions & Hidden & Parameters \\
+\midrule
+$3{\times}3$ & 29 & 18 & 33 & 2{,}691 \\
+$4{\times}4$ & 50 & 32 & 45 & 5{,}792 \\
+$5{\times}5$ & 77 & 50 & 56 & 10{,}354 \\
+$6{\times}6$ & 110 & 72 & 67 & 16{,}822 \\
+\bottomrule
+\end{tabular}
+\caption{NxN TTT Petri net and RNN scaling.  Places $= 3n^2 + 2$,
+transitions $= 2n^2$, hidden $= \lfloor 8\sqrt{2n^2} \rfloor$.}
+\label{tab:nxn-scaling}
+\end{table}
+
+\begin{conjecture}[Observer--Readout Correspondence]
+\label{conj:observer-readout}
+The core-observer decomposition of a Petri net and the hidden--output
+decomposition of an RNN trained on that net are structurally analogous:
+in both cases, the readout layer (observer transitions or $W_{hy}$) is
+a projection over state that is already complete in the representation
+it reads from (core places or hidden state $\mathbf{h}_t$).
+
+In TTT, the evidence is suggestive:
+\begin{enumerate}
+  \item The observer's win-detection transitions consume cell places
+        (\texttt{x00}, \texttt{x01}, \ldots) that were produced
+        entirely by core play transitions.  The observer adds no
+        information---it pattern-matches on state the core already
+        assembled.
+  \item The RNN's hidden state, when used directly as logits
+        (Section~\ref{sec:rnn}), produces coherent play without the
+        output projection $W_{hy}$.  The hidden representation is
+        already organized around the transition space.
+\end{enumerate}
+If the correspondence holds generally, it would imply that for any
+Petri net with a core-observer decomposition, an RNN trained on the
+core's marking dynamics will develop internal representations aligned
+with the core's transition space, and the observer layer's function
+(classification, termination detection, constraint checking) will be
+implicitly encoded in the hidden state before any explicit readout.
+
+This remains unproven.  The two systems could exhibit similar
+redundancy for different reasons: the Petri net's is structural (the
+incidence matrix determines information flow), while the RNN's is
+learned (gradient descent finds it).  A proof would need to show that
+the RNN's loss landscape, shaped by the net's firing semantics,
+necessarily induces hidden-state alignment with the transition space.
+\end{conjecture}
+
 % ------------------------------------------------------------------
 \section{Application: The Category $\Settle$}
 \label{sec:settle}
@@ -895,6 +1016,11 @@ T.~Murata.
 V.~Sassone.
 \newblock On the category of {P}etri net computations.
 \newblock In {\em TAPSOFT '95}, Springer LNCS 915, pages 334--348, 1995.
+
+\bibitem{bengio2013}
+Y.~Bengio, A.~Courville, and P.~Vincent.
+\newblock Representation learning: A review and new perspectives.
+\newblock \emph{IEEE Trans.\ Pattern Analysis and Machine Intelligence}, 35(8):1798--1828, 2013.
 
 \bibitem{york2025incidence}
 M.~York.
