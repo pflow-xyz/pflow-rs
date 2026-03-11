@@ -335,9 +335,27 @@ This means the turn-enforced core sits in a gap in the standard taxonomy.
 It is not a timed event graph (turn places have 9:9 fan), not a state machine (transitions synchronize on two inputs), and not a free choice net (choice/sync overlap).
 Yet behaviorally it acts like an event graph: the turn token ping-pongs deterministically, and mutual exclusion ensures at most one transition fires per turn.
 
-The distinction is testable: an RNN trained on the core net \emph{without} turn places learns to ``cheat'' by firing the same player's transitions consecutively (exploiting the structural gap), while the same RNN on the turn-enforced core is structurally prevented from doing so---alternation is guaranteed by the net, not by the policy.
-This confirms that turn enforcement is a genuine structural constraint, even though it falls outside every standard Petri net subclass that admits tropical analysis.
-Whether there exists a useful formal weakening---``tropical under mutual exclusion''---that captures the turn-enforced core's behavioral event-graph property is an open question.
+The three formalisms of Section~\ref{sec:invariance} each see the turn places differently, exposing a divergence between structural and reachability-based analysis:
+
+\begin{itemize}
+  \item \textbf{ODE (continuous):} The turn token is a real-valued concentration.
+  Mass-action kinetics naturally enforces mutual exclusion: when any \texttt{x\_play} fires, the \texttt{x\_turn} concentration depletes, suppressing the others.
+  The ODE does not distinguish 9:9 fan from 1:1---the dynamics are smooth and the system is well-behaved.
+
+  \item \textbf{Tropical (structural):} The tropical adjacency matrix sees all 9 producers and 9 consumers on \texttt{x\_turn} and reports causal paths between transitions that can never actually co-fire.
+  The structural analysis \emph{overapproximates}---it cannot see the mutex that the cell places impose.
+  This is precisely where the TEG property breaks.
+
+  \item \textbf{Discrete (firing/RNN):} The Petri net firing rule enforces mutual exclusion exactly: one token, one consumer fires.
+  An RNN trained on discrete trajectories from the turn-enforced core never observes non-alternating play---the net prevents it.
+  The same RNN on the core \emph{without} turn places learns to ``cheat'' by firing the same player's transitions consecutively, exploiting the structural gap.
+\end{itemize}
+
+The turn places are the exact boundary where continuous and discrete analysis agree (mutual exclusion holds) but structural analysis diverges (it cannot verify mutual exclusion from the incidence matrix alone).
+This is a stronger statement than ``behavioral TEG'': it shows that the incidence matrix $C$---which all three formalisms share as input---is \emph{insufficient} to classify tropicality at the turn-control layer.
+Reachability information is required, and reachability is inherently a discrete state-space concept that the tropical semiring cannot express.
+
+Whether there exists a useful formal weakening---``tropical under mutual exclusion,'' or following the Petri net convention of~\cite{desel1995}, perhaps ``weakly tropical''---that captures this behavioral event-graph property without requiring full state-space enumeration is an open question.
 \end{remark}
 
 \subsection{Why the Observer is Not Tropical}
