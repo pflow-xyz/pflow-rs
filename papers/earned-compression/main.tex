@@ -288,6 +288,36 @@ The shortest circuit is any X-play $\to$ O-play pair (length 2, total weight 2),
 All longer circuits (via \texttt{move\_tokens}) have the same mean weight.
 \end{proof}
 
+\begin{remark}[Structural vs.\ Behavioral Tropicality]
+\label{rem:structural-behavioral}
+The core's claim to tropical status requires qualification.
+A timed event graph requires each place to have \emph{exactly one} input transition and \emph{exactly one} output transition.
+The cell places (\texttt{p00}, \texttt{x00}, \texttt{o00}, etc.) satisfy this: each is produced by one transition and consumed by one transition.
+The turn-control places do not: \texttt{x\_turn} has 9 producers (all \texttt{o\_play} transitions) and 9 consumers (all \texttt{x\_play} transitions).
+
+Structurally, the turn places violate the TEG property.
+Behaviorally, they do not: a single token occupies each turn place, and mutual exclusion via the cell places ensures exactly one transition fires per turn.
+The token ping-pongs 1-to-1 through reachable markings, even though the \emph{structure} has 9-to-9 fan.
+
+This gives a three-layer decomposition with decreasing tropicality:
+
+\begin{center}
+\begin{tabular}{@{}llcc@{}}
+\toprule
+\textbf{Layer} & \textbf{Places} & \textbf{Structural TEG} & \textbf{Behavioral TEG} \\
+\midrule
+Cell (core) & \texttt{p$ij$}, \texttt{x$ij$}, \texttt{o$ij$} & \checkmark & \checkmark \\
+Turn control & \texttt{x\_turn}, \texttt{o\_turn} & $\times$ (9:9 fan) & \checkmark (mutex) \\
+Observer & \texttt{win\_x}, \texttt{win\_o} & $\times$ & $\times$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The distinction is testable: an RNN trained on the core net \emph{without} turn places learns to ``cheat'' by firing the same player's transitions consecutively (exploiting the structural gap), while the same RNN on the turn-enforced core is structurally prevented from doing so---alternation is guaranteed by the net, not by the policy.
+This confirms that turn enforcement is a structural property even though it does not satisfy the strict TEG definition.
+Whether there exists a useful formal weakening of the TEG property---``tropical under mutual exclusion''---is an open question.
+\end{remark}
+
 \subsection{Why the Observer is Not Tropical}
 
 The observer subnet fails the event-graph property because cell places have multiple consumers.
