@@ -711,71 +711,87 @@ The diagram \emph{is} the protocol specification---the incidence matrix $C$ is i
 
 \begin{center}
 \begin{tikzpicture}[
-  box/.style={draw, minimum width=1.4cm, minimum height=0.7cm, font=\small\ttfamily},
-  obsbox/.style={draw, dashed, minimum width=1.4cm, minimum height=0.7cm, font=\small\ttfamily},
+  box/.style={draw, minimum width=1.6cm, minimum height=0.7cm, font=\small\ttfamily},
+  place/.style={draw, circle, minimum size=0.55cm, font=\scriptsize, inner sep=1pt},
+  obsbox/.style={draw, dashed, rounded corners=3pt, minimum width=1.8cm, minimum height=0.7cm, font=\small\ttfamily},
   wire/.style={-{Stealth[length=5pt]}, thick},
   obswire/.style={-{Stealth[length=5pt]}, thick, dashed},
-  lbl/.style={font=\scriptsize, midway, above},
-  lblb/.style={font=\scriptsize, midway, below},
+  guard/.style={{Circle[length=4pt]}-{Stealth[length=5pt]}, thick, dashed},
   >=Stealth
 ]
 
-% Core layer - three send/settle pairs in a cycle
-% Row 1: Alice -> Bob channel
-\node[box] (sab) at (0, 0) {send\_ab};
-\node[box] (stab) at (3.5, 0) {settle\_ab};
+% --- Core: three channels as rows ---
+% Row 1: Alice -> Bob
+\node[place] (abal) at (-2, 0)   {$a$};
+\node[box]   (sab)  at (0.5, 0)  {send\_ab};
+\node[place] (pab)  at (3, 0)    {$p_{ab}$};
+\node[box]   (stab) at (5.5, 0)  {settle\_ab};
+\node[place] (bbal) at (8, 0)    {$b$};
 
-% Row 2: Bob -> Carol channel
-\node[box] (sbc) at (0, -2) {send\_bc};
-\node[box] (stbc) at (3.5, -2) {settle\_bc};
+% Row 2: Bob -> Carol
+\node[box]   (sbc)  at (0.5, -2.5)  {send\_bc};
+\node[place] (pbc)  at (3, -2.5)    {$p_{bc}$};
+\node[box]   (stbc) at (5.5, -2.5)  {settle\_bc};
+\node[place] (cbal) at (8, -2.5)    {$c$};
 
-% Row 3: Carol -> Alice channel
-\node[box] (sca) at (0, -4) {send\_ca};
-\node[box] (stca) at (3.5, -4) {settle\_ca};
+% Row 3: Carol -> Alice
+\node[box]   (sca)  at (0.5, -5)    {send\_ca};
+\node[place] (pca)  at (3, -5)      {$p_{ca}$};
+\node[box]   (stca) at (5.5, -5)    {settle\_ca};
 
-% Core wires: send -> pending -> settle
-\draw[wire] (sab.east) -- node[lbl] {pending\_ab} (stab.west);
-\draw[wire] (sbc.east) -- node[lbl] {pending\_bc} (stbc.west);
-\draw[wire] (sca.east) -- node[lbl] {pending\_ca} (stca.west);
+% --- Core wires (solid) ---
+\draw[wire] (abal) -- (sab);
+\draw[wire] (sab)  -- (pab);
+\draw[wire] (pab)  -- (stab);
+\draw[wire] (stab) -- (bbal);
 
-% Core wires: settle outputs -> send inputs (the cycle)
-% settle_ab -> bob_bal -> send_bc
-\draw[wire] (stab.east) -- ++(0.8,0) node[right, font=\scriptsize] {} |- node[lbl, pos=0.25] {bob\_bal} (sbc.west);
+\draw[wire] (bbal.south) -- ++(0, -0.8) -| (sbc.north);
+\draw[wire] (sbc)  -- (pbc);
+\draw[wire] (pbc)  -- (stbc);
+\draw[wire] (stbc) -- (cbal);
 
-% settle_bc -> carol_bal -> send_ca
-\draw[wire] (stbc.east) -- ++(0.8,0) |- node[lbl, pos=0.25] {carol\_bal} (sca.west);
+\draw[wire] (cbal.south) -- ++(0, -0.8) -| (sca.north);
+\draw[wire] (sca)  -- (pca);
+\draw[wire] (pca)  -- (stca);
 
-% settle_ca -> alice_bal -> send_ab (wrap around)
-\draw[wire] (stca.east) -- ++(1.4,0) -- ++(0, 3.5) node[right, font=\scriptsize, pos=0.5] {} -- ++(-7.2, 0) node[lbl, pos=0.5] {alice\_bal} -- ++(0, 0.5) -- (sab.west);
+% Cycle closure: settle_ca wraps back to alice_bal (left side)
+\draw[wire] (stca.south) -- ++(0, -0.7) -- (-2, -5.7) -- (abal.south);
 
-% Observer layer
-\node[obsbox] (chk) at (7.5, -1) {overdraft};
-\node[obsbox] (aud) at (7.5, -3) {audit};
+% --- Observer layer (below core, separated) ---
+\node[obsbox] (chk) at (2, -7.5)  {overdraft};
+\node[obsbox] (aud) at (7, -7.5)  {audit};
 
-% Observer sinks from balance places
-\draw[obswire] (stab.east) ++(0.4, 0) -- ++(2.8, 0) |- (chk.west);
-\draw[obswire] (stbc.east) ++(0.4, 0) -- ++(2.0, 0) |- (chk.west);
-\draw[obswire] (stca.east) ++(0.4, 0) -- ++(2.0, 0) |- (chk.west);
+% Guard arcs: grouped with set labels
+% Balances -> overdraft
+\draw[guard] (2, -6.2) -- (chk.north);
+\node[font=\scriptsize] at (2, -5.9) {$\{a, b, c\}$};
 
-% Observer sinks from pending places
-\draw[obswire] (sab.east) ++(1.2, 0) |- (aud.west);
-\draw[obswire] (sbc.east) ++(1.2, 0) |- (aud.west);
-\draw[obswire] (sca.east) ++(1.2, 0) |- (aud.west);
+% Pending -> audit
+\draw[guard] (7, -6.2) -- (aud.north);
+\node[font=\scriptsize] at (7, -5.9) {$\{p_{ab}, p_{bc}, p_{ca}\}$};
 
 % Observer outputs
-\draw[obswire] (chk.east) -- ++(1, 0) node[right, font=\scriptsize] {violation};
-\draw[obswire] (aud.east) -- ++(1, 0) node[right, font=\scriptsize] {audit\_ok};
+\draw[obswire] (chk.south) -- ++(0, -0.6) node[below, font=\scriptsize] {admit / delete};
+\draw[obswire] (aud.south) -- ++(0, -0.6) node[below, font=\scriptsize] {admit / delete};
 
-% Labels
-\node[font=\small\bfseries, above] at (1.75, 0.8) {Core ($\Settle$)};
-\node[font=\small\bfseries, above] at (7.5, -0.1) {Observer};
+% --- Labels ---
+\node[font=\small\bfseries] at (3, 1.2) {Core ($\Settle$)};
+\node[font=\small\bfseries] at (4.5, -7.5) {Observer};
+
+% Separator line
+\draw[dashed, gray] (-3, -6.6) -- (9, -6.6);
+
+% Legend
+\draw[wire]  (-2, -9) -- ++(1.2, 0) node[right, font=\scriptsize] {token flow};
+\draw[guard] (3, -9) -- ++(1.2, 0) node[right, font=\scriptsize] {guard arc (catalytic read)};
 
 \end{tikzpicture}
 \end{center}
 
-Solid wires and boxes are the core category $\Settle$; dashed elements are the observer functor $F : \Settle \to \mathbf{Set}$.
+Solid wires and boxes are the core category $\Settle$; dashed elements are the observer.
 The core is a timed event graph: every place (wire) has exactly one producer (box output) and one consumer (box input).
-The observer breaks this: balance wires are consumed by both the next \texttt{send} (core) and the \texttt{overdraft} check (observer), giving fan-out $> 1$.
+Dashed arcs are \emph{guard arcs} (catalytic): the observer reads balance and pending places without consuming tokens.
+The observer determines whether each candidate morphism is admitted to $\Settle$ or deleted.
 
 \subsection{Incidence Matrix and Throughput}
 
@@ -831,27 +847,50 @@ Every token debited from one account is credited to a pending place, and every t
 In a traditional payment system, this invariant is enforced by policy (double-entry bookkeeping procedures) and verified by audit.
 In $\Settle$, it is enforced by the monoidal structure: a morphism in $\Settle$ \emph{cannot} create or destroy tokens, because the generators (transitions) are defined by $C$, and $C$ has the invariant in its kernel.
 
-\subsection{Observer as Compliance}
+\subsection{Observer as Existence Gate}
 
-The observer transitions map directly to regulatory functions:
+The observer does not audit transactions after the fact.
+It determines whether a payment object \emph{should exist at all}.
+
+A candidate payment is a morphism in the ambient category of structurally valid transfers---any transition the incidence matrix permits.
+The observer reads the core net's state via guard arcs (catalytic: they test a place's marking without consuming tokens) and applies business rules.
+If the guard is satisfied (e.g., balance $\geq$ amount), the morphism is admitted to $\Settle$.
+If not, the candidate is \emph{deleted}---it never becomes a morphism, never composes, never appears in the event log.
 
 \begin{center}
-\begin{tabular}{@{}llcc@{}}
+\begin{tabular}{@{}lll@{}}
 \toprule
-\textbf{Observer} & \textbf{Regulatory function} & \textbf{Consumed} & $\rho$ \\
+\textbf{Observer} & \textbf{Rule} & \textbf{Effect} \\
 \midrule
-\texttt{overdraft} & Balance sufficiency check & 3 & 3 \\
-\texttt{audit} & Pending transaction review & 3 & 3 \\
+\texttt{overdraft} & $\mathtt{bal}_{\mathrm{src}} \geq \mathtt{amount}$ & admit or delete \\
+\texttt{audit} & pending $\leq$ limit & admit or delete \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-The overdraft check consumes one token from each balance place---it \emph{reads} the balances destructively, like a regulator freezing accounts to inspect them.
-The audit consumes pending tokens---it halts in-flight transactions to verify them.
-Both are irreversible observations: the system cannot resume normal operation after the observer fires, exactly as a regulatory halt is not automatically reversible.
+Categorically, the observer is a \emph{sieve} on the ambient category: a subfunctor of the representable presheaf that selects only the morphisms satisfying the business predicate.
+$\Settle$ is the image of this sieve---the subcategory of payments that passed.
+Invalid payments are not rolled back, reversed, or compensated.
+They do not exist in $\Settle$ because they were never admitted.
 
-The compression ratio $\rho = 3$ means three tokens of financial state are consumed to produce one token of verdict (violation or audit\_ok).
-The specific account balances are destroyed; only the compliance verdict survives.
+This is the payment-network analogue of the TTT observer, with one structural difference:
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+& \textbf{TTT Observer} & \textbf{Payment Observer} \\
+\midrule
+Reads & cell history places & account balance places \\
+Mechanism & consuming (game ends) & catalytic / guard (system continues) \\
+Timing & post-hoc (after move) & pre-hoc (before commit) \\
+On failure & game continues & morphism deleted \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The TTT observer consumes cell tokens because the game terminates---win detection is a terminal observation.
+The payment observer reads catalytically because the system must continue after each transaction.
+The guard arc is the formal mechanism: it appears in the incidence matrix as a row that tests but does not decrement, gating the transition without altering the marking.
 
 \subsection{ZK Privacy}
 
@@ -919,9 +958,10 @@ The TTT example demonstrates the decomposition on a system where throughput is i
 The $\Settle$ example (Section~\ref{sec:settle}) demonstrates it on a system where throughput \emph{is the product}: a payment network's value is directly proportional to its settlement rate.
 The same incidence matrix formalism serves both, but the tropical eigenvalue transforms from a structural curiosity (TTT: $\lambda = 1$ confirms alternation) to a design parameter (payments: $\lambda$ determines capacity).
 
-The core-observer decomposition also gains practical meaning: the core is the settlement engine (move money), the observer is the compliance layer (detect violations).
-In traditional finance, these are separate systems maintained by separate teams with separate audits.
-In $\Settle$, they are a categorical decomposition of a single incidence matrix---separation is a theorem, not an organizational choice.
+The core-observer decomposition also gains practical meaning: the core is the settlement engine (move money), the observer is the existence gate (determine whether a payment should exist at all).
+A candidate transfer that would overdraft an account is not rejected, rolled back, or compensated---it is \emph{deleted}: it never becomes a morphism in $\Settle$.
+In traditional finance, settlement and compliance are separate systems maintained by separate teams with separate audits.
+In $\Settle$, they are a categorical decomposition of a single incidence matrix---separation is a theorem, not an organizational choice, and the observer's verdict is existential, not remedial.
 
 \paragraph{Generalization.}
 The core-observer pattern appears in any system with a computational core and a monitoring/termination layer:
