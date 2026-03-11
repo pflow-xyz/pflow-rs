@@ -247,6 +247,86 @@ pub fn pilot_ttt() -> NetMatrix {
     NetMatrix::new(incidence, input, initial, labels, transition_labels)
 }
 
+/// Core TTT with turn enforcement via x_turn/o_turn places.
+/// 29 places (9 cells × 3 states + 2 turn), 18 transitions.
+///
+/// Each x_play consumes x_turn, produces o_turn (and vice versa).
+/// The turn token ping-pongs: x_turn → o_turn → x_turn → ...
+///
+/// Place layout (alphabetical):
+///   o00..o22 (0-8), o_turn (9), p00..p22 (10-18), x00..x22 (19-27), x_turn (28)
+pub fn builder_ttt_turns() -> NetMatrix {
+    let np = 29;
+    let nt = 18;
+
+    let mut place_labels = Vec::with_capacity(np);
+    let mut initial = vec![0i64; np];
+
+    // o00..o22 (indices 0-8)
+    for i in 0..3 {
+        for j in 0..3 {
+            place_labels.push(format!("o{}{}", i, j));
+        }
+    }
+    // o_turn (index 9)
+    place_labels.push("o_turn".to_string());
+    // p00..p22 (indices 10-18)
+    for i in 0..3 {
+        for j in 0..3 {
+            place_labels.push(format!("p{}{}", i, j));
+            initial[10 + i * 3 + j] = 1;
+        }
+    }
+    // x00..x22 (indices 19-27)
+    for i in 0..3 {
+        for j in 0..3 {
+            place_labels.push(format!("x{}{}", i, j));
+        }
+    }
+    // x_turn (index 28) — X goes first
+    place_labels.push("x_turn".to_string());
+    initial[28] = 1;
+
+    let mut transition_labels = Vec::with_capacity(nt);
+    let mut incidence = Vec::with_capacity(nt);
+
+    // x_play_ij: consumes p_ij + x_turn, produces x_ij + o_turn
+    for i in 0..3 {
+        for j in 0..3 {
+            let cell = i * 3 + j;
+            let p_idx = 10 + cell;
+            let x_idx = 19 + cell;
+
+            transition_labels.push(format!("x_play_{}{}", i, j));
+            let mut row = vec![0i64; np];
+            row[p_idx] = -1;     // consume empty cell
+            row[x_idx] = 1;      // produce X mark
+            row[28] = -1;        // consume x_turn
+            row[9] = 1;          // produce o_turn
+            incidence.push(row);
+        }
+    }
+
+    // o_play_ij: consumes p_ij + o_turn, produces o_ij + x_turn
+    for i in 0..3 {
+        for j in 0..3 {
+            let cell = i * 3 + j;
+            let p_idx = 10 + cell;
+            let o_idx = cell;
+
+            transition_labels.push(format!("o_play_{}{}", i, j));
+            let mut row = vec![0i64; np];
+            row[p_idx] = -1;     // consume empty cell
+            row[o_idx] = 1;      // produce O mark
+            row[9] = -1;         // consume o_turn
+            row[28] = 1;         // produce x_turn
+            incidence.push(row);
+        }
+    }
+
+    NetMatrix::from_incidence(incidence, initial, place_labels, transition_labels)
+}
+
 /// Builder TTT with win detection (matching pilot topology).
 pub fn builder_ttt_full() -> NetMatrix {
     // Same structure as pilot_ttt — this is the "hand-declared" equivalent

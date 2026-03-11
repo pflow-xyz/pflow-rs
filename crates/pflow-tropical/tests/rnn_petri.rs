@@ -8,7 +8,10 @@
 //! Generic over any NetMatrix: supply a net and the RNN learns its dynamics.
 
 use pflow_tropical::net_matrix::NetMatrix;
-use pflow_tropical::rnn::{generate_game_trajectories, ElmanRnn, GameResult};
+use pflow_tropical::rnn::{
+    generate_game_trajectories, generate_game_trajectories_capped,
+    ElmanRnn, GameResult, SimpleRng,
+};
 
 // ──────────────────────────────────────────────────────────
 // Test 1: Simple loop — RNN learns alternating transitions
@@ -469,4 +472,536 @@ fn reward_weighted_generic_net() {
         p2_tokens >= 2,
         "trained RNN should move most tokens to P2, got {p2_tokens}"
     );
+}
+
+// ──────────────────────────────────────────────────────────
+// Core TTT (tropical only) — no win detection, no turns
+// ──────────────────────────────────────────────────────────
+
+/// builder_ttt() place layout (27 places, alphabetical):
+///   o00..o22 (indices 0-8), p00..p22 (indices 9-17), x00..x22 (indices 18-26)
+/// Transitions (18): x_play_00..x_play_22 (0-8), o_play_00..o_play_22 (9-17)
+const CORE_WIN_LINES: [[usize; 3]; 8] = [
+    [0, 1, 2], // row 0
+    [3, 4, 5], // row 1
+    [6, 7, 8], // row 2
+    [0, 3, 6], // col 0
+    [1, 4, 7], // col 1
+    [2, 5, 8], // col 2
+    [0, 4, 8], // diag
+    [2, 4, 6], // anti
+];
+
+/// Check win from core net marking. Returns (x_wins, o_wins).
+fn core_check_win(marking: &[i64]) -> (bool, bool) {
+    let x_wins = CORE_WIN_LINES.iter().any(|line| {
+        line.iter().all(|&cell| marking[18 + cell] > 0) // x00..x22 at indices 18-26
+    });
+    let o_wins = CORE_WIN_LINES.iter().any(|line| {
+        line.iter().all(|&cell| marking[cell] > 0) // o00..o22 at indices 0-8
+    });
+    (x_wins, o_wins)
+}
+
+/// Render board from core net (27 places).
+fn render_core_board(marking: &[i64]) -> String {
+    let mut board = ['.'; 9];
+    for cell in 0..9 {
+        if marking[18 + cell] > 0 {
+            board[cell] = 'X';
+        } else if marking[cell] > 0 {
+            board[cell] = 'O';
+        }
+    }
+    format!(
+        " {} | {} | {}\n-----------\n {} | {} | {}\n-----------\n {} | {} | {}",
+        board[0], board[1], board[2],
+        board[3], board[4], board[5],
+        board[6], board[7], board[8],
+    )
+}
+
+/// Count X and O moves from a core trajectory.
+/// x_play transitions are indices 0-8, o_play are 9-17.
+fn count_moves(moves: &[pflow_tropical::rnn::GameMove]) -> (usize, usize) {
+    let x = moves.iter().filter(|m| m.transition < 9).count();
+    let o = moves.iter().filter(|m| m.transition >= 9).count();
+    (x, o)
+}
+
+/// Core reward: check win externally, penalize non-alternating play.
+/// X wants to win, gets +1 for win, -1 for loss.
+/// Returns 0 if game isn't well-formed (e.g., same player moved twice in a row).
+fn core_reward_x(marking: &[i64], moves: &[pflow_tropical::rnn::GameMove]) -> f64 {
+    // Check alternation: X should go on even moves (0,2,4,..), O on odd (1,3,5,..)
+    let mut alternates = true;
+    for (i, mv) in moves.iter().enumerate() {
+        let is_x = mv.transition < 9;
+        let should_be_x = i % 2 == 0;
+        if is_x != should_be_x {
+            alternates = false;
+            break;
+        }
+    }
+
+    if !alternates {
+        return -0.5; // penalize non-alternating play
+    }
+
+    let (x_wins, o_wins) = core_check_win(marking);
+    if x_wins { 1.0 }
+    else if o_wins { -1.0 }
+    else { 0.0 }
+}
+
+// ──────────────────────────────────────────────────────────
+// Test 10: Core TTT — RNN on tropical-only board
+// ──────────────────────────────────────────────────────────
+
+#[test]
+fn rnn_core_ttt_random_play() {
+    let net = pflow_tropical::ttt_fixtures::builder_ttt();
+    let np = net.num_places();   // 27
+    let nt = net.num_transitions(); // 18
+
+    // Core net never terminates (no win detection drains tokens).
+    // Cap at 9 moves (full board).
+    let trajectories = generate_game_trajectories_capped(&net, 200, 9, 42);
+    assert!(!trajectories.is_empty());
+
+    for (inputs, targets) in &trajectories {
+        assert!(inputs.len() <= 9, "capped at 9 moves");
+        assert_eq!(inputs[0].len(), np);
+        for &t in targets {
+            assert!(t < nt);
+        }
+    }
+
+    // Train
+    let mut rnn = ElmanRnn::new(np, 32, nt, 42);
+    let loss = rnn.train(&trajectories, 0.05, 100);
+
+    let avg_steps: f64 = trajectories.iter()
+        .map(|(inputs, _)| inputs.len() as f64)
+        .sum::<f64>() / trajectories.len() as f64;
+    let random_baseline = avg_steps * (nt as f64).ln();
+
+    eprintln!("Core TTT — loss: {loss:.3}, random baseline: {random_baseline:.1}");
+
+    assert!(
+        loss < random_baseline,
+        "RNN should beat random on core TTT (loss={loss}, baseline={random_baseline:.1})"
+    );
+
+    // Play a game and show it
+    let result = rnn.play_game(&net);
+    let (x_wins, o_wins) = core_check_win(&result.final_marking);
+    let (xc, oc) = count_moves(&result.moves);
+
+    eprintln!("\nCore TTT game ({} moves, X:{xc} O:{oc}):", result.moves.len());
+    for (i, mv) in result.moves.iter().enumerate() {
+        let tname = &net.transition_labels[mv.transition];
+        eprintln!("  Move {}: {} ({:.0}%)", i + 1, tname, mv.confidence * 100.0);
+    }
+    eprintln!("{}", render_core_board(&result.final_marking));
+    eprintln!(
+        "Result: {}",
+        if x_wins { "X wins" } else if o_wins { "O wins" } else { "draw/incomplete" }
+    );
+}
+
+// ──────────────────────────────────────────────────────────
+// Test 11: Core TTT self-play with external win detection
+// ──────────────────────────────────────────────────────────
+
+#[test]
+fn rnn_core_ttt_self_play() {
+    let net = pflow_tropical::ttt_fixtures::builder_ttt();
+    let np = net.num_places();   // 27
+    let nt = net.num_transitions(); // 18
+
+    // Bootstrap on random capped games
+    let trajectories = generate_game_trajectories_capped(&net, 200, 9, 42);
+    let mut rnn = ElmanRnn::new(np, 32, nt, 42);
+    rnn.train(&trajectories, 0.05, 50);
+
+    let pretrained = rnn.clone();
+
+    // Self-play with external reward.
+    // Can't use self_play_train directly because:
+    //  1. Core net doesn't terminate (need 9-step cap)
+    //  2. Reward depends on move sequence (alternation), not just final marking
+    // So we do the loop manually.
+    let mut rng = SimpleRng::new(123);
+
+    for _round in 0..10 {
+        let mut weighted = Vec::new();
+
+        for _ in 0..50 {
+            // Play stochastic game, capped at 9 moves
+            let result = play_core_game_stochastic(&rnn, &net, 9, &mut rng);
+            let reward = core_reward_x(&result.final_marking, &result.moves);
+
+            let inputs: Vec<Vec<f64>> = result.moves.iter()
+                .map(|m| m.marking.iter().map(|&v| v as f64).collect())
+                .collect();
+            let targets: Vec<usize> = result.moves.iter()
+                .map(|m| m.transition)
+                .collect();
+
+            weighted.push((inputs, targets, reward));
+        }
+
+        rnn.train_weighted(&weighted, 0.02, 5);
+    }
+
+    // Compare: play 50 games each
+    let mut pre_x_wins = 0;
+    let mut post_x_wins = 0;
+    let mut pre_alternating = 0;
+    let mut post_alternating = 0;
+    let n = 50;
+
+    let mut rng1 = SimpleRng::new(999);
+    let mut rng2 = SimpleRng::new(999);
+
+    for _ in 0..n {
+        let r1 = play_core_game_stochastic(&pretrained, &net, 9, &mut rng1);
+        let (xw1, _) = core_check_win(&r1.final_marking);
+        if xw1 { pre_x_wins += 1; }
+        if is_alternating(&r1) { pre_alternating += 1; }
+
+        let r2 = play_core_game_stochastic(&rnn, &net, 9, &mut rng2);
+        let (xw2, _) = core_check_win(&r2.final_marking);
+        if xw2 { post_x_wins += 1; }
+        if is_alternating(&r2) { post_alternating += 1; }
+    }
+
+    eprintln!("Core TTT self-play results ({n} games):");
+    eprintln!(
+        "  Pretrained — X wins: {pre_x_wins}, alternating: {pre_alternating}"
+    );
+    eprintln!(
+        "  Self-play  — X wins: {post_x_wins}, alternating: {post_alternating}"
+    );
+
+    // Key insight: the core net (tropical) has no turn enforcement.
+    // The RNN discovers it can "cheat" — X plays multiple consecutive moves.
+    // This is *why* the observer layer exists in pilot_ttt: to structurally
+    // enforce alternation. Without it, any reward-seeking policy exploits the gap.
+    assert!(
+        post_x_wins > pre_x_wins,
+        "self-play should increase X wins: {post_x_wins} vs {pre_x_wins}"
+    );
+}
+
+/// Play a capped stochastic game on the core net.
+fn play_core_game_stochastic(
+    rnn: &ElmanRnn,
+    net: &NetMatrix,
+    max_steps: usize,
+    rng: &mut SimpleRng,
+) -> GameResult {
+    let mut marking = net.initial.clone();
+    let mut h = vec![0.0; rnn.hidden_size];
+    let mut moves = Vec::new();
+
+    for _ in 0..max_steps {
+        let enabled: Vec<usize> = (0..net.num_transitions())
+            .filter(|&t| net.is_enabled(&marking, t))
+            .collect();
+        if enabled.is_empty() { break; }
+
+        let input: Vec<f64> = marking.iter().map(|&m| m as f64).collect();
+        let (h_new, logits) = rnn.step(&input, &h);
+        h = h_new;
+
+        let mut masked = vec![f64::NEG_INFINITY; rnn.output_size];
+        for &t in &enabled { masked[t] = logits[t]; }
+        let probs = ElmanRnn::softmax(&masked);
+
+        // Sample
+        let r = rng.uniform();
+        let mut cumulative = 0.0;
+        let mut chosen = enabled[0];
+        for (i, &p) in probs.iter().enumerate() {
+            cumulative += p;
+            if r < cumulative { chosen = i; break; }
+        }
+
+        let confidence = probs[chosen];
+        moves.push(pflow_tropical::rnn::GameMove {
+            marking: marking.clone(),
+            transition: chosen,
+            probs,
+            confidence,
+        });
+
+        marking = net.fire(&marking, chosen).unwrap();
+
+        // Early termination if someone won
+        let (xw, ow) = core_check_win(&marking);
+        if xw || ow { break; }
+    }
+
+    GameResult { moves, final_marking: marking }
+}
+
+fn is_alternating(result: &GameResult) -> bool {
+    result.moves.iter().enumerate().all(|(i, mv)| {
+        let is_x = mv.transition < 9;
+        let should_be_x = i % 2 == 0;
+        is_x == should_be_x
+    })
+}
+
+// ──────────────────────────────────────────────────────────
+// Test 12: Core TTT with turn enforcement (still tropical)
+// ──────────────────────────────────────────────────────────
+
+/// builder_ttt_turns() place layout (29 places, alphabetical):
+///   o00..o22 (0-8), o_turn (9), p00..p22 (10-18), x00..x22 (19-27), x_turn (28)
+/// Transitions (18): x_play_00..x_play_22 (0-8), o_play_00..o_play_22 (9-17)
+fn core_turns_check_win(marking: &[i64]) -> (bool, bool) {
+    let x_wins = CORE_WIN_LINES.iter().any(|line| {
+        line.iter().all(|&cell| marking[19 + cell] > 0) // x00..x22 at 19-27
+    });
+    let o_wins = CORE_WIN_LINES.iter().any(|line| {
+        line.iter().all(|&cell| marking[cell] > 0) // o00..o22 at 0-8
+    });
+    (x_wins, o_wins)
+}
+
+fn render_core_turns_board(marking: &[i64]) -> String {
+    let mut board = ['.'; 9];
+    for cell in 0..9 {
+        if marking[19 + cell] > 0 {
+            board[cell] = 'X';
+        } else if marking[cell] > 0 {
+            board[cell] = 'O';
+        }
+    }
+    let turn = if marking[28] > 0 { "X" } else { "O" };
+    format!(
+        " {} | {} | {}\n-----------\n {} | {} | {}\n-----------\n {} | {} | {}  (turn: {})",
+        board[0], board[1], board[2],
+        board[3], board[4], board[5],
+        board[6], board[7], board[8],
+        turn,
+    )
+}
+
+fn play_core_turns_game_stochastic(
+    rnn: &ElmanRnn,
+    net: &NetMatrix,
+    max_steps: usize,
+    rng: &mut SimpleRng,
+) -> GameResult {
+    let mut marking = net.initial.clone();
+    let mut h = vec![0.0; rnn.hidden_size];
+    let mut moves = Vec::new();
+
+    for _ in 0..max_steps {
+        let enabled: Vec<usize> = (0..net.num_transitions())
+            .filter(|&t| net.is_enabled(&marking, t))
+            .collect();
+        if enabled.is_empty() { break; }
+
+        let input: Vec<f64> = marking.iter().map(|&m| m as f64).collect();
+        let (h_new, logits) = rnn.step(&input, &h);
+        h = h_new;
+
+        let mut masked = vec![f64::NEG_INFINITY; rnn.output_size];
+        for &t in &enabled { masked[t] = logits[t]; }
+        let probs = ElmanRnn::softmax(&masked);
+
+        let r = rng.uniform();
+        let mut cumulative = 0.0;
+        let mut chosen = enabled[0];
+        for (i, &p) in probs.iter().enumerate() {
+            cumulative += p;
+            if r < cumulative { chosen = i; break; }
+        }
+
+        let confidence = probs[chosen];
+        moves.push(pflow_tropical::rnn::GameMove {
+            marking: marking.clone(),
+            transition: chosen,
+            probs,
+            confidence,
+        });
+
+        marking = net.fire(&marking, chosen).unwrap();
+
+        let (xw, ow) = core_turns_check_win(&marking);
+        if xw || ow { break; }
+    }
+
+    GameResult { moves, final_marking: marking }
+}
+
+#[test]
+fn rnn_core_ttt_with_turns() {
+    let net = pflow_tropical::ttt_fixtures::builder_ttt_turns();
+    let np = net.num_places();   // 29
+    let nt = net.num_transitions(); // 18
+
+    assert_eq!(np, 29);
+    assert_eq!(nt, 18);
+
+    // Verify turn enforcement: from initial, only x_play transitions enabled
+    let enabled: Vec<usize> = (0..nt)
+        .filter(|&t| net.is_enabled(&net.initial, t))
+        .collect();
+    assert!(
+        enabled.iter().all(|&t| t < 9),
+        "initially only x_play (0-8) should be enabled, got {:?}", enabled
+    );
+
+    // Generate capped games (9 moves = full board)
+    let trajectories = generate_game_trajectories_capped(&net, 200, 9, 42);
+
+    // Verify all trajectories alternate correctly
+    for (_, targets) in &trajectories {
+        for (i, &t) in targets.iter().enumerate() {
+            let is_x = t < 9;
+            let should_be_x = i % 2 == 0;
+            assert_eq!(
+                is_x, should_be_x,
+                "turn enforcement failed at move {i}: transition {t}"
+            );
+        }
+    }
+    eprintln!("Turn enforcement verified: all {} trajectories alternate correctly",
+        trajectories.len());
+
+    // Train
+    let mut rnn = ElmanRnn::new(np, 32, nt, 42);
+    rnn.train(&trajectories, 0.05, 50);
+
+    // Self-play with external win reward
+    let pretrained = rnn.clone();
+    let mut rng = SimpleRng::new(123);
+
+    for _round in 0..10 {
+        let mut weighted = Vec::new();
+        for _ in 0..50 {
+            let result = play_core_turns_game_stochastic(&rnn, &net, 9, &mut rng);
+            let (xw, ow) = core_turns_check_win(&result.final_marking);
+            let reward = if xw { 1.0 } else if ow { -1.0 } else { 0.0 };
+
+            let inputs: Vec<Vec<f64>> = result.moves.iter()
+                .map(|m| m.marking.iter().map(|&v| v as f64).collect())
+                .collect();
+            let targets: Vec<usize> = result.moves.iter()
+                .map(|m| m.transition).collect();
+
+            weighted.push((inputs, targets, reward));
+        }
+        rnn.train_weighted(&weighted, 0.02, 5);
+    }
+
+    // Compare pretrained vs self-play
+    let mut pre_x = 0;
+    let mut post_x = 0;
+    let mut post_alt = 0;
+    let n = 50;
+    let mut rng1 = SimpleRng::new(999);
+    let mut rng2 = SimpleRng::new(999);
+
+    for _ in 0..n {
+        let r1 = play_core_turns_game_stochastic(&pretrained, &net, 9, &mut rng1);
+        let (xw1, _) = core_turns_check_win(&r1.final_marking);
+        if xw1 { pre_x += 1; }
+
+        let r2 = play_core_turns_game_stochastic(&rnn, &net, 9, &mut rng2);
+        let (xw2, _) = core_turns_check_win(&r2.final_marking);
+        if xw2 { post_x += 1; }
+
+        // Verify alternation is guaranteed by net structure
+        let alt = r2.moves.iter().enumerate().all(|(i, mv)| {
+            (mv.transition < 9) == (i % 2 == 0)
+        });
+        if alt { post_alt += 1; }
+    }
+
+    eprintln!("Core+turns self-play ({n} games):");
+    eprintln!("  Pretrained X wins: {pre_x}");
+    eprintln!("  Self-play  X wins: {post_x}");
+    eprintln!("  Alternating: {post_alt}/{n} (enforced by net)");
+
+    // Show a sample game
+    let mut show_rng = SimpleRng::new(42);
+    let sample = play_core_turns_game_stochastic(&rnn, &net, 9, &mut show_rng);
+    let (xw, ow) = core_turns_check_win(&sample.final_marking);
+    eprintln!("\nSample game ({} moves):", sample.moves.len());
+    for (i, mv) in sample.moves.iter().enumerate() {
+        eprintln!("  Move {}: {} ({:.0}%)",
+            i + 1, net.transition_labels[mv.transition], mv.confidence * 100.0);
+    }
+    eprintln!("{}", render_core_turns_board(&sample.final_marking));
+    eprintln!("Result: {}",
+        if xw { "X wins" } else if ow { "O wins" } else { "draw" });
+
+    // Alternation must be 100% — it's structural, not learned
+    assert_eq!(post_alt, n, "turn enforcement must guarantee alternation");
+    // Self-play should improve
+    assert!(post_x >= pre_x,
+        "self-play should help: {post_x} vs {pre_x}");
+}
+
+// ──────────────────────────────────────────────────────────
+// Test 13: Core vs Full — compare what the RNN learns
+// ──────────────────────────────────────────────────────────
+
+#[test]
+fn core_vs_full_ttt_comparison() {
+    // Core net: 27 places, 18 transitions (tropical, no observer)
+    let core_net = pflow_tropical::ttt_fixtures::builder_ttt();
+    // Full net: 33 places, 35 transitions (with win/draw/turn observer)
+    let full_net = pflow_tropical::ttt_fixtures::pilot_ttt();
+
+    // Train both on random games
+    let core_trajs = generate_game_trajectories_capped(&core_net, 200, 9, 42);
+    let full_trajs = generate_game_trajectories(&full_net, 200, 42);
+
+    let mut core_rnn = ElmanRnn::new(
+        core_net.num_places(), 32, core_net.num_transitions(), 42
+    );
+    let mut full_rnn = ElmanRnn::new(
+        full_net.num_places(), 32, full_net.num_transitions(), 42
+    );
+
+    let core_loss = core_rnn.train(&core_trajs, 0.05, 100);
+    let full_loss = full_rnn.train(&full_trajs, 0.05, 100);
+
+    eprintln!("Core TTT: {np}p/{nt}t, loss={core_loss:.3}",
+        np = core_net.num_places(), nt = core_net.num_transitions());
+    eprintln!("Full TTT: {np}p/{nt}t, loss={full_loss:.3}",
+        np = full_net.num_places(), nt = full_net.num_transitions());
+
+    // Play games and compare
+    let mut core_x = 0;
+    let mut full_x = 0;
+    let n = 20;
+
+    let mut rng = SimpleRng::new(777);
+
+    for _ in 0..n {
+        let cr = play_core_game_stochastic(&core_rnn, &core_net, 9, &mut rng);
+        let (xw, _) = core_check_win(&cr.final_marking);
+        if xw { core_x += 1; }
+
+        let fr = full_rnn.play_game_stochastic(&full_net, &mut rng);
+        if fr.final_marking[22] > 0 { full_x += 1; }
+    }
+
+    eprintln!("X wins ({n} games) — core: {core_x}, full: {full_x}");
+    eprintln!(
+        "Core net is tropical (event graph). Full net adds observer layer.\n\
+         Core RNN must learn turn alternation implicitly; full net enforces it structurally."
+    );
+
+    // Both should produce valid games
+    assert!(core_x + full_x > 0, "at least one RNN should produce X wins");
 }
