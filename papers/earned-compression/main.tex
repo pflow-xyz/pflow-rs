@@ -703,6 +703,21 @@ The monoidal structure enforces conservation: for every core morphism, the total
 Double-entry bookkeeping is a theorem of $\Settle$, not a policy imposed on it.
 \end{definition}
 
+\begin{remark}[$\Settle$ as an open Petri net]
+\label{rem:open-petri}
+$\Settle$ is an object in the category $\mathbf{OPetri}$ of open Petri nets~\cite{baez2020}.
+The balance places ($a$, $b$, $c$) are the \emph{boundary}---the exposed interfaces along which subnets compose.
+Each payment channel (e.g., Alice$\to$Bob: $\mathtt{send\_ab} \mathbin{;} \mathtt{settle\_ab}$) is an open Petri net with input boundary $\{a\}$ and output boundary $\{b\}$.
+The circular three-party network is the composition of three such open nets, glued by identifying the output boundary of one channel with the input boundary of the next:
+\[
+  \Settle = (\mathtt{ch}_{ab} \mathbin{;}_b \mathtt{ch}_{bc}) \mathbin{;}_c \mathtt{ch}_{ca}
+\]
+where $\mathbin{;}_x$ denotes composition along shared boundary place $x$.
+
+This situates $\Settle$ in the compositional framework of $\mathbf{OPetri}$: adding a fourth party is composing another open subnet along new boundary places, splitting a channel into two hops is refining one open net into a composite of two, and the tropical eigenvalue (Theorem~\ref{thm:settle-throughput}) is an invariant of the composed net computable from its components.
+The observer attaches at the same boundary places via guard arcs---it is a functor \emph{out of} $\mathbf{OPetri}$, reading boundary state to determine whether each candidate morphism is admitted.
+\end{remark}
+
 \subsection{String Diagram as Protocol Specification}
 
 The following string diagram declares a three-party circular settlement network.
