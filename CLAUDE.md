@@ -195,3 +195,15 @@ scp pflow.dev:~/Workspace/pflow-rs/papers/earned-compression/main.pdf papers/ear
 - Arc weights rounded from `f64` to `i64` at the ZK boundary (ODE uses continuous, ZK uses discrete)
 - The vectorized ODE solver (`pflow-solver`) groups arcs by transition identically to `IncidenceMatrix`
 - Book chapters 12-13 (book.pflow.xyz) cover the gnark (Go) reference implementation
+
+## Decommissioning
+
+Rust port of go-pflow. No service, no host, no data.
+
+See [Archiving, backing up and taking down a project](../stackdump-com/CLAUDE.md#archiving-backing-up-and-taking-down-a-project) for the ecosystem-wide procedure and the ordering. This section records only what **this** project holds, which is the part that differs.
+
+No host checkout and no untracked data — nothing to back up beyond git itself.
+
+**Specific to this project:**
+
+- Published crates cannot be unpublished; `cargo yank` marks a version unusable without removing it.
