@@ -17,14 +17,14 @@ The papers extend this further — showing the incidence matrix enables algebrai
 | Crate | Purpose |
 |-------|---------|
 | `pflow-core` | Core types: `PetriNet`, `Place`, `Transition`, `Arc`, `State`, fluent `Builder` |
-| `pflow-solver` | ODE solvers (Tsitouras 5/4, RK45, etc.), equilibrium detection, vectorized fast path |
+| `pflow-solver` | ODE solvers (Tsitouras 5/4, RK45, etc.), equilibrium detection, vectorized fast path; `ssa` — portable Gillespie SSA (byte-exact with go-pflow/pflow-xyz/pflow-jl) |
 | `pflow-tokenmodel` | Token model `Schema`, `Runtime`, content-addressed identity (CID) |
 | `pflow-dsl` | S-expression DSL parser, code generation |
 | `pflow-macros` | `schema!` proc macro for compile-time DSL validation |
 | `pflow-zk` | ZK proof traits (`PetriProver`), `IncidenceMatrix` extraction, `fire_transition()` |
 | `pflow-zk-arkworks` | Groth16 prover over BN254 with Poseidon hashing (structural R1CS) |
 | `pflow-zk-risc0` | risc0 zkVM wrapper prover (simulation mode; full STARK requires toolchain) |
-| `pflow-mcp` | MCP server exposing Petri net tools (build, simulate, analyze, fire, equilibrium) |
+| `pflow-mcp` | MCP server exposing Petri net tools (build, simulate, stochastic, analyze, fire, equilibrium) |
 | `pflow` | Umbrella crate re-exporting all of the above |
 
 ## Build & Test
@@ -34,7 +34,28 @@ cargo test --workspace              # All tests
 cargo test -p pflow-zk              # Foundation crate only
 cargo test -p pflow-zk-arkworks     # Arkworks prover
 cargo test -p pflow-zk-risc0        # risc0 prover (simulation)
+cargo test -p pflow-solver          # ODE + SSA (incl. the byte-exact SSA goldens); the full workspace build is slow
 ```
+
+### Portable SSA (`pflow_solver::ssa`)
+
+`crates/pflow-solver/src/ssa/{mod.rs, rng.rs, portable_log.rs}` is the Rust
+port of the four-language byte-exact Gillespie direct method: SplitMix64 →
+xoshiro256** (`u64` wrapping ops, no `rand`), a ported fdlibm/Go `log`
+(`plog`; **never `f64::ln`** on this path — glibc differs at `ln(3.0)`), and a
+fixed evaluation order for every sum and comparison. `SsaModel` is its own
+**ordered** model (`PetriNet` uses `HashMap`s); `SsaModel::from_petri_net`
+converts when the caller supplies the order.
+
+`tests/fixtures/ssa/*.json` are byte-identical copies of
+`go-pflow/stochastic/testdata/portable/` (README there names the commit and
+sha256s); `tests/ssa_parity.rs` asserts `==` on every double across all five
+fixtures (`chain`, `sir`, `dimer`, `coffeeshop`, `gates`) and fails if any is
+missing. A mismatch is a bug in the port, never a reason to regenerate.
+serde_json is a **dev-dependency only** (pflow-solver stays dependency-free)
+and is built with `float_roundtrip`: its default float parser misreads
+`0.47140452079103085` in `chain.json` by one ulp, which
+`golden_floats_round_trip` guards against.
 
 ## ZK Proofs
 
@@ -97,6 +118,7 @@ An MCP (Model Context Protocol) server that exposes Petri net tools. Configured 
 | `pflow_analyze` | Incidence matrix (input/output/delta per transition), enabled transitions |
 | `pflow_fire` | Fire discrete transitions step-by-step, return token state after each step |
 | `pflow_simulate` | ODE simulation over time, return downsampled time series |
+| `pflow_stochastic` | Portable Gillespie SSA (seeded, byte-exact across the four implementations): ensemble mean/stddev per place on a fixed grid |
 | `pflow_equilibrium` | Find steady state of ODE system |
 
 ### DSL Syntax

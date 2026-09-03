@@ -43,6 +43,22 @@ pub struct FireParams {
     pub actions: Vec<String>,
 }
 
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct StochasticParams {
+    #[schemars(description = "Petri net model as DSL S-expression or JSON schema")]
+    pub model: String,
+    #[schemars(description = "Simulation horizon (default: 10.0)")]
+    pub horizon: Option<f64>,
+    #[schemars(description = "Number of grid points, >= 2 (default: 101)")]
+    pub samples: Option<usize>,
+    #[schemars(description = "Number of realizations to average (default: 10)")]
+    pub realizations: Option<usize>,
+    #[schemars(description = "PRNG seed; 0 is treated as 1 (default: 1)")]
+    pub seed: Option<u64>,
+    #[schemars(description = "Per-transition rates; missing transitions default to 1.0")]
+    pub rates: Option<std::collections::HashMap<String, f64>>,
+}
+
 #[derive(Debug, Clone)]
 pub struct PflowServer {
     tool_router: ToolRouter<Self>,
@@ -125,6 +141,26 @@ impl PflowServer {
         tokio::task::spawn_blocking(move || tools::equilibrium::run(&model, t_max))
             .await
             .map_err(|e| format!("Task error: {e}"))?
+    }
+
+    #[tool(
+        description = "Run the portable Gillespie SSA (discrete-stochastic, byte-exact across go-pflow/pflow-rs/pflow-xyz/pflow-jl for a given seed). Returns the ensemble mean and stddev per place on a fixed time grid"
+    )]
+    async fn pflow_stochastic(
+        &self,
+        Parameters(params): Parameters<StochasticParams>,
+    ) -> Result<String, String> {
+        let model = params.model;
+        let horizon = params.horizon.unwrap_or(10.0);
+        let samples = params.samples.unwrap_or(101);
+        let realizations = params.realizations.unwrap_or(10);
+        let seed = params.seed.unwrap_or(1);
+        let rates = params.rates.unwrap_or_default();
+        tokio::task::spawn_blocking(move || {
+            tools::stochastic::run(&model, horizon, samples, realizations, seed, &rates)
+        })
+        .await
+        .map_err(|e| format!("Task error: {e}"))?
     }
 
     #[tool(

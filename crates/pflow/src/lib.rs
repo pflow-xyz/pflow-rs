@@ -11,6 +11,7 @@ pub use pflow_tokenmodel as tokenmodel;
 pub use pflow_core::{Builder, PetriNet, State};
 pub use pflow_macros::schema;
 pub use pflow_solver::{find_equilibrium, solve, Options, Problem, Solution};
+pub use pflow_solver::{simulate_ssa, SsaModel, SsaOptions, SsaResult};
 
 // ZK proof re-exports (behind feature flags)
 #[cfg(feature = "zk")]
