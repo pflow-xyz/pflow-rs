@@ -364,10 +364,27 @@ fn vec_to_state(v: &[f64], labels: &[String]) -> State {
         .collect()
 }
 
-/// Integrates the ODE problem using the given solver and options.
+/// Integrates a raw vectorized ODE `du/dt = f(t, u)` from `u0` over `tspan` using the
+/// given solver and options. This is the direction-agnostic core shared by [`solve`] and
+/// by any caller (e.g. `pflow-learn`) that needs to integrate an augmented vector (state
+/// plus extra columns) through the same adaptive Runge-Kutta loop.
 ///
-/// Internally uses vectorized (dense array) state representation for performance.
-pub fn solve(prob: &Problem, solver: &Solver, opts: &Options) -> Solution {
+/// `tspan` must have `tspan[1] > tspan[0]` — the loop runs `while tcur < tf`, driven by a
+/// `dtcur` that is only ever clamped within `[opts.dtmin, opts.dtmax]` (always positive).
+/// A reversed span executes zero steps and silently returns the initial condition. This
+/// function is, and stays, forward-only by construction; callers that need a "backward"
+/// integration (e.g. an adjoint costate solve) must reformulate their own IVP as a forward
+/// integration (the standard time-reversal substitution) rather than expecting this loop
+/// to grow a direction flag.
+///
+/// Returns `(t_out, u_out)`: the accepted time points and the dense state vector at each.
+pub fn integrate_vec(
+    f: &dyn Fn(f64, &[f64]) -> Vec<f64>,
+    u0: &[f64],
+    tspan: [f64; 2],
+    solver: &Solver,
+    opts: &Options,
+) -> (Vec<f64>, Vec<Vec<f64>>) {
     let dt = opts.dt;
     let dtmin = opts.dtmin;
     let dtmax = opts.dtmax;
@@ -376,15 +393,14 @@ pub fn solve(prob: &Problem, solver: &Solver, opts: &Options) -> Solution {
     let maxiters = opts.maxiters;
     let adaptive = opts.adaptive;
 
-    let t0 = prob.tspan[0];
-    let tf = prob.tspan[1];
-    let f = &prob.vec_f;
-    let n = prob.vec_u0.len();
+    let t0 = tspan[0];
+    let tf = tspan[1];
+    let n = u0.len();
 
     let mut t_out = vec![t0];
-    let mut u_out: Vec<Vec<f64>> = vec![prob.vec_u0.clone()];
+    let mut u_out: Vec<Vec<f64>> = vec![u0.to_vec()];
     let mut tcur = t0;
-    let mut ucur = prob.vec_u0.clone();
+    let mut ucur = u0.to_vec();
     let mut dtcur = dt;
     let mut nsteps = 0usize;
 
@@ -469,6 +485,15 @@ pub fn solve(prob: &Problem, solver: &Solver, opts: &Options) -> Solution {
             dtcur = dtmin.max(dtcur * factor);
         }
     }
+
+    (t_out, u_out)
+}
+
+/// Integrates the ODE problem using the given solver and options.
+///
+/// Internally uses vectorized (dense array) state representation for performance.
+pub fn solve(prob: &Problem, solver: &Solver, opts: &Options) -> Solution {
+    let (t_out, u_out) = integrate_vec(&*prob.vec_f, &prob.vec_u0, prob.tspan, solver, opts);
 
     // Convert dense trajectory to State maps for backward compatibility
     let state_u: Vec<State> = u_out

@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/pflow-core",
     "crates/pflow-solver",
+    "crates/pflow-learn",
     "crates/pflow-tokenmodel",
     "crates/pflow-dsl",
     "crates/pflow-macros",
