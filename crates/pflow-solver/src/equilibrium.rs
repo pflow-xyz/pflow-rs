@@ -249,10 +249,7 @@ pub fn find_equilibrium_fast(prob: &Problem) -> (State, bool) {
     if result.reached {
         (result.state, true)
     } else {
-        (
-            sol.get_final_state().cloned().unwrap_or_default(),
-            false,
-        )
+        (sol.get_final_state().cloned().unwrap_or_default(), false)
     }
 }
 
