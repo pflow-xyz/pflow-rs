@@ -18,6 +18,7 @@ The papers extend this further — showing the incidence matrix enables algebrai
 |-------|---------|
 | `pflow-core` | Core types: `PetriNet`, `Place`, `Transition`, `Arc`, `State`, fluent `Builder` |
 | `pflow-solver` | ODE solvers (Tsitouras 5/4, RK45, etc.), equilibrium detection, vectorized fast path; `ssa` — portable Gillespie SSA (byte-exact with go-pflow/pflow-xyz/pflow-jl) |
+| `pflow-learn` | System identification: forward + adjoint sensitivities, gradient (Adam/backtracking) and derivative-free (Nelder-Mead) fitting, MLP rate functions, tied parameters — ported from go-pflow's `learn`, held to the same Go/JS goldens (`parity/`) |
 | `pflow-tokenmodel` | Token model `Schema`, `Runtime`, content-addressed identity (CID) |
 | `pflow-dsl` | S-expression DSL parser, code generation |
 | `pflow-macros` | `schema!` proc macro for compile-time DSL validation |
@@ -26,6 +27,10 @@ The papers extend this further — showing the incidence matrix enables algebrai
 | `pflow-zk-risc0` | risc0 zkVM wrapper prover (simulation mode; full STARK requires toolchain) |
 | `pflow-mcp` | MCP server exposing Petri net tools (build, simulate, stochastic, analyze, fire, equilibrium) |
 | `pflow` | Umbrella crate re-exporting all of the above |
+
+**Which engine for which question** (ODE vs SSA vs SDE): `docs/engine-selection.md`,
+vendored from go-pflow (`scripts/docs-sync.sh check`/`sync`, same hash-lock
+pattern the shared browser JS uses — see the root `CLAUDE.md`).
 
 ## Build & Test
 
