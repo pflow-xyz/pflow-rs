@@ -17,7 +17,7 @@ The papers extend this further — showing the incidence matrix enables algebrai
 | Crate | Purpose |
 |-------|---------|
 | `pflow-core` | Core types: `PetriNet`, `Place`, `Transition`, `Arc`, `State`, fluent `Builder` |
-| `pflow-solver` | ODE solvers (Tsitouras 5/4, RK45, etc.), equilibrium detection, vectorized fast path; `ssa` — portable Gillespie SSA (byte-exact with go-pflow/pflow-xyz/pflow-jl) |
+| `pflow-solver` | ODE solvers (Tsitouras 5/4, RK45, etc.), equilibrium detection, vectorized fast path; `ssa` — portable Gillespie SSA (byte-exact with go-pflow/pflow-xyz/pflow-jl); `ssa::sde` — chemical Langevin SDE (intrinsic noise, not yet byte-exact cross-language) |
 | `pflow-learn` | System identification: forward + adjoint sensitivities, gradient (Adam/backtracking) and derivative-free (Nelder-Mead) fitting, MLP rate functions, tied parameters — ported from go-pflow's `learn`, held to the same Go/JS goldens (`parity/`) |
 | `pflow-tokenmodel` | Token model `Schema`, `Runtime`, content-addressed identity (CID) |
 | `pflow-dsl` | S-expression DSL parser, code generation |
@@ -61,6 +61,39 @@ serde_json is a **dev-dependency only** (pflow-solver stays dependency-free)
 and is built with `float_roundtrip`: its default float parser misreads
 `0.47140452079103085` in `chain.json` by one ulp, which
 `golden_floats_round_trip` guards against.
+
+### Chemical Langevin SDE (`pflow_solver::ssa::sde`)
+
+`crates/pflow-solver/src/ssa/sde.rs` — the third leg of the Petri.jl
+ODEProblem/JumpProblem/SDEProblem trio (go-pflow ROADMAP.md G6), a submodule
+of `ssa` so it can reuse `Compiled`/`CompiledModel`'s private stoichiometry
+fields directly rather than adding new public surface. Continuous state via
+Euler-Maruyama (20 fixed internal substeps per reported grid point), but with
+the net's own intrinsic firing noise rather than SSA's discrete events or the
+ODE's none at all. Refuses a gated model (read arc, inhibitor, reachable
+capacity) exactly as `Forecast`/`SimulateSDE` do on the Go side — those have
+no continuous analogue.
+
+Two pinned primitives it needs beyond SSA's: `combinations_real`, the
+continuum generalization of SSA's exact `combinations(m, w)` (agrees at every
+integer, goes negative below `x = w-1` by design — the propensity clamps it
+at zero, documented in the function's own doc comment); and `GaussianSampler`,
+a Marsaglia-polar `normal()` built only from `sqrt` (IEEE-754-exact
+everywhere, unlike `ln`, so it needs no port) and the already-pinned `plog` —
+deliberately not Box-Muller, which would need a second ported transcendental.
+`GaussianSampler`'s spare-value cache is load-bearing: two consecutive
+`normal()` calls on one accepted `(u1, u2)` draw must return `u1*mul` then
+`u2*mul` from that same pair, or the stream diverges from go-pflow's from the
+second value on (`normal_matches_go_reference_vectors` pins Go's own
+`portable_test.go` vectors at seed 42 — Go is the reference implementation
+here, there being no external SDE spec).
+
+Not yet part of the byte-exact cross-language contract the way SSA's goldens
+are — no shared SDE fixtures exist yet — but the consistency tests in
+`sde.rs` mirror go-pflow's `stochastic/sde_test.go` (linear-chain mean
+tracks SSA, SIR-at-scale variance tracks SSA, weight-2 dimerisation tracks
+SSA rather than the ODE's different rate law), checked directly against this
+crate's own `simulate` rather than a separately-built ODE reference.
 
 ## ZK Proofs
 

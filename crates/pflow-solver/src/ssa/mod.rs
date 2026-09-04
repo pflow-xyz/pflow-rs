@@ -18,9 +18,14 @@
 
 pub mod portable_log;
 pub mod rng;
+pub mod sde;
 
 pub use portable_log::plog;
 pub use rng::{splitmix64, Xoshiro256};
+pub use sde::{
+    combinations_real, simulate_sde, simulate_sde_compiled, SdeOptions, SdeResult,
+    CHEMICAL_LANGEVIN_ASSUMPTION,
+};
 
 use std::collections::HashMap;
 use std::fmt;
