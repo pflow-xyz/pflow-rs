@@ -86,7 +86,7 @@ fn solve_opts() -> Options {
         abstol: 1e-8,
         reltol: 1e-6,
         maxiters: 500_000,
-        adaptive: true,
+        adaptive: false,
     }
 }
 
