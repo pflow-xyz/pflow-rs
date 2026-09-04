@@ -509,4 +509,50 @@ mod tests {
         // Conservation: A + B should be approximately 10
         assert!((total - 10.0).abs() < 0.1);
     }
+
+    /// With a 5th-order error estimate, tightening reltol by a factor of 100
+    /// should cost roughly 100^(1/5) ~ 2.5x the steps. The old +1/66 weight
+    /// made the estimate first order, so the same tightening cost ~100x.
+    #[test]
+    fn tsit5_step_count_scales_as_fifth_root_of_reltol() {
+        let build = || {
+            PetriNet::build()
+                .place("S", 990.0)
+                .place("I", 10.0)
+                .place("R", 0.0)
+                .transition("infect")
+                .transition("recover")
+                .arc("S", "infect", 1.0)
+                .arc("I", "infect", 1.0)
+                .arc("infect", "I", 2.0)
+                .arc("I", "recover", 1.0)
+                .arc("recover", "R", 1.0)
+                .done()
+        };
+        let steps = |reltol: f64| {
+            let net = build();
+            let state = net.set_state(None);
+            let mut rates = net.set_rates(None);
+            rates.insert("infect".into(), 0.0005);
+            rates.insert("recover".into(), 0.1);
+            let prob = Problem::new(net, state, [0.0, 100.0], rates);
+            let opts = Options {
+                dt: 0.01,
+                dtmin: 1e-10,
+                dtmax: 100.0,
+                abstol: 1e-12,
+                reltol,
+                maxiters: 1_000_000,
+                adaptive: true,
+            };
+            solve(&prob, &methods::tsit5(), &opts).t.len() - 1
+        };
+        let coarse = steps(1e-3);
+        let fine = steps(1e-5);
+        let ratio = fine as f64 / coarse as f64;
+        assert!(
+            (1.5..8.0).contains(&ratio),
+            "steps at 1e-3: {coarse}, at 1e-5: {fine}, ratio {ratio} (expected ~2.5)"
+        );
+    }
 }
