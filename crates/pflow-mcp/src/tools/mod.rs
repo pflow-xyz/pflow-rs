@@ -3,6 +3,7 @@ pub mod build;
 pub mod equilibrium;
 pub mod fire;
 pub mod simulate;
+pub mod stochastic;
 pub mod validate;
 
 use pflow_core::{PetriNet, State};

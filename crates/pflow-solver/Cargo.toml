@@ -13,5 +13,9 @@ categories = ["simulation", "science", "mathematics"]
 pflow-core = { path = "../pflow-core", version = "0.3.0" }
 
 [dev-dependencies]
+# Dev-only: the golden loader. `float_roundtrip` makes serde_json parse floats
+# correctly rounded (its default parser can be off by one ulp), which the
+# byte-exact goldens require; tests/ssa_parity.rs and tests/ode_parity.rs
+# prove it by round-trip.
 serde_json = { version = "1", features = ["float_roundtrip"] }
 sha2 = "0.10"
