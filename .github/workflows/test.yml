@@ -1,0 +1,48 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# No Bazel here, and none planned (ROADMAP.md item 8): Cargo is the native
+# toolchain and nothing else in this ecosystem's Bazel investment
+# (go-pflow, petri-pilot, beats-bitwrap-io, bitwrap-io) targets Rust or
+# Julia. `cargo test --workspace` + `clippy` is the documented fallback
+# from go-pflow's own ROADMAP.md ("Honest costs") for a repo that isn't
+# getting the ecosystem-wide Bazel rollout.
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: build
+        run: cargo build --workspace --all-targets
+
+      - name: test
+        run: cargo test --workspace
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Advisory, not a gate: pre-existing warnings in pflow-core/pflow-solver
+      # (needless_range_loop, type_complexity) predate this workflow and
+      # are not this job's job to fail on. New warnings on touched code are
+      # visible in the job log either way.
+      - name: clippy
+        run: cargo clippy --workspace --all-targets || true
