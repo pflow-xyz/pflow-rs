@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 
 /// The fixtures go-pflow's generator produces. Every one must be present:
 /// a missing file would let the parity test pass vacuously.
-const FIXTURE_NAMES: [&str; 5] = ["chain", "sir", "dimer", "coffeeshop", "gates"];
+const FIXTURE_NAMES: [&str; 6] = ["chain", "sir", "dimer", "coffeeshop", "gates", "timed"];
 
 fn fixture_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ssa")
@@ -85,11 +85,12 @@ fn load_model(model: &Value) -> SsaModel {
         .iter()
         .map(|t| {
             let o = t.as_object().expect("transition object");
-            reject_unknown(o, &["id", "rate"], "transition");
+            reject_unknown(o, &["id", "rate", "delay"], "transition");
             assert!(o.get("guard").is_none(), "guards are out of scope");
             SsaTransition {
                 id: o["id"].as_str().expect("transition id").to_string(),
                 rate: o.get("rate").map(|r| as_f64(r, "rate")).unwrap_or(0.0),
+                delay: o.get("delay").map(|d| as_f64(d, "delay")).unwrap_or(0.0),
             }
         })
         .collect();

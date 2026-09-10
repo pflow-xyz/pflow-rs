@@ -42,10 +42,16 @@ pub struct SsaPlace {
 }
 
 /// A transition: `rate == 0.0` means the default rate `1.0`.
+///
+/// `delay > 0.0` makes it a timed transition (spec §5): it has no rate, starts
+/// the instant it is enabled — consuming its inputs then — and produces its
+/// outputs exactly `delay` later, one clock per enabling. It must consume
+/// something, or it would restart forever in zero time; `compile` refuses.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SsaTransition {
     pub id: String,
     pub rate: f64,
+    pub delay: f64,
 }
 
 /// Arc semantics. `Read` and `Inhibitor` arcs are always place → transition.
@@ -144,6 +150,8 @@ pub enum SsaError {
     NegativeCapacity(String),
     NegativeWeight { arc: usize },
     NegativeRate(String),
+    NegativeDelay(String),
+    DelayWithoutInput(String),
     BadOptions(String),
 }
 
@@ -170,6 +178,11 @@ impl fmt::Display for SsaError {
             SsaError::NegativeCapacity(id) => write!(f, "place {id:?}: negative capacity"),
             SsaError::NegativeWeight { arc } => write!(f, "arc {arc}: negative weight"),
             SsaError::NegativeRate(id) => write!(f, "transition {id:?}: negative rate"),
+            SsaError::NegativeDelay(id) => write!(f, "transition {id:?}: negative delay"),
+            SsaError::DelayWithoutInput(id) => write!(
+                f,
+                "transition {id:?}: a delay on a transition with no consuming input would restart forever in zero time"
+            ),
             SsaError::BadOptions(msg) => write!(f, "bad options: {msg}"),
         }
     }
@@ -199,6 +212,8 @@ pub fn combinations(m: i64, w: i64) -> f64 {
 #[derive(Debug, Clone)]
 struct Compiled {
     rate: f64,
+    /// > 0: a timed transition (spec §5); `rate` is then 0.
+    delay: f64,
     /// (place index, weight, kinetic)
     inputs: Vec<(usize, i64, bool)>,
     /// (place index, weight)
@@ -210,6 +225,19 @@ struct Compiled {
 }
 
 impl Compiled {
+    /// §5: every constraint lets a delayed transition start — consuming
+    /// inputs present and the non-consuming gates open. The exponential path
+    /// folds the input test into the propensity; a timed transition has none
+    /// and asks here.
+    fn enabled(&self, marking: &[i64]) -> bool {
+        for &(p, w, _) in &self.inputs {
+            if marking[p] < w {
+                return false;
+            }
+        }
+        self.gated(marking)
+    }
+
     fn gated(&self, marking: &[i64]) -> bool {
         for &(p, w) in &self.reads {
             if marking[p] < w {
@@ -300,13 +328,24 @@ pub fn compile(model: &SsaModel) -> Result<CompiledModel, SsaError> {
         if t.rate < 0.0 {
             return Err(SsaError::NegativeRate(t.id.clone()));
         }
+        if t.delay < 0.0 {
+            return Err(SsaError::NegativeDelay(t.id.clone()));
+        }
     }
 
     let mut compiled: Vec<Compiled> = model
         .transitions
         .iter()
         .map(|t| Compiled {
-            rate: if t.rate == 0.0 { 1.0 } else { t.rate },
+            // A timer, not a race: a delayed transition has no propensity.
+            rate: if t.delay > 0.0 {
+                0.0
+            } else if t.rate == 0.0 {
+                1.0
+            } else {
+                t.rate
+            },
+            delay: t.delay,
             inputs: Vec::new(),
             outputs: Vec::new(),
             reads: Vec::new(),
@@ -349,6 +388,12 @@ pub fn compile(model: &SsaModel) -> Result<CompiledModel, SsaError> {
                 }
             },
             _ => return Err(SsaError::ArcBetweenSameKind { arc: k }),
+        }
+    }
+
+    for (t, c) in model.transitions.iter().zip(compiled.iter()) {
+        if c.delay > 0.0 && c.inputs.is_empty() {
+            return Err(SsaError::DelayWithoutInput(t.id.clone()));
         }
     }
 
@@ -408,16 +453,64 @@ pub fn realization(model: &CompiledModel, times: &[f64], rng: &mut Xoshiro256) -
 
     record(times, t, &mut next, &marking, &mut traj);
     let t_end = times[samples - 1];
+    // §5: delayed firings in progress as (completion time, transition),
+    // sorted by time, FIFO among ties. Delay-free nets never touch it, so
+    // their sample paths are exactly what they were.
+    let mut queue: Vec<(f64, usize)> = Vec::new();
+    let timed = model.transitions.iter().any(|c| c.delay > 0.0);
     let mut step = 0usize;
     while step < MAX_STEPS && t < t_end {
         step += 1;
+        // 0. start every enabled delayed transition at this instant, in
+        //    declaration order, one start per pass, passes until none starts.
+        if timed {
+            let mut again = true;
+            while again {
+                again = false;
+                for j in 0..n_trans {
+                    let c = &model.transitions[j];
+                    if c.delay > 0.0 && c.enabled(&marking) {
+                        for &(p, w, _) in &c.inputs {
+                            marking[p] -= w;
+                        }
+                        let at = t + c.delay;
+                        let mut i = 0usize;
+                        while i < queue.len() && queue[i].0 <= at {
+                            i += 1;
+                        }
+                        queue.insert(i, (at, j));
+                        again = true;
+                    }
+                }
+            }
+        }
         let a0 = model.propensities(&marking, &mut propensity);
-        if a0 <= 0.0 {
+        if a0 <= 0.0 && queue.is_empty() {
             break;
         }
-        let x1 = rng.uniform();
-        let u = 1.0 - x1;
-        let dt = (-plog(u)) / a0;
+        // No draw when nothing can race; the clock alone moves time.
+        let mut dt = f64::INFINITY;
+        if a0 > 0.0 {
+            let x1 = rng.uniform();
+            let u = 1.0 - x1;
+            dt = (-plog(u)) / a0;
+        }
+        // A completion due before the draw pre-empts it. The draw is
+        // discarded, not deferred: the race is memoryless.
+        if let Some(&(at, j)) = queue.first() {
+            if at <= t + dt {
+                t = at; // assigned, not accumulated: same double as Go
+                record(times, t, &mut next, &marking, &mut traj);
+                if t > t_end {
+                    break;
+                }
+                queue.remove(0);
+                for &(p, w) in &model.transitions[j].outputs {
+                    marking[p] += w;
+                }
+                continue;
+            }
+        }
         t += dt;
         record(times, t, &mut next, &marking, &mut traj);
         if t > t_end {
@@ -567,6 +660,7 @@ impl SsaModel {
             transitions.push(SsaTransition {
                 id: id.clone(),
                 rate: rates.get(id).copied().unwrap_or(1.0),
+                delay: 0.0,
             });
         }
         let mut arcs = Vec::with_capacity(net.arcs.len());
@@ -630,10 +724,12 @@ mod tests {
                 SsaTransition {
                     id: "ab".into(),
                     rate: 1.0,
+                    delay: 0.0,
                 },
                 SsaTransition {
                     id: "bc".into(),
                     rate: 1.0,
+                    delay: 0.0,
                 },
             ],
             arcs: vec![
@@ -668,10 +764,12 @@ mod tests {
                 SsaTransition {
                     id: "infect".into(),
                     rate: 0.0005,
+                    delay: 0.0,
                 },
                 SsaTransition {
                     id: "recover".into(),
                     rate: 0.1,
+                    delay: 0.0,
                 },
             ],
             arcs: vec![
@@ -702,10 +800,12 @@ mod tests {
                 SsaTransition {
                     id: "dimerise".into(),
                     rate: 0.01,
+                    delay: 0.0,
                 },
                 SsaTransition {
                     id: "dissociate".into(),
                     rate: 0.1,
+                    delay: 0.0,
                 },
             ],
             arcs: vec![
@@ -903,18 +1003,22 @@ mod tests {
                 SsaTransition {
                     id: "fill".into(),
                     rate: 1.0,
+                    delay: 0.0,
                 },
                 SsaTransition {
                     id: "blocked".into(),
                     rate: 1.0,
+                    delay: 0.0,
                 },
                 SsaTransition {
                     id: "drain".into(),
                     rate: 1.0,
+                    delay: 0.0,
                 },
                 SsaTransition {
                     id: "nonkin".into(),
                     rate: 1.0,
+                    delay: 0.0,
                 },
             ],
             arcs: vec![

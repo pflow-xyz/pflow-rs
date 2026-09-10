@@ -15,6 +15,7 @@ Verify a copy with `sha256sum` against the canonical file at the commit below.
 | `coffeeshop.json` | `2e0402f8d6e0ec32956538e480f76d6e3ec28861cb03211eb97be6a68f9f0c53` |
 | `dimer.json` | `5b260cc9b3027c660d87d5a041839941f4deb1107a22728782549bc700e23341` |
 | `gates.json` | `9a2a35ef18b5218a1afcda49f1755e47feb9942bf07254533971e1d490df7009` |
+| `timed.json` | `53c7140c779bc7ce9dde590f2559a345e68cb547ebff0eff2e79da0a99fc3e28` |
 | `sir.json` | `192035da7d6b848479a8f2586f1330caed19c8bf26ece2f4743017aef240e683` |
 
 Source: `go-pflow` branch `discrete-stochastic`, commit
@@ -26,3 +27,12 @@ If go-pflow ever re-runs `make ssa-goldens`, no double may change — only the
 that reaches the read-arc, inhibitor, non-kinetic input and capacity-bound
 branches. `ssa_all_fixtures_present` fails if any of the five is missing, so
 the parity test cannot pass on an empty directory.
+
+## `timed.json` — delayed transitions (§5)
+
+Added after the five above, by the same generator, once go-pflow's engine
+gained deterministic delays. Options `{12, 25, 3, 9}`. The rule is written out
+in go-pflow's `stochastic/testdata/README.md` (§5): a shared resource on a
+1.5 clock with priority over an exponential rival, an infinite-server 0.7
+clock, an exponential source, completions between grid points, and a horizon
+that cuts firings mid-flight. The Rust port replays it bit-for-bit.

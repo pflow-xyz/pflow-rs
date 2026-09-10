@@ -149,6 +149,12 @@ fn gating_reasons(model: &CompiledModel) -> Vec<String> {
                 .to_string(),
         );
     }
+    if model.transitions.iter().any(|t| t.delay > 0.0) {
+        reasons.push(
+            "a delay is a deterministic timer — inputs consumed at start, outputs a fixed time later — which mass action cannot express"
+                .to_string(),
+        );
+    }
     reasons
 }
 
@@ -426,10 +432,12 @@ mod tests {
                 SsaTransition {
                     id: "ab".into(),
                     rate: 1.0,
+                    delay: 0.0,
                 },
                 SsaTransition {
                     id: "bc".into(),
                     rate: 1.0,
+                    delay: 0.0,
                 },
             ],
             arcs: vec![
@@ -465,10 +473,12 @@ mod tests {
                 SsaTransition {
                     id: "infect".into(),
                     rate: 0.0005 / scale as f64,
+                    delay: 0.0,
                 },
                 SsaTransition {
                     id: "recover".into(),
                     rate: 0.1,
+                    delay: 0.0,
                 },
             ],
             arcs: vec![
@@ -500,10 +510,12 @@ mod tests {
                 SsaTransition {
                     id: "dimerise".into(),
                     rate: 0.01,
+                    delay: 0.0,
                 },
                 SsaTransition {
                     id: "dissociate".into(),
                     rate: 0.1,
+                    delay: 0.0,
                 },
             ],
             arcs: vec![
@@ -513,6 +525,47 @@ mod tests {
                 SsaArc::flow_weighted("dissociate", "A", 2),
             ],
         }
+    }
+
+    #[test]
+    fn sde_refuses_delayed_transition() {
+        use super::super::{SsaArc, SsaModel, SsaPlace, SsaTransition};
+        let m = SsaModel {
+            places: vec![
+                SsaPlace {
+                    id: "a".into(),
+                    initial: 3,
+                    capacity: 0,
+                },
+                SsaPlace {
+                    id: "b".into(),
+                    initial: 0,
+                    capacity: 0,
+                },
+            ],
+            transitions: vec![SsaTransition {
+                id: "t".into(),
+                rate: 0.0,
+                delay: 1.5,
+            }],
+            arcs: vec![SsaArc::flow("a", "t"), SsaArc::flow("t", "b")],
+        };
+        let res = simulate_sde(
+            &m,
+            &SdeOptions {
+                horizon: 1.0,
+                samples: 2,
+                realizations: 1,
+                seed: 1,
+            },
+        )
+        .expect("compiles");
+        assert!(res.diverged, "SDE must refuse a delayed transition");
+        assert!(
+            res.caveats.iter().any(|c| c.contains("delay")),
+            "caveats do not name the delay: {:?}",
+            res.caveats
+        );
     }
 
     #[test]
@@ -539,6 +592,7 @@ mod tests {
             transitions: vec![SsaTransition {
                 id: "t".into(),
                 rate: 1.0,
+                delay: 0.0,
             }],
             arcs: vec![
                 SsaArc::flow("a", "t"),
