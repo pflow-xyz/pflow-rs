@@ -32,6 +32,12 @@ The papers extend this further — showing the incidence matrix enables algebrai
 vendored from go-pflow (`scripts/docs-sync.sh check`/`sync`, same hash-lock
 pattern the shared browser JS uses — see the root `CLAUDE.md`).
 
+## Roadmap
+
+`ROADMAP.md` is the plan of record: phased go-pflow parity, each phase held
+to goldens go-pflow generates. Its Status table is the answer to "how far is
+Rust"; update it in the same commit as the code.
+
 ## Build & Test
 
 ```bash
