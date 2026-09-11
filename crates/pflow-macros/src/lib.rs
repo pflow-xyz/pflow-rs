@@ -167,6 +167,7 @@ fn emit_arc(a: &ArcNode) -> proc_macro2::TokenStream {
             target: #target.into(),
             keys: #keys,
             value: #value,
+            ..Default::default()
         }
     }
 }

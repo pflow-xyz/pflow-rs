@@ -1,0 +1,16 @@
+[package]
+name = "pflow-workflow"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Task/dependency/resource workflow builder, execution engine and ODE-based monitor, ported from go-pflow's workflow package"
+keywords = ["petri-net", "workflow", "process"]
+categories = ["simulation", "data-structures"]
+
+[dependencies]
+pflow-core = { path = "../pflow-core" }
+pflow-metamodel = { path = "../pflow-metamodel" }
+pflow-compose = { path = "../pflow-compose" }
+pflow-solver = { path = "../pflow-solver" }

@@ -1,0 +1,14 @@
+[package]
+name = "pflow-statemachine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Hierarchical statecharts (regions, states, guarded event transitions) compiled to and executed via pflow-metamodel's firing rule, ported from go-pflow's statemachine package"
+keywords = ["petri-net", "statechart", "state-machine"]
+categories = ["simulation", "data-structures"]
+
+[dependencies]
+pflow-metamodel = { path = "../pflow-metamodel" }
+pflow-compose = { path = "../pflow-compose" }

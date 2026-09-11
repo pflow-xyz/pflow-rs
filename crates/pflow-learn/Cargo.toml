@@ -12,6 +12,7 @@ categories = ["simulation", "science", "mathematics"]
 [dependencies]
 pflow-core = { path = "../pflow-core", version = "0.3.0" }
 pflow-solver = { path = "../pflow-solver", version = "0.3.0" }
+pflow-metamodel = { path = "../pflow-metamodel", version = "0.3.0" }
 
 [dev-dependencies]
 # float_roundtrip: goldens.json floats must parse to the exact bit pattern the

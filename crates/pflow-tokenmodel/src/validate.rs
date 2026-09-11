@@ -69,6 +69,7 @@ mod tests {
             target: "t1".into(),
             keys: vec![],
             value: String::new(),
+            ..Default::default()
         });
         assert!(s.validate().is_ok());
     }
@@ -109,6 +110,7 @@ mod tests {
             target: "t1".into(),
             keys: vec![],
             value: String::new(),
+            ..Default::default()
         });
         assert!(s.validate().is_err());
     }
@@ -123,6 +125,7 @@ mod tests {
             target: "p2".into(),
             keys: vec![],
             value: String::new(),
+            ..Default::default()
         });
         assert!(s.validate().is_err());
     }

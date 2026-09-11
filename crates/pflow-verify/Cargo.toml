@@ -1,0 +1,17 @@
+[package]
+name = "pflow-verify"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Property verification (deadlock-free, bounded, live, invariants, reachability) for pflow-metamodel nets, ported from go-pflow's verify package"
+keywords = ["petri-net", "model-checking", "verification"]
+categories = ["simulation", "data-structures"]
+
+[dependencies]
+pflow-metamodel = { path = "../pflow-metamodel" }
+pflow-reachability = { path = "../pflow-reachability" }
+
+[dev-dependencies]
+serde_json = "1"

@@ -1,0 +1,16 @@
+[package]
+name = "pflow-reachability"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Reachability graph, coverability, invariants and spectral analysis, ported from go-pflow's reachability package"
+keywords = ["petri-net", "reachability", "invariants", "model-checking"]
+categories = ["simulation", "data-structures"]
+
+[dependencies]
+pflow-metamodel = { path = "../pflow-metamodel" }
+
+[dev-dependencies]
+serde_json = "1"

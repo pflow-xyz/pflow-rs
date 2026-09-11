@@ -25,7 +25,16 @@ The papers extend this further — showing the incidence matrix enables algebrai
 | `pflow-zk` | ZK proof traits (`PetriProver`), `IncidenceMatrix` extraction, `fire_transition()` |
 | `pflow-zk-arkworks` | Groth16 prover over BN254 with Poseidon hashing (structural R1CS) |
 | `pflow-zk-risc0` | risc0 zkVM wrapper prover (simulation mode; full STARK requires toolchain) |
-| `pflow-mcp` | MCP server exposing Petri net tools (build, simulate, stochastic, analyze, fire, equilibrium) |
+| `pflow-reachability` | Reachability graph/BFS, coverability, Farkas P/T invariants, eigenvector centrality |
+| `pflow-validation` | Structural validation (structure/connectivity/deadlock-heuristic/unbounded/conservation checks) |
+| `pflow-verify` | Property verification (deadlock-free, bounded, live, invariants, ...) with structural-then-exhaustive proof strategy |
+| `pflow-compose` | `Bundle`/`Flatten` typed subnet composition (token/data/event/guard links), `templates` (SIR/SEIR/queue/...), `derive` (evaluation-net transforms), model-extension ops |
+| `pflow-mcp` | MCP server exposing Petri net tools — `petri_*` names/shapes mirror petri-pilot's MCP server; `pflow_*` names are pflow-rs-only extras |
+| `pflow-cli` | `pflow` CLI binary — parity with go-pflow's `cmd/pflow` (create/validate/verify/expand/simulate/analyze/summary/compare/events/visualize/plot) |
+| `pflow-engine` | State machine harness for continuous Petri net simulation — condition/action rules over `pflow_core::net::PetriNet` + `pflow_solver` (`step`/`run`/`stop`/`simulate`), ported from go-pflow's `engine` package |
+| `pflow-monitoring` | Real-time predictive process monitoring — `Monitor`/`Predictor`/`Case`/`Alert`, ODE-based completion prediction, SLA alerting, ported from go-pflow's `monitoring` package |
+| `pflow-eventsource` | In-memory event-sourcing store (`Event`/`Store`/`MemoryStore`), ported from go-pflow's `eventsource` package — the in-memory half only, per the SQLite carve-out in ROADMAP.md |
+| `pflow-visualization` | SVG rendering for Petri nets, state charts, workflows and ODE solutions, ported from go-pflow's `visualization` and `plotter` packages |
 | `pflow` | Umbrella crate re-exporting all of the above |
 
 **Which engine for which question** (ODE vs SSA vs SDE): `docs/engine-selection.md`,
@@ -155,15 +164,31 @@ An MCP (Model Context Protocol) server that exposes Petri net tools. Configured 
 
 ### Tools
 
+Every tool accepts a model as DSL S-expression text, the tokenmodel
+Schema's native JSON, pflow.xyz Shape A JSON, or `pflow_metamodel::Model`
+Shape B JSON (`tools::convert::parse_any_model`). `petri_*` names and
+response shapes mirror petri-pilot's MCP server one for one where a Go tool
+of the same name exists, so a client cannot tell which server answered;
+`pflow_*` names have no petri-pilot counterpart.
+
 | Tool | Purpose |
 |------|---------|
-| `pflow_validate` | Parse model, return structure summary and content-addressed ID (CID) |
+| `petri_validate` | Parse model, return structure summary and content-addressed ID (CID) |
 | `pflow_build` | Parse model, return places, transitions, arcs, and initial state |
-| `pflow_analyze` | Incidence matrix (input/output/delta per transition), enabled transitions |
+| `petri_analyze` | Incidence matrix (input/output/delta per transition), enabled transitions |
 | `pflow_fire` | Fire discrete transitions step-by-step, return token state after each step |
-| `pflow_simulate` | ODE simulation over time, return downsampled time series |
-| `pflow_stochastic` | Portable Gillespie SSA (seeded, byte-exact across the four implementations): ensemble mean/stddev per place on a fixed grid |
+| `petri_simulate` | ODE simulation over time, return downsampled time series |
+| `petri_stochastic` | Portable Gillespie SSA (seeded, byte-exact across the four implementations): ensemble mean/stddev per place on a fixed grid |
 | `pflow_equilibrium` | Find steady state of ODE system |
+| `petri_verify` | Check declarative properties (proved/refuted/unknown + counterexample), shorthand or object grammar |
+| `petri_invariants` | Minimal-support P-/T-invariants and structural-boundedness cover |
+| `petri_conformance` | Replay an event log against a model: fitness, precision, F-score, per-trace diagnostics |
+| `petri_scenario` | What-if: override marking/rates/schedule (or compare named `scenarios`), run the model's own stochastic engine |
+| `petri_extend` | Apply structural operations (add/remove place/transition/arc/event/binding) to a model |
+| `petri_diff` | Structural differences between two models |
+| `petri_canonical` | Content-addressed identifier — the real ecosystem CID when the input is JSON-LD-shaped, else a labelled identity hash |
+| `petri_lumping` | Ordinary CTMC lumpability: the coarsest partition of the reachable state space that is itself an exact-answer CTMC |
+| `petri_dataset` | Synthetic event log from a seeded stochastic playout |
 
 ### DSL Syntax
 

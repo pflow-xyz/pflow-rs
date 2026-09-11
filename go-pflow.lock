@@ -1,0 +1,31 @@
+# go-pflow.lock — goldens copied byte-identical from go-pflow.
+#
+# DO NOT HAND-EDIT A GOLDEN FILE. Regenerate it in go-pflow and re-run
+# ./scripts/go-pflow-goldens.sh sync. 'check' fails the build otherwise.
+# A failing golden is a bug in Rust or a deliberate change in Go; it is
+# never fixed by regenerating (ROADMAP.md ground rule 1).
+#
+# source: github.com/pflow-xyz/go-pflow @ d84dc017bfe42acd03176b74a7bb91878d72d5f1
+#
+# <sha256>  <path in this repo>  <path in go-pflow>
+892de18e6c8d7899ed8a7081b0da3b1de5c4eda143f16c627ab21919cea61832  crates/pflow-solver/tests/fixtures/ssa/chain.json  stochastic/testdata/portable/chain.json
+2e0402f8d6e0ec32956538e480f76d6e3ec28861cb03211eb97be6a68f9f0c53  crates/pflow-solver/tests/fixtures/ssa/coffeeshop.json  stochastic/testdata/portable/coffeeshop.json
+5b260cc9b3027c660d87d5a041839941f4deb1107a22728782549bc700e23341  crates/pflow-solver/tests/fixtures/ssa/dimer.json  stochastic/testdata/portable/dimer.json
+9a2a35ef18b5218a1afcda49f1755e47feb9942bf07254533971e1d490df7009  crates/pflow-solver/tests/fixtures/ssa/gates.json  stochastic/testdata/portable/gates.json
+53c7140c779bc7ce9dde590f2559a345e68cb547ebff0eff2e79da0a99fc3e28  crates/pflow-solver/tests/fixtures/ssa/timed.json  stochastic/testdata/portable/timed.json
+192035da7d6b848479a8f2586f1330caed19c8bf26ece2f4743017aef240e683  crates/pflow-solver/tests/fixtures/ssa/sir.json  stochastic/testdata/portable/sir.json
+947ff873426eca5c8635258223ac1bc8e6e63b8b80ed04c29c096275ffab3625  crates/pflow-parser/tests/fixtures/editor-shape/cafe-showcase.json  parser/testdata/editor-shape/cafe-showcase.json
+ffd899ef9b6e7056672137eefbac3a1497269f7eeaa3dbcdccce842cc4dbfb88  crates/pflow-parser/tests/fixtures/editor-shape/coffee-shop.json  parser/testdata/editor-shape/coffee-shop.json
+2eece7e07e141d554345012da41b5fccd48e5f1a25f5737c737dc99c5a83d0a3  crates/pflow-parser/tests/fixtures/editor-shape/knapsack.json  parser/testdata/editor-shape/knapsack.json
+49129a9f4d35728c241b2bacae8f8f1113ab09d9987f22db323ba0b6bd4f7d4d  crates/pflow-parser/tests/fixtures/editor-shape/net-a.json  parser/testdata/editor-shape/net-a.json
+9d38da9b8afc918d7aa50c30d0e7833af66536bcbde0e55f3e9689860579e0b4  crates/pflow-parser/tests/fixtures/editor-shape/net-b.json  parser/testdata/editor-shape/net-b.json
+5bebe028d2d61af23928bb57e70d6c0499d645dd9da53b6a78ee7b00602b26ba  crates/pflow-parser/tests/fixtures/editor-shape/tic-tac-toe.json  parser/testdata/editor-shape/tic-tac-toe.json
+2b196bcb9aa46cacb8e6942e89d66210f0baff5fd9d281177c3b3092bee1b3b8  crates/pflow-parser/tests/fixtures/editor-shape/with-parents.json  parser/testdata/editor-shape/with-parents.json
+0afa2284abbc62464a37df970f795ca1410e507b3b5dcc9d23b81efdd0645458  crates/pflow-solver/tests/fixtures/sde/chain.json  stochastic/testdata/sde/chain.json
+d302701c86ca40d7a37e986d5b8308db08b81b015e939b945ae415bc6e2aee7a  crates/pflow-solver/tests/fixtures/sde/coffeeshop.json  stochastic/testdata/sde/coffeeshop.json
+f6636b62b9af2a32cceb70ed9aa10b622e9bdd37e3c8c33d1e3b340a302147bf  crates/pflow-solver/tests/fixtures/sde/dimer.json  stochastic/testdata/sde/dimer.json
+e7fb8473dc55f2e725eed8033e28d9c02f28cf22ce391f127969340353d0fb0b  crates/pflow-solver/tests/fixtures/sde/gates.json  stochastic/testdata/sde/gates.json
+fe17111fa4842ed39935f818a908139a587e47ce720f365f397b75ce1bff75b3  crates/pflow-solver/tests/fixtures/sde/sir.json  stochastic/testdata/sde/sir.json
+e257b5870b1677c1e9e70751fd5337429fd55a101b4cc8ffcdeab70ebf271449  crates/pflow-solver/tests/fixtures/scheduled/cafe-service.json  stochastic/testdata/scheduled/cafe-service.json
+f08b555fc6d46c21bf96909106e0c4e37e727d4403c08233a54c4560cb129067  crates/pflow-compose/tests/fixtures/bundle/cafe.flatten.json  metamodel/testdata/bundle/cafe.flatten.json
+3bb34758b4905695ec73977e3f71c98fa9975fa8e8c01a28e643bd1f046eaf6c  crates/pflow-verify/tests/fixtures/showcase/properties.json  verify/testdata/showcase/properties.json

@@ -1,11 +1,33 @@
 //! Content-addressed identity for schemas.
+//!
+//! **This is not the ecosystem CID.** `Schema::cid()` is a plain
+//! `sha256(serde_json::to_string(normalized))` identity hash over
+//! `pflow-tokenmodel`'s own DSL-derived `Schema` type — useful on its own for
+//! detecting duplicate/renamed schemas within this crate, but it is not
+//! `CIDv1(dag-json, sha2-256, base58btc)` over URDNA2015 N-Quads the way
+//! pflow-xyz's `internal/seal.SealJSONLD` (Go) and `public/seal-cid.mjs` (JS)
+//! compute it. **The ecosystem CID is [`crate::canonical_cid::compute_cid`]
+//! — see that module's doc comment for the algorithm, why it's a hand-rolled
+//! port rather than a general JSON-LD-processor-plus-off-the-shelf-Rust-
+//! canonicalizer pipeline (that combination was evaluated and produces the
+//! wrong bytes on graphs with blank-node symmetry, which every real pflow
+//! net has), and its provenance (a field-for-field port of `pflow-jl`'s
+//! already-byte-exact-verified `src/urdna2015.jl` + `src/cid.jl`).** It
+//! takes a raw pflow net JSON-LD document (not a `Schema`), because the
+//! ecosystem CID is defined over that document shape, not over this crate's
+//! DSL-derived type — the two are different inputs, so `Schema::cid()`
+//! staying a local identity hash is not a placeholder for the ecosystem CID,
+//! it answers a genuinely different question ("do these two `Schema`s parse
+//! to the same structure").
 
 use sha2::{Digest, Sha256};
 
 use crate::schema::Schema;
 
 impl Schema {
-    /// Computes the content-addressed identifier for this schema.
+    /// Computes a **local** content-addressed identifier for this schema —
+    /// `sha256` over the normalized DSL `Schema`, *not* the ecosystem's
+    /// JSON-LD/URDNA2015 CID. See this module's doc comment for why.
     pub fn cid(&self) -> String {
         let normalized = self.normalize();
         match serde_json::to_string(&normalized) {

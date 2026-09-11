@@ -1,0 +1,14 @@
+[package]
+name = "pflow-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "State machine harness for continuous Petri net simulation, ported from go-pflow's engine package"
+keywords = ["petri-net", "simulation", "ode", "state-machine"]
+categories = ["simulation"]
+
+[dependencies]
+pflow-core = { path = "../pflow-core", version = "0.3.0" }
+pflow-solver = { path = "../pflow-solver", version = "0.3.0" }

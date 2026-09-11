@@ -1,0 +1,15 @@
+[package]
+name = "pflow-metamodel"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Shape B model (places, transitions, arcs, stages, schedules, parameters) and the shared firing rule, ported from go-pflow's metamodel package"
+keywords = ["petri-net", "metamodel", "firing-rule", "schema"]
+categories = ["simulation", "data-structures"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"

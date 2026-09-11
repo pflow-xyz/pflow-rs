@@ -1,0 +1,19 @@
+[package]
+name = "pflow-results"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Structured simulation results, parameter sensitivity, and what-if hypothesis evaluation, ported from go-pflow's results/sensitivity/hypothesis packages"
+keywords = ["petri-net", "simulation", "analysis"]
+categories = ["simulation", "data-structures"]
+
+[dependencies]
+pflow-core = { path = "../pflow-core" }
+pflow-solver = { path = "../pflow-solver" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+thiserror = "2"
+
+[dev-dependencies]

@@ -1,0 +1,14 @@
+[package]
+name = "pflow-actor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Actor model (message bus, subnets, metamodel bundle composition) built on pflow-metamodel/pflow-compose, ported from go-pflow's actor package"
+keywords = ["petri-net", "actor", "message-bus"]
+categories = ["simulation", "data-structures"]
+
+[dependencies]
+pflow-metamodel = { path = "../pflow-metamodel" }
+pflow-compose = { path = "../pflow-compose" }

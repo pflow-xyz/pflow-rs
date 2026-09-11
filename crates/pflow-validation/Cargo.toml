@@ -1,0 +1,14 @@
+[package]
+name = "pflow-validation"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Structural validation checks for pflow-metamodel nets, ported from go-pflow's validation package"
+keywords = ["petri-net", "validation"]
+categories = ["simulation", "data-structures"]
+
+[dependencies]
+pflow-metamodel = { path = "../pflow-metamodel" }
+pflow-reachability = { path = "../pflow-reachability" }

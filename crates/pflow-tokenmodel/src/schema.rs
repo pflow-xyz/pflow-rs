@@ -5,17 +5,12 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 /// Discriminates between token-counting and data-holding states.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Kind {
     Token,
+    #[default]
     Data,
-}
-
-impl Default for Kind {
-    fn default() -> Self {
-        Kind::Data
-    }
 }
 
 /// A named container in a schema.
@@ -81,8 +76,44 @@ pub struct Action {
     pub event_bindings: Option<HashMap<String, String>>,
 }
 
+/// Discriminates between normal, inhibitor and read arcs, mirroring
+/// `pflow_metamodel::ArcType`.
+///
+/// **Deliberate wire-format extension, not present in go-pflow's
+/// `tokenmodel/schema.go`.** go-pflow's `Arc` struct has no weight or type
+/// field at all — every token arc is implicitly weight 1, normal-typed, and
+/// there is no way to express an inhibitor or read arc in a schema document.
+/// That is one half of the four defects ROADMAP.md Phase 5 lists for
+/// `tokenmodel::Runtime` ("weights are ignored, inhibitors ignored"): there
+/// was nothing in the wire format *to* honour. Since go-pflow's own schema
+/// cannot be changed unilaterally from here (ground rule: "do not fix one
+/// side alone"), these two fields are added as `#[serde(default)]` additions
+/// that a go-pflow-produced document round-trips through unchanged (absent
+/// fields default to `Normal`/weight 1, matching prior behaviour exactly)
+/// and that a go-pflow reader simply ignores as unknown JSON — the same
+/// backward/forward compatible shape `Arc::kinetic` uses in
+/// `pflow-metamodel`. See `runtime.rs`'s module doc for the full divergence
+/// note.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ArcType {
+    #[default]
+    #[serde(rename = "")]
+    Normal,
+    Inhibitor,
+    Read,
+}
+
+fn is_normal_arc(t: &ArcType) -> bool {
+    matches!(t, ArcType::Normal)
+}
+
+fn is_zero_i64(v: &i64) -> bool {
+    *v == 0
+}
+
 /// An arc connecting states and actions.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Arc {
     pub source: String,
     pub target: String,
@@ -92,6 +123,43 @@ pub struct Arc {
 
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub value: String,
+
+    /// Token-state arc weight. Zero (absent from JSON) means the effective
+    /// weight is 1 — see [`Arc::effective_weight`]. Meaningless for arcs
+    /// touching a data state, which use `keys`/`value` instead.
+    #[serde(default, skip_serializing_if = "is_zero_i64")]
+    pub weight: i64,
+
+    /// Token-state arc kind. See [`ArcType`]'s doc comment: this field does
+    /// not exist in go-pflow's schema.
+    #[serde(default, skip_serializing_if = "is_normal_arc")]
+    #[serde(rename = "type")]
+    pub typ: ArcType,
+}
+
+impl Arc {
+    pub fn is_inhibitor(&self) -> bool {
+        self.typ == ArcType::Inhibitor
+    }
+
+    pub fn is_read(&self) -> bool {
+        self.typ == ArcType::Read
+    }
+
+    /// True if this arc only tests the marking and moves no tokens.
+    pub fn is_read_only(&self) -> bool {
+        self.is_inhibitor() || self.is_read()
+    }
+
+    /// An unset (zero) weight defaults to 1, matching the firing rule and
+    /// go-pflow's implicit "every token arc moves exactly one token".
+    pub fn effective_weight(&self) -> i64 {
+        if self.weight == 0 {
+            1
+        } else {
+            self.weight
+        }
+    }
 }
 
 /// A constraint that must hold across all snapshots.

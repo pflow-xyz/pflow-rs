@@ -1,0 +1,17 @@
+[package]
+name = "pflow-mining"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Process discovery and conformance checking, ported from go-pflow's mining package"
+keywords = ["petri-net", "process-mining", "conformance"]
+categories = ["simulation", "data-structures"]
+
+[dependencies]
+pflow-core = { path = "../pflow-core" }
+pflow-eventlog = { path = "../pflow-eventlog" }
+
+[dev-dependencies]
+serde_json = "1"

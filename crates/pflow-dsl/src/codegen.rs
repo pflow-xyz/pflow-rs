@@ -102,6 +102,7 @@ pub fn generate_rust(node: &SchemaNode, module_name: &str, fn_name: &str) -> Res
             } else {
                 b.push_str("        value: String::new(),\n");
             }
+            b.push_str("        ..Default::default()\n");
             b.push_str("    });\n");
         }
         b.push('\n');

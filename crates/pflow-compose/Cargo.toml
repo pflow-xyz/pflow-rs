@@ -1,0 +1,20 @@
+[package]
+name = "pflow-compose"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Bundle/Flatten composition, templates, derive and model-extension operations, ported from go-pflow's metamodel (compose*), templates and derive packages"
+keywords = ["petri-net", "composition", "templates"]
+categories = ["simulation", "data-structures"]
+
+[dependencies]
+pflow-core = { path = "../pflow-core" }
+pflow-metamodel = { path = "../pflow-metamodel" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+regex = "1"
+
+[dev-dependencies]
+serde_json = "1"

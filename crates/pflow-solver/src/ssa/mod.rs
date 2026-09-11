@@ -305,6 +305,75 @@ impl CompiledModel {
     }
 }
 
+/// Validate a model's arc endpoints and directions (spec §3.1), and build
+/// the equivalent [`pflow_metamodel::Model`] arc list alongside it.
+///
+/// This is the one place `ArcKind` is turned into an [`pflow_metamodel::ArcType`]
+/// — every other classification question (which arc is an input, output,
+/// read test or inhibitor test of a transition) is answered afterward by
+/// `pflow_metamodel::Model::inputs`/`outputs`/`tests`, the shared firing
+/// rule, rather than re-derived here (ROADMAP.md ground rule 4: "five
+/// disagreeing copies is how petri-pilot went wrong").
+fn validate_and_convert_arcs(
+    model: &SsaModel,
+    place_index: &HashMap<&str, usize>,
+    trans_index: &HashMap<&str, usize>,
+) -> Result<Vec<pflow_metamodel::Arc>, SsaError> {
+    let mut mm_arcs = Vec::with_capacity(model.arcs.len());
+    for (k, arc) in model.arcs.iter().enumerate() {
+        if arc.weight < 0 {
+            return Err(SsaError::NegativeWeight { arc: k });
+        }
+        let w = if arc.weight == 0 { 1 } else { arc.weight };
+        let from_place = place_index.get(arc.from.as_str()).copied();
+        let from_trans = trans_index.get(arc.from.as_str()).copied();
+        let to_place = place_index.get(arc.to.as_str()).copied();
+        let to_trans = trans_index.get(arc.to.as_str()).copied();
+        if from_place.is_none() && from_trans.is_none() {
+            return Err(SsaError::UnknownEndpoint {
+                arc: k,
+                id: arc.from.clone(),
+            });
+        }
+        if to_place.is_none() && to_trans.is_none() {
+            return Err(SsaError::UnknownEndpoint {
+                arc: k,
+                id: arc.to.clone(),
+            });
+        }
+        match (from_place, to_trans, from_trans, to_place) {
+            (Some(_), Some(_), _, _) => {
+                let typ = match arc.kind {
+                    ArcKind::Flow => pflow_metamodel::ArcType::Normal,
+                    ArcKind::Read => pflow_metamodel::ArcType::Read,
+                    ArcKind::Inhibitor => pflow_metamodel::ArcType::Inhibitor,
+                };
+                mm_arcs.push(pflow_metamodel::Arc {
+                    from: arc.from.clone(),
+                    to: arc.to.clone(),
+                    weight: w,
+                    typ,
+                    kinetic: Some(arc.kinetic),
+                    ..Default::default()
+                });
+            }
+            (_, _, Some(_), Some(_)) => match arc.kind {
+                ArcKind::Flow => mm_arcs.push(pflow_metamodel::Arc {
+                    from: arc.from.clone(),
+                    to: arc.to.clone(),
+                    weight: w,
+                    ..Default::default()
+                }),
+                ArcKind::Read | ArcKind::Inhibitor => {
+                    return Err(SsaError::ReadOrInhibitorFromTransition { arc: k })
+                }
+            },
+            _ => return Err(SsaError::ArcBetweenSameKind { arc: k }),
+        }
+    }
+    Ok(mm_arcs)
+}
+
 /// Validate and compile a model (spec §3.1).
 pub fn compile(model: &SsaModel) -> Result<CompiledModel, SsaError> {
     let mut place_index: HashMap<&str, usize> = HashMap::new();
@@ -333,6 +402,35 @@ pub fn compile(model: &SsaModel) -> Result<CompiledModel, SsaError> {
         }
     }
 
+    let mm_arcs = validate_and_convert_arcs(model, &place_index, &trans_index)?;
+
+    // The classification pass: a `pflow_metamodel::Model` built from the
+    // now-validated places/transitions/arcs, read only through the shared
+    // firing rule (`inputs`/`outputs`/`tests`) below. Rates and delays stay
+    // on `SsaTransition` — the SSA's own concern, not the firing rule's.
+    let mm_model = pflow_metamodel::Model {
+        places: model
+            .places
+            .iter()
+            .map(|p| pflow_metamodel::Place {
+                id: p.id.clone(),
+                initial: p.initial,
+                capacity: p.capacity,
+                ..Default::default()
+            })
+            .collect(),
+        transitions: model
+            .transitions
+            .iter()
+            .map(|t| pflow_metamodel::Transition {
+                id: t.id.clone(),
+                ..Default::default()
+            })
+            .collect(),
+        arcs: mm_arcs,
+        ..Default::default()
+    };
+
     let mut compiled: Vec<Compiled> = model
         .transitions
         .iter()
@@ -354,40 +452,24 @@ pub fn compile(model: &SsaModel) -> Result<CompiledModel, SsaError> {
         })
         .collect();
 
-    for (k, arc) in model.arcs.iter().enumerate() {
-        if arc.weight < 0 {
-            return Err(SsaError::NegativeWeight { arc: k });
+    for (j, t) in model.transitions.iter().enumerate() {
+        for input in mm_model.inputs(&t.id) {
+            let p = place_index[input.place.as_str()];
+            compiled[j].inputs.push((p, input.weight, input.kinetic));
         }
-        let w = if arc.weight == 0 { 1 } else { arc.weight };
-        let from_place = place_index.get(arc.from.as_str()).copied();
-        let from_trans = trans_index.get(arc.from.as_str()).copied();
-        let to_place = place_index.get(arc.to.as_str()).copied();
-        let to_trans = trans_index.get(arc.to.as_str()).copied();
-        if from_place.is_none() && from_trans.is_none() {
-            return Err(SsaError::UnknownEndpoint {
-                arc: k,
-                id: arc.from.clone(),
-            });
+        for output in mm_model.outputs(&t.id) {
+            let p = place_index[output.place.as_str()];
+            compiled[j].outputs.push((p, output.weight));
         }
-        if to_place.is_none() && to_trans.is_none() {
-            return Err(SsaError::UnknownEndpoint {
-                arc: k,
-                id: arc.to.clone(),
-            });
-        }
-        match (from_place, to_trans, from_trans, to_place) {
-            (Some(p), Some(t), _, _) => match arc.kind {
-                ArcKind::Flow => compiled[t].inputs.push((p, w, arc.kinetic)),
-                ArcKind::Read => compiled[t].reads.push((p, w)),
-                ArcKind::Inhibitor => compiled[t].inhibits.push((p, w)),
-            },
-            (_, _, Some(t), Some(p)) => match arc.kind {
-                ArcKind::Flow => compiled[t].outputs.push((p, w)),
-                ArcKind::Read | ArcKind::Inhibitor => {
-                    return Err(SsaError::ReadOrInhibitorFromTransition { arc: k })
+        for test in mm_model.tests(&t.id) {
+            let p = place_index[test.place.as_str()];
+            match test.typ {
+                pflow_metamodel::ArcType::Inhibitor => compiled[j].inhibits.push((p, test.weight)),
+                pflow_metamodel::ArcType::Read => compiled[j].reads.push((p, test.weight)),
+                pflow_metamodel::ArcType::Normal => {
+                    unreachable!("Model::tests only returns read/inhibitor arcs")
                 }
-            },
-            _ => return Err(SsaError::ArcBetweenSameKind { arc: k }),
+            }
         }
     }
 

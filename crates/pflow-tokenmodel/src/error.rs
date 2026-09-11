@@ -42,6 +42,16 @@ pub enum Error {
 
     #[error("tokenmodel: constraint evaluation error: {0}: {1}")]
     ConstraintEvaluation(String, String),
+
+    // Access control
+    #[error("tokenmodel: access denied: {0}")]
+    AccessDenied(String),
+}
+
+impl From<pflow_metamodel::Error> for Error {
+    fn from(e: pflow_metamodel::Error) -> Self {
+        Error::AccessDenied(e.to_string())
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

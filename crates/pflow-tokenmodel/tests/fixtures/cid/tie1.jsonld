@@ -1,0 +1,19 @@
+{
+  "@context": "https://pflow.xyz/schema",
+  "@type": "PetriNet",
+  "places": {
+    "a": {"@type": "Place", "x": 0, "y": 0},
+    "b": {"@type": "Place", "x": 0, "y": 0},
+    "c": {"@type": "Place", "x": 0, "y": 0}
+  },
+  "transitions": {
+    "t1": {"@type": "Transition", "x": 0, "y": 0},
+    "t2": {"@type": "Transition", "x": 0, "y": 0},
+    "t3": {"@type": "Transition", "x": 0, "y": 0}
+  },
+  "arcs": [
+    {"@type": "Arrow", "source": "a", "target": "t1", "weight": [1]},
+    {"@type": "Arrow", "source": "b", "target": "t2", "weight": [1]},
+    {"@type": "Arrow", "source": "c", "target": "t3", "weight": [1]}
+  ]
+}

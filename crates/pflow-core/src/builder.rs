@@ -95,7 +95,7 @@ impl Builder {
     /// Elements must be odd length: place, trans, place, trans, place...
     /// The first place gets `initial_tokens`, all others get 0.
     pub fn chain(mut self, initial_tokens: f64, elements: &[&str]) -> Self {
-        if elements.len() < 3 || elements.len() % 2 == 0 {
+        if elements.len() < 3 || elements.len().is_multiple_of(2) {
             return self;
         }
 

@@ -16,6 +16,13 @@ pflow-core = { path = "../pflow-core", version = "0.3.0" }
 pflow-solver = { path = "../pflow-solver", version = "0.3.0" }
 pflow-tokenmodel = { path = "../pflow-tokenmodel", version = "0.3.0" }
 pflow-dsl = { path = "../pflow-dsl", version = "0.3.0" }
+pflow-metamodel = { path = "../pflow-metamodel", version = "0.3.0" }
+pflow-parser = { path = "../pflow-parser", version = "0.3.0" }
+pflow-verify = { path = "../pflow-verify", version = "0.3.0" }
+pflow-reachability = { path = "../pflow-reachability", version = "0.3.0" }
+pflow-mining = { path = "../pflow-mining", version = "0.3.0" }
+pflow-eventlog = { path = "../pflow-eventlog", version = "0.3.0" }
+pflow-compose = { path = "../pflow-compose", version = "0.3.0" }
 rmcp = { version = "0.16", features = ["server", "transport-io"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }

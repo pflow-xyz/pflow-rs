@@ -5,6 +5,7 @@ pub mod implicit;
 pub mod methods;
 pub mod ode;
 pub mod ssa;
+pub mod stochastic;
 
 pub use equilibrium::{
     find_equilibrium, find_equilibrium_accurate, find_equilibrium_fast, is_equilibrium,

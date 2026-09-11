@@ -131,31 +131,77 @@ fn compile_sde(model: &CompiledModel) -> Vec<SdeTransition> {
 }
 
 /// True if the model has anything an SDE (or the ODE) cannot express: a read
-/// arc, an inhibitor, or a reachable capacity. Mirrors go-pflow's
-/// `Model.Gating()` at the level this module can see it (post-`compile`,
-/// which already resolved read/inhibitor/capacity into `Compiled`'s own
-/// fields) rather than re-deriving it from the raw model.
+/// arc, an inhibitor, a non-kinetic input, or a reachable capacity. Mirrors
+/// go-pflow's `Model.Gating()` word for word (`metamodel/firing.go`) at the
+/// level this module can see it (post-`compile`, which already resolved
+/// read/inhibitor/non-kinetic/capacity into `Compiled`'s own fields) rather
+/// than re-deriving it from the raw model — the wording (counts, `%v`-style
+/// `[a b c]` place lists) is part of the byte-exact contract the SDE goldens'
+/// `diverged`/`reason`/`caveats` fields pin (`gates`/`coffeeshop`), not
+/// incidental prose.
+///
+/// The `guards`/`delayed`/`staged` clauses `Gating()` also emits have no
+/// counterpart here: `SsaModel` carries no guard expressions or stage counts
+/// for this module to see, and none of the vendored SDE fixtures exercise a
+/// delayed transition, so that clause is left approximate (delay is still
+/// refused, just without go-pflow's per-transition `%v` id list) rather than
+/// invented against nothing to check it.
 fn gating_reasons(model: &CompiledModel) -> Vec<String> {
-    let mut reasons = Vec::new();
-    if model.transitions.iter().any(|t| !t.reads.is_empty()) {
-        reasons.push("a read arc has no continuous analogue".to_string());
+    let mut out = Vec::new();
+
+    let reads: usize = model.transitions.iter().map(|t| t.reads.len()).sum();
+    let inhibits: usize = model.transitions.iter().map(|t| t.inhibits.len()).sum();
+    let static_arcs: usize = model
+        .transitions
+        .iter()
+        .map(|t| t.inputs.iter().filter(|&&(_, _, kinetic)| !kinetic).count())
+        .sum();
+
+    if reads > 0 {
+        out.push(format!(
+            "{reads} read arc(s) gate a firing without consuming; a continuous solver cannot test them"
+        ));
     }
-    if model.transitions.iter().any(|t| !t.inhibits.is_empty()) {
-        reasons.push("an inhibitor arc has no continuous analogue".to_string());
+    if inhibits > 0 {
+        out.push(format!(
+            "{inhibits} inhibitor arc(s) block a firing above a threshold; a continuous solver cannot test them"
+        ));
     }
-    if model.transitions.iter().any(|t| !t.caps.is_empty()) {
-        reasons.push(
-            "a reachable capacity is a post-firing bound, which has no continuous analogue"
-                .to_string(),
-        );
+    if static_arcs > 0 {
+        out.push(format!(
+            "{static_arcs} non-kinetic input arc(s) gate and consume without scaling the rate; a mass-action solver has no way to omit them from the rate law"
+        ));
     }
+
+    // Distinct places a capacity is declared *and* reachable on (some
+    // transition's net delta there is positive), in place-declaration order —
+    // the same "raised" test `compile` already applied when populating
+    // `Compiled::caps`.
+    let mut caps: Vec<&str> = Vec::new();
+    for (p, id) in model.place_ids.iter().enumerate() {
+        if model
+            .transitions
+            .iter()
+            .any(|t| t.caps.iter().any(|&(cp, _, _)| cp == p))
+        {
+            caps.push(id.as_str());
+        }
+    }
+    if !caps.is_empty() {
+        out.push(format!(
+            "capacity is declared on [{}] but is a post-firing bound, which has no continuous analogue",
+            caps.join(" ")
+        ));
+    }
+
     if model.transitions.iter().any(|t| t.delay > 0.0) {
-        reasons.push(
+        out.push(
             "a delay is a deterministic timer — inputs consumed at start, outputs a fixed time later — which mass action cannot express"
                 .to_string(),
         );
     }
-    reasons
+
+    out
 }
 
 fn sde_path(
@@ -291,7 +337,7 @@ pub fn simulate_sde_compiled(
             final_: Vec::new(),
             diverged: true,
             reason: format!(
-                "this model constrains firing in ways continuous diffusion cannot express, so the SDE would silently model an unconstrained system. Use the discrete engine (simulate). Specifically: {}",
+                "this model constrains firing in ways continuous diffusion cannot express, so the SDE would silently model an unconstrained system. Use the discrete engine (Simulate). Specifically: {}",
                 caveats.join("; ")
             ),
             caveats,

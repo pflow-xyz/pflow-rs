@@ -76,6 +76,6 @@ mod tests {
         let result = run("not valid input {{{}}}").unwrap();
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(v["valid"], false);
-        assert!(v["error"].as_str().unwrap().len() > 0);
+        assert!(!v["error"].as_str().unwrap().is_empty());
     }
 }

@@ -1,0 +1,22 @@
+[package]
+name = "pflow-parser"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Shape A -> Shape B converter: the pflow.xyz editor document to a pflow-metamodel Model, ported from go-pflow's parser package"
+keywords = ["petri-net", "parser", "metamodel", "editor-shape"]
+categories = ["simulation", "parser-implementations"]
+
+[dependencies]
+pflow-core = { path = "../pflow-core", version = "0.3.0" }
+pflow-metamodel = { path = "../pflow-metamodel", version = "0.3.0" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[dev-dependencies]
+# float_roundtrip: correctly-rounded float parsing for the editor-shape
+# goldens' x/y/initial/capacity vectors, matching pflow-solver's SSA goldens.
+serde_json = { version = "1", features = ["float_roundtrip"] }

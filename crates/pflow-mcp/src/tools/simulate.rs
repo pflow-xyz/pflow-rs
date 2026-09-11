@@ -46,7 +46,7 @@ pub fn run(model: &str, t_end: f64, max_points: usize) -> Result<String, String>
     }
 
     // Always include the last point
-    if total > 0 && (total - 1) % step != 0 {
+    if total > 0 && !(total - 1).is_multiple_of(step) {
         let last = total - 1;
         time.push(sol.t[last]);
         let st = &sol.u[last];
@@ -90,7 +90,7 @@ mod tests {
         let result = run(dsl, 10.0, 50).unwrap();
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert!(v["time_points"].as_u64().unwrap() > 0);
-        assert!(v["time"].as_array().unwrap().len() > 0);
+        assert!(!v["time"].as_array().unwrap().is_empty());
     }
 
     #[test]

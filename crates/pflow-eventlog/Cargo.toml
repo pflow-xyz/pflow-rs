@@ -1,0 +1,17 @@
+[package]
+name = "pflow-eventlog"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Process event log types plus CSV/JSONL readers, ported from go-pflow's eventlog package"
+keywords = ["petri-net", "process-mining", "event-log"]
+categories = ["simulation", "data-structures"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[dev-dependencies]

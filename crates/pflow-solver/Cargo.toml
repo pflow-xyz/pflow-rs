@@ -11,6 +11,11 @@ categories = ["simulation", "science", "mathematics"]
 
 [dependencies]
 pflow-core = { path = "../pflow-core", version = "0.3.0" }
+pflow-metamodel = { path = "../pflow-metamodel", version = "0.3.0" }
+# default-features = false: only the dense-matrix null-space routines are
+# needed (supply::classify_supply's P-invariant basis), not pflow-tropical's
+# optional pflow-core/pflow-zk-gated conversions.
+pflow-tropical = { path = "../pflow-tropical", version = "0.3.0", default-features = false }
 
 [dev-dependencies]
 # Dev-only: the golden loader. `float_roundtrip` makes serde_json parse floats

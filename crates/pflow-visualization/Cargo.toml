@@ -1,0 +1,16 @@
+[package]
+name = "pflow-visualization"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "SVG rendering for Petri nets, state machines, workflows and ODE solutions, ported from go-pflow's visualization and plotter packages"
+keywords = ["petri-net", "svg", "visualization", "plotting"]
+categories = ["simulation", "visualization", "rendering"]
+
+[dependencies]
+pflow-core = { path = "../pflow-core" }
+pflow-statemachine = { path = "../pflow-statemachine" }
+pflow-workflow = { path = "../pflow-workflow" }
+pflow-solver = { path = "../pflow-solver" }

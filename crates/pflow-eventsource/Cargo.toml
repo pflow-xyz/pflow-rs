@@ -1,0 +1,15 @@
+[package]
+name = "pflow-eventsource"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "In-memory event-sourcing store, ported from go-pflow's eventsource package"
+keywords = ["event-sourcing", "petri-net", "cqrs"]
+categories = ["data-structures"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"

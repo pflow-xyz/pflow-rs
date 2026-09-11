@@ -46,6 +46,7 @@ pub fn interpret(node: &SchemaNode) -> Result<Schema, String> {
             target: a.target.clone(),
             keys: a.keys.clone(),
             value: a.value.clone(),
+            ..Default::default()
         });
     }
 

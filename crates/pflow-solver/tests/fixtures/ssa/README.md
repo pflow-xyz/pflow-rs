@@ -7,21 +7,20 @@ runs every `*.json` here through `pflow_solver::ssa::simulate` and asserts `==`
 on every parsed double. **Never regenerate a golden to make a test pass** — a
 difference means the sample path changed.
 
-Verify a copy with `sha256sum` against the canonical file at the commit below.
+The sha256 of every file here is pinned in `go-pflow.lock` at the repo root
+(one lock for every golden vendored from go-pflow — ROADMAP.md ground rule 2),
+verified offline with `./scripts/go-pflow-goldens.sh check` and refreshed from
+a go-pflow checkout with `./scripts/go-pflow-goldens.sh sync`. The sha256 table
+used to live here on its own; it moved into the shared lock so a second
+mechanism did not have to be invented per golden set (Phase 0).
 
-| file | sha256 |
-|---|---|
-| `chain.json` | `892de18e6c8d7899ed8a7081b0da3b1de5c4eda143f16c627ab21919cea61832` |
-| `coffeeshop.json` | `2e0402f8d6e0ec32956538e480f76d6e3ec28861cb03211eb97be6a68f9f0c53` |
-| `dimer.json` | `5b260cc9b3027c660d87d5a041839941f4deb1107a22728782549bc700e23341` |
-| `gates.json` | `9a2a35ef18b5218a1afcda49f1755e47feb9942bf07254533971e1d490df7009` |
-| `timed.json` | `53c7140c779bc7ce9dde590f2559a345e68cb547ebff0eff2e79da0a99fc3e28` |
-| `sir.json` | `192035da7d6b848479a8f2586f1330caed19c8bf26ece2f4743017aef240e683` |
-
-Source: `go-pflow` branch `discrete-stochastic`, commit
-`9e67d06bf66c60ca641c8e515d15545deafcb060` (each file's `_comment` names it).
-If go-pflow ever re-runs `make ssa-goldens`, no double may change — only the
-`_comment` text — and the copies and hashes above must be refreshed together.
+Each file's generating commit is named in its own `_comment` field
+(`9e67d06bf66c60ca641c8e515d15545deafcb060`, `go-pflow` branch
+`discrete-stochastic`), which predates `go-pflow.lock`'s single pinned commit —
+the lock's commit is simply the go-pflow state the copies were last verified
+against, not necessarily the one that generated each file. If go-pflow ever
+re-runs `make ssa-goldens`, no double may change — only the `_comment` text —
+and `go-pflow-goldens.sh sync` refreshes the copies and the lock together.
 
 `gates.json` is the fifth fixture (beyond the spec's four): it is the only one
 that reaches the read-arc, inhibitor, non-kinetic input and capacity-bound

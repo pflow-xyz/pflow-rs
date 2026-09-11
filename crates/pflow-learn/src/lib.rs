@@ -24,15 +24,24 @@
 //! `TiedScalar` mirroring Go's `SharedScalar`) and [`crate::ranking`] — the hinge
 //! ranking loss (`learn/ranking.go`).
 //!
-//! Dependency shape is deliberately narrow: only `pflow-core` and `pflow-solver` at
-//! runtime — no autodiff/optimization crate — matching `pflow-solver`'s own
-//! zero-dependency posture and the ecosystem's "no ML dependencies" rule.
+//! Also ported: [`crate::likelihood`] — the exact CTMC log-likelihood and its
+//! closed-form gradient over a discretely observed sample path
+//! (`stochastic/likelihood.go`'s `NegLogLikelihood`/`FitDiscrete`), go-pflow's
+//! counterpart to forward-sensitivity ODE fitting for data that is a firing
+//! sequence rather than a trajectory. It is why this crate depends on
+//! `pflow-metamodel`.
+//!
+//! Dependency shape is otherwise deliberately narrow: `pflow-core`,
+//! `pflow-solver` and `pflow-metamodel` at runtime — no autodiff/optimization
+//! crate — matching `pflow-solver`'s own zero-dependency posture and the
+//! ecosystem's "no ML dependencies" rule.
 
 pub mod adjoint;
 pub mod dataset;
 pub mod error;
 pub mod fit;
 pub mod gradrate;
+pub mod likelihood;
 pub mod lossgrad;
 pub mod optim;
 pub mod problem;
@@ -48,6 +57,7 @@ pub use dataset::{interpolate_at, interpolate_solution, Dataset};
 pub use error::LearnError;
 pub use fit::{fit, fit_mse, FitMethod, FitOptions};
 pub use gradrate::{fd_rate_grad, rate_grad, SharedRateFunc};
+pub use likelihood::{fit_discrete, neg_log_likelihood, DiscretePath, FireEvent, LikelihoodError};
 pub use lossgrad::{
     mse_loss, mse_loss_grad, relative_mse_loss, relative_mse_loss_grad, rmse_loss, rmse_loss_grad,
 };

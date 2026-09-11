@@ -1,0 +1,28 @@
+[package]
+name = "pflow-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Command-line tool for Petri net modeling and simulation — parity with go-pflow's cmd/pflow"
+
+[[bin]]
+name = "pflow"
+path = "src/main.rs"
+
+[dependencies]
+pflow-core = { path = "../pflow-core", version = "0.3.0" }
+pflow-metamodel = { path = "../pflow-metamodel", version = "0.3.0" }
+pflow-parser = { path = "../pflow-parser", version = "0.3.0" }
+pflow-dsl = { path = "../pflow-dsl", version = "0.3.0" }
+pflow-tokenmodel = { path = "../pflow-tokenmodel", version = "0.3.0" }
+pflow-solver = { path = "../pflow-solver", version = "0.3.0" }
+pflow-validation = { path = "../pflow-validation", version = "0.3.0" }
+pflow-verify = { path = "../pflow-verify", version = "0.3.0" }
+pflow-reachability = { path = "../pflow-reachability", version = "0.3.0" }
+pflow-results = { path = "../pflow-results", version = "0.3.0" }
+pflow-visualization = { path = "../pflow-visualization", version = "0.3.0" }
+pflow-compose = { path = "../pflow-compose", version = "0.3.0" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

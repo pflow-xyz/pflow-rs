@@ -1,0 +1,41 @@
+{
+  "modelType": "petriNet",
+  "version": "v0",
+  "places": {
+    "Water": { "offset": 0, "initial": 1, "capacity": 1, "x": 235, "y": 321 },
+    "BoiledWater": { "offset": 1, "capacity": 1, "x": 493, "y": 348 },
+    "CoffeeBeans": { "offset": 2, "initial": 1, "capacity": 1, "x": 235, "y": 381 },
+    "GroundCoffee": { "offset": 3, "capacity": 1, "x": 496, "y": 408 },
+    "Filter": { "offset": 4, "initial": 1, "capacity": 1, "x": 235, "y": 445 },
+    "CoffeeInPot": { "offset": 5, "capacity": 1, "x": 500, "y": 477 },
+    "Pending": { "offset": 6, "initial": 1, "capacity": 1, "x": 718, "y": 323 },
+    "Sent": { "offset": 7, "capacity": 1, "x": 724, "y": 413 },
+    "Payment": { "offset": 8, "capacity": 1, "x": 728, "y": 501 },
+    "Cup": { "offset": 9, "initial": 1, "capacity": 1, "x": 235, "y": 504 }
+  },
+  "transitions": {
+    "BoilWater": { "x": 384, "y": 322 },
+    "BrewCoffee": { "x": 383, "y": 446 },
+    "Credit": { "x": 593, "y": 443 },
+    "GrindBeans": { "x": 380, "y": 383 },
+    "PourCoffee": { "x": 383, "y": 507 },
+    "Send": { "x": 592, "y": 366 }
+  },
+  "arcs": [
+    { "source": "Water", "target": "BoilWater" },
+    { "source": "BoilWater", "target": "BoiledWater" },
+    { "source": "CoffeeBeans", "target": "GrindBeans" },
+    { "source": "GrindBeans", "target": "GroundCoffee" },
+    { "source": "BoiledWater", "target": "BrewCoffee" },
+    { "source": "GroundCoffee", "target": "BrewCoffee" },
+    { "source": "Filter", "target": "BrewCoffee" },
+    { "source": "BrewCoffee", "target": "CoffeeInPot" },
+    { "source": "CoffeeInPot", "target": "PourCoffee" },
+    { "source": "Cup", "target": "PourCoffee" },
+    { "source": "Pending", "target": "Send" },
+    { "source": "Send", "target": "Sent" },
+    { "source": "Sent", "target": "Credit" },
+    { "source": "Credit", "target": "Payment" },
+    { "source": "PourCoffee", "target": "Payment", "inhibit": true }
+  ]
+}

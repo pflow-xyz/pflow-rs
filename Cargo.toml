@@ -2,6 +2,8 @@
 resolver = "2"
 members = [
     "crates/pflow-core",
+    "crates/pflow-metamodel",
+    "crates/pflow-parser",
     "crates/pflow-solver",
     "crates/pflow-learn",
     "crates/pflow-tokenmodel",
@@ -11,8 +13,23 @@ members = [
     "crates/pflow-zk-arkworks",
     "crates/pflow-zk-risc0",
     "crates/pflow",
+    "crates/pflow-cli",
     "crates/pflow-mcp",
     "crates/pflow-tropical",
+    "crates/pflow-reachability",
+    "crates/pflow-validation",
+    "crates/pflow-verify",
+    "crates/pflow-compose",
+    "crates/pflow-eventlog",
+    "crates/pflow-mining",
+    "crates/pflow-results",
+    "crates/pflow-statemachine",
+    "crates/pflow-workflow",
+    "crates/pflow-actor",
+    "crates/pflow-eventsource",
+    "crates/pflow-engine",
+    "crates/pflow-monitoring",
+    "crates/pflow-visualization",
 ]
 
 [workspace.package]
