@@ -8,10 +8,14 @@
 //! exactly as go-pflow's `Forecast`/`SimulateSDE` do: a firing instant is
 //! what those need, and continuous diffusion has none.
 //!
-//! Not yet part of the byte-exact contract the way SSA is: go-pflow is the
-//! reference implementation (`stochastic/portable_test.go`'s
-//! `TestPortableNormalVectors`), and this port is checked against those
-//! same vectors, but `ssa-spec.md` does not (yet) cover SDE.
+//! Part of the byte-exact contract the way SSA is, though `ssa-spec.md`
+//! itself does not (yet) cover SDE: `tests/sde_parity.rs` asserts `==` on
+//! every double of `tests/fixtures/sde/*.json` (go-pflow's `cmd/sde-goldens`
+//! output, vendored via `go-pflow.lock`), and pflow-xyz's `parity/sde/` now
+//! holds the same five fixtures against `petri-sde.js`. go-pflow remains the
+//! reference implementation for the Gaussian sampler specifically
+//! (`stochastic/portable_test.go`'s `TestPortableNormalVectors`, checked
+//! directly against those vectors).
 
 use super::{plog, CompiledModel, SsaError, SsaModel, Xoshiro256};
 

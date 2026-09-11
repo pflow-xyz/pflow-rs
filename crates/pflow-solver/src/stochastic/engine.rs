@@ -304,8 +304,15 @@ pub(crate) fn ssa(
 
         let mut dt = f64::INFINITY;
         if total > 0.0 {
-            let u = rng.uniform();
-            let u = if u <= 0.0 { 1e-300 } else { u };
+            // Portable draw shape (matches `ssa::mod`'s `wait()`, and go-pflow's
+            // `portableSampler.wait()`): `u = 1.0 - x1` is exact for every `x1` in
+            // `[0, 1)` and never zero, so there is no clamp and no redraw. This used
+            // to draw `-plog(u)` from the raw uniform with a `u <= 0.0` clamp instead
+            // — go-pflow's non-portable `stdSampler.wait()` shape, paired here with a
+            // portable RNG stream it was never meant to receive. That mismatch was the
+            // root cause of the scheduled/staged SSA byte-parity gap against
+            // go-pflow's portable-path goldens (see `tests/scheduled_parity.rs`).
+            let u = 1.0 - rng.uniform();
             dt = -crate::ssa::plog(u) / total;
         }
 

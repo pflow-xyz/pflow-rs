@@ -13,8 +13,10 @@
 //! [`pflow_metamodel::Model`] rather than the portable SSA's own ordered
 //! [`crate::ssa::SsaModel`]. It reuses [`crate::ssa::combinations`],
 //! [`crate::ssa::Xoshiro256`] and [`crate::ssa::plog`] for its arithmetic
-//! and randomness, but carries no byte-parity contract of its own: see the
-//! module-level note in `simulate.rs`.
+//! and randomness, and — since `engine::ssa`'s waiting-time draw was fixed
+//! to use the same portable, no-clamp `-plog(1.0 - u)` shape [`crate::ssa`]
+//! already used — **does** carry a byte-parity contract of its own now: see
+//! `tests/scheduled_parity.rs`'s `scheduled_run_matches_go_pflow_exactly`.
 //!
 //! `Forecast` (the continuous mass-action ODE dispatch) is not part of this
 //! port; [`crate::ode`] already runs the ODE side directly. See

@@ -3,15 +3,17 @@
 //! metrics and depletion. Ported from go-pflow's `stochastic/stochastic.go`
 //! and `stochastic/schedule.go`.
 //!
-//! Unlike [`crate::ssa`] (the byte-exact portable Gillespie SSA held to
-//! cross-language goldens), this engine has no byte-parity contract: it
-//! reports the same *shape* of result go-pflow's default (non-portable)
-//! path does — `Caveats`/`Assumptions` kept apart, time-weighted
-//! `Metrics`, `Contended`, `Depleted` — using this crate's own portable
-//! Xoshiro256 + `plog` generator for its randomness rather than
-//! reproducing go-pflow's `math/rand`-backed default path number for
-//! number, which go-pflow itself does not promise across runs of its own
-//! two paths either.
+//! Like [`crate::ssa`] (the byte-exact portable Gillespie SSA held to
+//! cross-language goldens), this engine uses this crate's own portable
+//! Xoshiro256 + `plog` generator for its randomness, and is held to a
+//! byte-exact contract against go-pflow's **portable** path
+//! (`Options{Portable: true}`) — `tests/scheduled_parity.rs`'s
+//! `scheduled_run_matches_go_pflow_exactly`. It reports the same *shape* of
+//! result go-pflow's default (non-portable, `math/rand`-backed) path does —
+//! `Caveats`/`Assumptions` kept apart, time-weighted `Metrics`, `Contended`,
+//! `Depleted` — but is not, and does not need to be, byte-exact against that
+//! default path, which go-pflow itself does not promise across runs of its
+//! own two paths either.
 
 use std::collections::HashMap;
 

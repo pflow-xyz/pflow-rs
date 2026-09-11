@@ -7,27 +7,30 @@
 //!
 //! ## Exact-vs-tolerance rule
 //!
-//! Mirrors the JS replay's own rule (see its file-header comment) with one addition
-//! forced by a real difference between the two Rust and Go/JS solver stacks — see
-//! `../parity/README.md` for the measured reason. In short:
+//! Mirrors the JS replay's own rule (see its file-header comment). Historically this
+//! file also carried a second, looser rule for `exact: false` (adaptive-step) cases,
+//! because pflow-rs's adaptive controller once landed on a different accepted-step
+//! grid than go-pflow's (734 vs 13 steps on `decay`). That gap closed with the Tsit5
+//! embedded-error coefficient fix (`methods.rs`'s `Bhat`, pflow-rs commit `1177f4d`) —
+//! see `../parity/README.md` for the full history and the measurement that confirmed
+//! it. As of that fix:
 //!
-//! - `exact: true` cases (`decay-fixed`, `tied-fixed`: fixed-step, no adaptive
-//!   controller) are asserted BIT-FOR-BIT, including the full Adam/Nelder-Mead call
-//!   traces and `fit` result — pflow-rs's Tsit5 matches go-pflow's to the last bit on a
-//!   fixed grid (verified below).
-//! - `exact: false` cases (`decay`, `sir`, `tied`: adaptive) are asserted at a looser
-//!   relative tolerance, and ONLY for grid-position-independent quantities:
-//!   `finalState`/`finalSens` (both grids share the same `tspan[1]`), `point1`/`point2`
-//!   MSE/relative-MSE loss+grad (dataset-time-interpolated, not solver-grid-indexed),
-//!   and the `point1Adjoint`/`point2Adjoint` reverse-mode loss+grad. `midIndex` /
-//!   `midTime` / `midSens` name a row in go-pflow's OWN accepted-step grid, which
-//!   pflow-rs's differently-stepping adaptive controller has no reason to share, so
-//!   those are read from the golden but not asserted against a Rust value that isn't
-//!   naming the same row. Adam/Nelder-Mead iterate-SEQUENCE goldens are skipped
-//!   entirely for adaptive cases (see the README: divergence compounds evaluation over
-//!   evaluation).
+//! - Every case, `exact: true` or not, is asserted at `EXACT_TOL` (not literal `==` —
+//!   see that constant's doc comment for the two small, understood, unrelated sources
+//!   of sub-2^-51 noise that remain even on a fixed grid).
+//! - Accepted-step COUNTS now match go-pflow's exactly on every adaptive case too
+//!   (`decay` 13/13, `sir` 15/15, `tied` 8/8 — measured directly), so `steps`,
+//!   `midTime`/`midSens`, and the `point1`/`point2` MSE/adjoint losses+grads (which
+//!   fold in linear interpolation onto the dataset's own times) are all asserted
+//!   unconditionally now — interpolating onto the same two bracketing grid points on
+//!   both sides no longer carries the real (non-rounding) deviation a grid mismatch
+//!   used to produce.
+//! - Adam/Nelder-Mead/`fit` call-trace parity is asserted for every case that carries
+//!   the corresponding golden section, adaptive or fixed-step — repeated re-solves at
+//!   changing theta no longer compound a per-step grid mismatch, because there is no
+//!   longer a mismatch to compound.
 //! - `optimizers[]` (Rosenbrock, no ODE solve at all) and `hinge[]` are asserted
-//!   bit-for-bit unconditionally.
+//!   bit-for-bit unconditionally, as before.
 //!
 //! ## Adjoint coverage
 //!
@@ -89,27 +92,14 @@ const EXACT_TOL: f64 = 1e-9;
 /// input, `tspan[1]`, not a computed output, so it is exact on every case regardless).
 const ADAPTIVE_REL_TOL: f64 = EXACT_TOL;
 
-/// Tolerance for `finalState`/`finalSens` on ADAPTIVE cases only: both grids share the
-/// same `tspan[1]` endpoint regardless of accepted-step history, so this is a genuine
-/// numerical-accuracy bound, not a grid-alignment fiction. Measured: ~9e-7 relative on
-/// `decay`'s single-parameter net; up to ~1.1e-4 on `sir`'s stiffer 2-parameter,
-/// 3-place, bimolecular net (`finalSens[I][0]`, the largest-magnitude sensitivity
-/// column) — both well inside `reltol=1e-3`'s own solver-accuracy budget, and this
-/// bound is set with headroom above the larger of the two. See `../parity/README.md`.
-const ENDPOINT_REL_TOL: f64 = 5e-4;
-
-/// Reports (does not assert) a golden value for a quantity that is NOT
-/// grid-position-independent enough to compare on adaptive cases — see the module doc
-/// and `../parity/README.md`'s "why point1/point2 losses aren't asserted on adaptive
-/// cases either" note. Prints the relative difference so a human can see it stays
-/// bounded (a genuine divergence, e.g. a sign error, would show up as O(1) here, not a
-/// few percent) and asserts only that the value is finite.
-fn report_num(actual: f64, expected: f64, ctx: &str) {
-    assert!(actual.is_finite(), "{ctx}: not finite: {actual}");
-    let scale = actual.abs().max(expected.abs()).max(1.0);
-    let err = (actual - expected).abs() / scale;
-    eprintln!("[parity, not asserted — grid-density-sensitive] {ctx}: got {actual}, go-pflow {expected} (rel diff {err})");
-}
+/// Tolerance for `finalState`/`finalSens` on adaptive cases. Before the Tsit5 fix
+/// (see the module doc), this had to be a genuine numerical-accuracy bound rather than
+/// `EXACT_TOL` — up to ~1.1e-4 relative on `sir`'s stiffest sensitivity column, since
+/// the two sides' accepted-step grids disagreed even though both land on the same
+/// `tspan[1]` endpoint. Since the fix, measured residual is ~1.9e-14 relative on that
+/// same `sir` case (the tightest of the two, `1e-9` here for the same headroom
+/// `EXACT_TOL` itself keeps — see that constant's doc comment).
+const ENDPOINT_REL_TOL: f64 = EXACT_TOL;
 
 fn goldens() -> Value {
     serde_json::from_str(include_str!("../parity/goldens.json")).expect("goldens.json parses")
@@ -356,27 +346,30 @@ fn parity_cases_sensitivities_losses_and_adjoint() {
             }
         }
 
-        if exact {
-            // Grid-position-dependent fields only make sense when both sides share
-            // the identical fixed-step grid (see the module doc / README).
-            assert_eq!(
-                sens.t.len() - 1,
-                c["steps"].as_u64().unwrap() as usize,
-                "{name}: steps"
-            );
-            let mid_index = c["midIndex"].as_u64().unwrap() as usize;
-            expect_num(
-                sens.t[mid_index],
-                jf(&c["midTime"]),
-                exact,
-                &format!("{name}: midTime"),
-            );
-            for (place, row) in c["midSens"].as_object().unwrap() {
-                let want = jvec(row);
-                for (p, w) in want.iter().enumerate() {
-                    let got = sens.at(mid_index, place, p).unwrap();
-                    expect_num(got, *w, exact, &format!("{name}: midSens[{place}][{p}]"));
-                }
+        // Grid-position-dependent fields used to only make sense when both sides shared
+        // the identical fixed-step grid — true for `exact: true` cases by construction.
+        // As of the Tsit5 error-estimate coefficient fix (`methods.rs`'s `Bhat`, landed
+        // pflow-rs commit 1177f4d), the adaptive controller's accepted-step *history*
+        // now agrees with go-pflow's step for step too (verified: `decay` 13/13, `sir`
+        // 15/15, `tied` 8/8 — measured directly, not assumed), so these are asserted
+        // unconditionally rather than only on `exact` cases. See `../parity/README.md`.
+        assert_eq!(
+            sens.t.len() - 1,
+            c["steps"].as_u64().unwrap() as usize,
+            "{name}: steps"
+        );
+        let mid_index = c["midIndex"].as_u64().unwrap() as usize;
+        expect_num(
+            sens.t[mid_index],
+            jf(&c["midTime"]),
+            exact,
+            &format!("{name}: midTime"),
+        );
+        for (place, row) in c["midSens"].as_object().unwrap() {
+            let want = jvec(row);
+            for (p, w) in want.iter().enumerate() {
+                let got = sens.at(mid_index, place, p).unwrap();
+                expect_num(got, *w, exact, &format!("{name}: midSens[{place}][{p}]"));
             }
         }
 
@@ -488,33 +481,50 @@ fn parity_cases_sensitivities_losses_and_adjoint() {
                 &format!("{name}: point2 adjoint grad"),
             );
         } else {
-            report_num(
+            // Previously unasserted (`report_num`, eprintln!-only): the module doc's
+            // "grid-density-sensitive interpolation" concern assumed pflow-rs's adaptive
+            // controller landed on a different accepted-step grid than go-pflow's. Since
+            // the Tsit5 coefficient fix, the two grids are identical (see the `steps`
+            // assertion above), so linear interpolation onto the dataset's fixed times
+            // lands on the same two bracketing grid points on both sides — measured
+            // relative diffs are now ~1e-12 or tighter, not the ~5% the old grid
+            // mismatch produced. Asserted at `EXACT_TOL` accordingly.
+            expect_num_tol(
                 ml,
                 jf(&c["point1"]["mse"]["loss"]),
+                EXACT_TOL,
                 &format!("{name}: point1 mse loss"),
             );
-            report_num(
+            expect_num_tol(
                 ml2,
                 jf(&c["point2"]["mse"]["loss"]),
+                EXACT_TOL,
                 &format!("{name}: point2 mse loss"),
             );
-            report_num(
+            expect_num_tol(
                 adj1.loss,
                 jf(&c["point1Adjoint"]["loss"]),
+                EXACT_TOL,
                 &format!("{name}: point1 adjoint loss"),
             );
-            report_num(
+            expect_num_tol(
                 adj2.loss,
                 jf(&c["point2Adjoint"]["loss"]),
+                EXACT_TOL,
                 &format!("{name}: point2 adjoint loss"),
             );
-            // The gradients still must be finite and (for the adjoint) internally
-            // consistent with forward mode's own gradient at the same point — the
-            // cross-check `tests/adjoint.rs` already performs, repeated here per-case
-            // as a cheap invariant rather than a golden-value assertion.
-            for g in mg.iter().chain(adj1.grad.iter()) {
-                assert!(g.is_finite(), "{name}: non-finite gradient component: {g}");
-            }
+            expect_vec(
+                &mg,
+                &jvec(&c["point1"]["mse"]["grad"]),
+                false,
+                &format!("{name}: point1 mse grad"),
+            );
+            expect_vec(
+                &adj1.grad,
+                &jvec(&c["point1Adjoint"]["grad"]),
+                false,
+                &format!("{name}: point1 adjoint grad"),
+            );
         }
 
         // mse_loss on the plain solve should equal the sensitivity solve's own loss —
@@ -532,15 +542,18 @@ fn parity_cases_sensitivities_losses_and_adjoint() {
 }
 
 // ---------------------------------------------------------------------------
-// Adam / Nelder-Mead / fit call-trace parity — EXACT cases only (see module doc).
+// Adam / Nelder-Mead / fit call-trace parity — every case that carries the section
+// (`decay`/`tied` included: since the Tsit5 fix, their accepted-step history
+// matches go-pflow's exactly, so repeated re-solves at changing theta no longer
+// compound a grid mismatch — see the module doc).
 // ---------------------------------------------------------------------------
 
 #[test]
-fn parity_exact_cases_adam_sequence() {
+fn parity_adam_sequence() {
     let g = goldens();
     let solver = methods::tsit5();
     for c in g["cases"].as_array().unwrap() {
-        if !c["exact"].as_bool().unwrap() || c.get("adam").is_none() {
+        if c.get("adam").is_none() {
             continue;
         }
         let name = c["name"].as_str().unwrap();
@@ -665,11 +678,11 @@ fn parity_exact_cases_adam_sequence() {
 }
 
 #[test]
-fn parity_exact_cases_nelder_sequence() {
+fn parity_nelder_sequence() {
     let g = goldens();
     let solver = methods::tsit5();
     for c in g["cases"].as_array().unwrap() {
-        if !c["exact"].as_bool().unwrap() || c.get("nelder").is_none() {
+        if c.get("nelder").is_none() {
             continue;
         }
         let name = c["name"].as_str().unwrap();
@@ -760,10 +773,10 @@ fn parity_exact_cases_nelder_sequence() {
 }
 
 #[test]
-fn parity_exact_cases_fit() {
+fn parity_fit() {
     let g = goldens();
     for c in g["cases"].as_array().unwrap() {
-        if !c["exact"].as_bool().unwrap() || c.get("fit").is_none() {
+        if c.get("fit").is_none() {
             continue;
         }
         let name = c["name"].as_str().unwrap();

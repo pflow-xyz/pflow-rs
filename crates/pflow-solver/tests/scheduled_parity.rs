@@ -12,17 +12,18 @@
 //!    and returns a fixed `Result`; that check and that string are cheap to
 //!    port in full (`forecast_schedule_refusal` below) and are asserted
 //!    `==`, not just "contains".
-//! 2. **The scheduled/staged `Result` is compared, not asserted `==`.**
-//!    `pflow_solver::stochastic`'s own module doc is explicit that it
-//!    "has no byte-parity contract": it reuses this crate's portable
-//!    Xoshiro256/`plog` generator for its randomness rather than
-//!    reproducing go-pflow's RNG draw order number for number. This test
-//!    still runs the golden's exact model/options through it and reports
-//!    the shape-level agreement (method, place set, times grid, `Final`
-//!    keys) plus how far the actual doubles diverge, so a future run that
-//!    *does* land on byte-exact parity is a one-line change away from
-//!    promoting the loose checks to `==` — see the `#[test]` doc comments
-//!    below for exactly what is and is not asserted today.
+//! 2. **The scheduled/staged `Result` is now compared `==`, doubly-exact.**
+//!    This crate's `stochastic::engine::ssa` used to draw its waiting time
+//!    as `-plog(u)` from the raw uniform with a `u <= 0.0` clamp — go-pflow's
+//!    *non-portable* `stdSampler.wait()` shape, fed by this crate's portable
+//!    RNG stream, which it was never meant to receive. The portable contract
+//!    (`ssa::mod`'s `wait()`, and go-pflow's `portableSampler.wait()`) draws
+//!    `-plog(1.0 - u)` with no clamp instead. That one-line mismatch was the
+//!    entire divergence: fixed, every one of the ~780 reported doubles (12
+//!    places x 65 samples) now lands bit-for-bit against go-pflow's
+//!    `Options{Portable: true}` run of the same model/options/seed — see
+//!    `scheduled_run_matches_go_pflow_exactly` below, and ROADMAP.md's
+//!    Status table row for `stochastic` stages/schedules.
 
 use pflow_metamodel::Model;
 use pflow_solver::stochastic::{simulate, Options};
@@ -155,19 +156,19 @@ fn scheduled_run_matches_go_pflow_shape() {
     }
 }
 
-/// Documents the actual state of numeric parity rather than asserting it:
-/// counts how many of the ~780 reported doubles (12 places x 65 samples)
-/// this crate's own portable-RNG scheduled engine reproduces bit-for-bit
+/// Byte-exact numeric parity of the scheduled/staged engine's reported series
 /// against go-pflow's `Options{Portable: true}` run of the same model,
-/// options and seed. `pflow_solver::stochastic`'s module doc already states
-/// this engine "has no byte-parity contract" (different RNG draw order from
-/// stage/schedule bookkeeping, not just a different generator family), so
-/// this test's job is to keep that claim honest rather than to pass or fail
-/// on a threshold — see ROADMAP.md's Status table row for `stochastic`
-/// stages/schedules, which still reads "unit tests", not this golden, for
-/// exactly that reason.
+/// options and seed. This used to be a "measured, not claimed" divergence
+/// check (roughly 1/3 of ~780 doubles landed bit-exact) because
+/// `stochastic::engine::ssa` drew its waiting time via go-pflow's
+/// *non-portable* `stdSampler.wait()` shape (`-plog(u)`, clamped) instead of
+/// the portable, no-clamp `-plog(1.0 - u)` shape `ssa::mod` already used
+/// correctly elsewhere — a mismatched hybrid of portable RNG stream and
+/// non-portable draw transform, not RNG-order nondeterminism. Fixed in
+/// `stochastic::engine::ssa`; every one of the ~780 reported doubles (12
+/// places x 65 samples) now lands bit-for-bit, asserted `==` below.
 #[test]
-fn scheduled_numeric_divergence_is_measured_not_claimed() {
+fn scheduled_run_matches_go_pflow_exactly() {
     let doc = load();
     let model = load_model(&doc);
 
@@ -192,22 +193,34 @@ fn scheduled_numeric_divergence_is_measured_not_claimed() {
     let want_series = want["series"].as_array().unwrap();
 
     let mut total = 0usize;
-    let mut exact = 0usize;
     for ws in want_series {
         let place = ws["place"].as_str().unwrap();
         let want_values = ws["values"].as_array().unwrap();
-        if let Some(got) = res.series.iter().find(|s| s.place == place) {
-            for (w, g) in want_values.iter().zip(&got.values) {
-                total += 1;
-                if w.as_f64().unwrap() == *g {
-                    exact += 1;
-                }
-            }
+        let got = res
+            .series
+            .iter()
+            .find(|s| s.place == place)
+            .unwrap_or_else(|| panic!("series is missing place {place:?} go-pflow reports"));
+        assert_eq!(
+            got.values.len(),
+            want_values.len(),
+            "series[{place}]: sample count"
+        );
+        for (i, (w, g)) in want_values.iter().zip(&got.values).enumerate() {
+            let w = w.as_f64().unwrap();
+            total += 1;
+            assert_eq!(*g, w, "series[{place}][{i}]: expected go-pflow's {w}, got {g}");
         }
     }
-    eprintln!(
-        "scheduled_numeric_divergence_is_measured_not_claimed: {exact}/{total} doubles bit-exact \
-         against go-pflow's Options{{Portable: true}} scheduled run"
-    );
     assert!(total > 0, "compared zero doubles; the golden or the run is empty");
+
+    let want_final = want["final"].as_object().expect("result.final");
+    for (place, w) in want_final {
+        let w = w.as_f64().unwrap();
+        let g = *res
+            .final_
+            .get(place.as_str())
+            .unwrap_or_else(|| panic!("Final is missing place {place:?} go-pflow reports"));
+        assert_eq!(g, w, "final[{place}]: expected go-pflow's {w}, got {g}");
+    }
 }

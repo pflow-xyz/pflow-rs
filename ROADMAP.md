@@ -25,7 +25,7 @@ variations it unlocks, so "how far is Rust" has a one-line answer at any time.
 | `solver` (Tsit5, RK, implicit, equilibrium) | `pflow-solver` | full | `parity/ode` goldens |
 | `stochastic` portable SSA | `pflow-solver::ssa` | byte-exact | `tests/fixtures/ssa/*.json` (six goldens) |
 | `stochastic` SDE | `pflow-solver::ssa::sde` | byte-exact | `tests/fixtures/sde/*.json` (five goldens, `cmd/sde-goldens`, landed 2026-09-10): `chain`/`sir`/`dimer` carry a normal series asserted `==` on every double, same as the SSA goldens; `gates`/`coffeeshop` are refused fixtures whose `diverged`/`reason`/`caveats` are asserted `==` too, not just `contains` — which required rewriting `sde.rs`'s own `gating_reasons` to match go-pflow's `Model.Gating()` wording field for field (arc counts, `[a b c]`-style place lists) rather than the free-form prose it read before |
-| `stochastic` stages, schedules, guard, supply, likelihood | `pflow-solver::stochastic`, `pflow-learn::likelihood` | stages (`fold_throughput`, `drop_stage_contentions`), schedules with **per-realization marking carry** across boundaries (`run_boundaries`, `rates_at`, `simulate_from` — the post-v0.28.1 fixed carry, never the rounded-mean bug), guard-aware propensities, `classify_supply` (Farkas-style P-invariant basis via `pflow-tropical`), `FitDiscrete`/`NegLogLikelihood`; `Result` parity (`Caveats`/`Assumptions` apart, time-weighted `Metrics`, `Contended`, `Depleted`) | unit tests, plus a go-pflow-produced scheduled/staged golden landed 2026-09-10 (`tests/fixtures/scheduled/cafe-service.json`, `cmd/scheduled-goldens`): the `forecastRefusal` half is byte-exact (`forecast_schedule_refusal` — the one branch of `Forecast` this crate ports, the schedule-refusal check before any ODE integration), but the scheduled/staged `simulate` result itself is checked for *shape* only (method, place set, sample grid, `Final` keys), not numeric equality — measured (not claimed) at roughly a third of the ~780 reported doubles landing bit-exact, a real and still-open divergence rather than a rounding artifact, consistent with the "no byte-parity contract" note below |
+| `stochastic` stages, schedules, guard, supply, likelihood | `pflow-solver::stochastic`, `pflow-learn::likelihood` | stages (`fold_throughput`, `drop_stage_contentions`), schedules with **per-realization marking carry** across boundaries (`run_boundaries`, `rates_at`, `simulate_from` — the post-v0.28.1 fixed carry, never the rounded-mean bug), guard-aware propensities, `classify_supply` (Farkas-style P-invariant basis via `pflow-tropical`), `FitDiscrete`/`NegLogLikelihood`; `Result` parity (`Caveats`/`Assumptions` apart, time-weighted `Metrics`, `Contended`, `Depleted`) | unit tests, plus a go-pflow-produced scheduled/staged golden landed 2026-09-10 (`tests/fixtures/scheduled/cafe-service.json`, `cmd/scheduled-goldens`), byte-exact end to end: the `forecastRefusal` half (`forecast_schedule_refusal` — the one branch of `Forecast` this crate ports, the schedule-refusal check before any ODE integration) and the scheduled/staged `simulate` result itself, all ~780 reported doubles plus every `Final` value, asserted `==` in `tests/scheduled_parity.rs`'s `scheduled_run_matches_go_pflow_exactly` — closed by fixing `engine::ssa`'s waiting-time draw to the portable, no-clamp `-plog(1.0 - u)` shape `ssa::mod` already used correctly elsewhere (see the note below) |
 | `learn` | `pflow-learn` | full | `parity/learn/goldens.json` |
 | `tokenmodel` | `pflow-tokenmodel` | full — **and no longer including go-pflow's known runtime defects**: `Runtime::enabled`/`execute` now route through `pflow-metamodel`'s shared firing rule instead of go-pflow's hardcoded `< 1` check, so declared arc weight, inhibitor and read arcs are honoured and `execute` moves the declared weight rather than one hardcoded token; `Arc` gained optional `weight`/`type` fields (absent from go-pflow's own schema) to have something for the firing rule to read. Also: role-based access control (`pflow_metamodel::AccessControl`, ported from `access.go`'s `Role`/`AccessRule`) wired into `Runtime::execute_as`/`access_allows`. **This is a deliberate, documented divergence from go-pflow's runtime, not a golden it produced** — see `runtime.rs`'s module doc for the full rationale, the follow-up go-pflow needs (fix `tokenmodel.Runtime` the same way, or add the same `Arc` fields, so the two do not keep diverging), and exactly what stays a faithful match (arcs that are all weight-1/normal-typed — the only shape go-pflow can express — behave identically on both sides). Also: `canonical_cid::compute_cid` — the ecosystem's `CIDv1(dag-json, sha2-256, base58btc)` over URDNA2015-canonicalized N-Quads, a from-scratch (but pflow-jl-ported, see Phase 6) canonicalizer independent of `Schema::cid()`'s local identity hash | unit tests; `canonical_cid` additionally held to `pflow-xyz/parity/golden.json` (all five fixtures) plus two ported tie-breaking fixtures |
 | DSL (petri-pilot `pkg/dsl`) | `pflow-dsl` | parses `cafe-loyalty.pflow`; adds Rust codegen | unit tests |
@@ -166,24 +166,26 @@ shared firing rule. **Unlocks: theme, kinetics, order (structurally).**
   `pflow-metamodel`, so a negative delay is silently clamped to zero here
   rather than refused with go-pflow's error text — narrower than Go, tracked
   as a gap rather than fixed by inventing a different error path.
-- **The scheduled/staged engine still carries no numeric byte-parity
-  contract, and now there is a golden to measure that against rather than
-  merely assert it.** go-pflow's *default* `stochastic.Simulate`/
+- **The scheduled/staged engine now carries a numeric byte-parity contract —
+  closed, not just measured.** go-pflow's *default* `stochastic.Simulate`/
   `SimulateSchedule` path was never given a byte-exact cross-language
   contract — it uses `math/rand` directly, with no `ssa-spec.md`-style
   pinned PRNG or logarithm — but `cmd/scheduled-goldens` (below) runs
-  `Options{Portable: true}` specifically so a byte-exact attempt would be
+  `Options{Portable: true}` specifically so a byte-exact attempt is
   meaningful. `pflow-solver::stochastic` reuses this crate's own portable
-  Xoshiro256 + `plog` (already pinned for the SSA) for its randomness, but
-  not go-pflow's RNG *draw order* — stage/schedule bookkeeping calls it in a
-  different sequence — so `tests/scheduled_parity.rs`'s
-  `scheduled_numeric_divergence_is_measured_not_claimed` reports roughly a
-  third of the ~780 reported doubles landing bit-exact rather than asserting
-  `==` on all of them: a real, open divergence, not a rounding artifact. This
-  is documented in the module's own doc comment (`stochastic/mod.rs`) and is
-  why the Status table's "Held by" column still does not claim byte-exact
-  parity for this row. Closing it is a go-pflow-and-Rust co-design problem
-  (match the draw order, not just the generator), not a one-line fix.
+  Xoshiro256 + `plog` (already pinned for the SSA) for its randomness.
+  The earlier diagnosis here — "not go-pflow's RNG draw order... a
+  go-pflow-and-Rust co-design problem, not a one-line fix" — was wrong on
+  both counts: `engine::ssa`'s waiting-time draw computed `-plog(u)` from the
+  raw uniform with a `u <= 0.0` clamp, go-pflow's *non-portable*
+  `stdSampler.wait()` shape, instead of the portable, no-clamp
+  `-plog(1.0 - u)` shape `ssa::mod` already used correctly elsewhere and
+  that go-pflow's `portableSampler.wait()` actually specifies. Draw *order*
+  was never the problem; the draw *transform* was wrong on one call site.
+  Fixed (one line, `stochastic/engine.rs`), all ~780 reported doubles now
+  land bit-for-bit — `tests/scheduled_parity.rs`'s
+  `scheduled_run_matches_go_pflow_exactly` asserts `==` on every one, and on
+  every `Final` value too.
 - **SDE goldens — landed 2026-09-10, and byte-exact.** go-pflow's
   `cmd/sde-goldens` now emits `stochastic/testdata/sde/*.json`, vendored to
   `tests/fixtures/sde/`; `tests/sde_parity.rs` asserts `==` on every double
@@ -195,7 +197,11 @@ shared firing rule. **Unlocks: theme, kinetics, order (structurally).**
   — the free-form prose it read before ("a read arc has no continuous
   analogue") diverged/`caveated` correctly but not byte-for-byte. `ssa::sde`
   is now "byte-exact" in the Status table above, the same standing the
-  portable SSA already has.
+  portable SSA already has. pflow-xyz's `petri-sde.js` needed the identical
+  wording fix (ported here from `gating_reasons` above) and now carries its
+  own `parity/sde/` fixture set (the same five models), replayed bit-for-bit
+  by `petri-sde_test.ts` — closing the three-way go-pflow/pflow-rs/pflow-xyz
+  contract, not just the go-pflow/pflow-rs half of it.
 
 Exit: showcase `fixtures/ssa-go-seed42.json` replays `==`; the new
 go-pflow-generated scheduled/staged golden (`cmd/scheduled-goldens`) is

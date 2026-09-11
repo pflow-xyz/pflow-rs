@@ -17,7 +17,7 @@ The papers extend this further — showing the incidence matrix enables algebrai
 | Crate | Purpose |
 |-------|---------|
 | `pflow-core` | Core types: `PetriNet`, `Place`, `Transition`, `Arc`, `State`, fluent `Builder` |
-| `pflow-solver` | ODE solvers (Tsitouras 5/4, RK45, etc.), equilibrium detection, vectorized fast path; `ssa` — portable Gillespie SSA (byte-exact with go-pflow/pflow-xyz/pflow-jl); `ssa::sde` — chemical Langevin SDE (intrinsic noise, not yet byte-exact cross-language) |
+| `pflow-solver` | ODE solvers (Tsitouras 5/4, RK45, etc.), equilibrium detection, vectorized fast path; `ssa` — portable Gillespie SSA (byte-exact with go-pflow/pflow-xyz/pflow-jl); `ssa::sde` — chemical Langevin SDE (intrinsic noise, byte-exact with go-pflow/pflow-xyz) |
 | `pflow-learn` | System identification: forward + adjoint sensitivities, gradient (Adam/backtracking) and derivative-free (Nelder-Mead) fitting, MLP rate functions, tied parameters — ported from go-pflow's `learn`, held to the same Go/JS goldens (`parity/`) |
 | `pflow-tokenmodel` | Token model `Schema`, `Runtime`, content-addressed identity (CID) |
 | `pflow-dsl` | S-expression DSL parser, code generation |
@@ -103,12 +103,17 @@ second value on (`normal_matches_go_reference_vectors` pins Go's own
 `portable_test.go` vectors at seed 42 — Go is the reference implementation
 here, there being no external SDE spec).
 
-Not yet part of the byte-exact cross-language contract the way SSA's goldens
-are — no shared SDE fixtures exist yet — but the consistency tests in
-`sde.rs` mirror go-pflow's `stochastic/sde_test.go` (linear-chain mean
-tracks SSA, SIR-at-scale variance tracks SSA, weight-2 dimerisation tracks
-SSA rather than the ODE's different rate law), checked directly against this
-crate's own `simulate` rather than a separately-built ODE reference.
+Part of the byte-exact cross-language contract the way SSA's goldens are:
+`tests/fixtures/sde/*.json` (byte-identical copies of go-pflow's
+`cmd/sde-goldens` output, pinned in `go-pflow.lock`) are asserted `==` on
+every double by `tests/sde_parity.rs` — landed 2026-09-10, and now also held
+against pflow-xyz's `parity/sde/` (the same five fixtures, replayed by
+`petri-sde_test.ts`), closing the three-way go-pflow/pflow-rs/pflow-xyz
+contract. In addition, the consistency tests in `sde.rs` mirror go-pflow's
+`stochastic/sde_test.go` (linear-chain mean tracks SSA, SIR-at-scale
+variance tracks SSA, weight-2 dimerisation tracks SSA rather than the ODE's
+different rate law), checked directly against this crate's own `simulate`
+rather than a separately-built ODE reference.
 
 ## ZK Proofs
 

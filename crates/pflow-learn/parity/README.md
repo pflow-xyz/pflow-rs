@@ -29,73 +29,49 @@ that pflow-xyz never ported adjoint — which was true of an older revision of
 `optimizers[]` (Rosenbrock, exact float64) and `hinge[]` cover the
 optimizer/ranking-loss primitives independent of any ODE solve.
 
-## Why the Rust replay uses a looser bound than the JS replay does
+## History: the Rust replay once needed a looser bound than the JS replay (closed 2026-09)
 
 The JS replay compares Go's adaptive-stepper trajectory against JS's own
 adaptive stepper — two independent *but design-identical* Tsit5
-implementations, both carrying go-pflow's `tsit5-error-estimate` step-size
-fix, differing only by ULP-level `math.Pow`/`Math.pow` disagreement. That is
-why the JS side can hold `adaptive` cases to `1e-9` relative.
+implementations, both carrying go-pflow's Tsit5 embedded-error-coefficient
+fix (`Bhat`'s last entry `-1/66`, not `+1/66` — go-pflow commit `53f7431`),
+differing only by ULP-level `math.Pow`/`Math.pow` disagreement. That is why
+the JS side can hold `adaptive` cases to `1e-9` relative.
 
-pflow-rs's own `pflow-solver` crate has **not** received that fix (it was a
-go-pflow-only change; porting it was not in scope for this task). Measured
-directly: on the `decay` case, pflow-rs's adaptive controller takes 734
-accepted steps to reach `t=10` where go-pflow's fixed controller takes 13 —
-a genuinely different step-acceptance history, not a last-bit rounding
-difference. Two consequences follow, both applied in
-`tests/parity_goldens.rs`:
+pflow-rs's own `pflow-solver` crate received the same coefficient fix at
+commit `1177f4d` (`methods.rs`'s `tsit5()` tableau) — but this README and
+`tests/parity_goldens.rs` were written from an earlier measurement and kept
+describing the pre-fix behavior (734 accepted steps on `decay` vs go-pflow's
+13) for two years' worth of git-blame confusion after the fix had already
+landed. Re-measured directly, current `main`: `decay` 13/13, `sir` 15/15,
+`tied` 8/8 — accepted-step **counts** now match go-pflow's exactly, not just
+similarly. `finalState`/`finalSens` residuals dropped from the previously
+documented ~9e-7 (`decay`) / ~1.1e-4 (`sir`) to ~1.9e-14 at the worst
+(`sir`'s `finalSens[I][0]`) — solver noise, not a grid-alignment artifact.
 
-- **`exact: true` (fixed-step) cases are unaffected** — `decay-fixed` and
-  `tied-fixed` disable the adaptive controller entirely (`adaptive: false`,
-  constant `dt`), so both sides take the identical, controller-independent
-  step sequence. These *are* asserted bit-for-bit, and do pass bit-for-bit
-  (verified: `finalState`/`finalSens` agree to the last bit — see the test
-  report). Their Adam/Nelder-Mead/fit call traces are asserted bit-for-bit
-  too, since every one of those calls re-solves on the same fixed grid.
-- **`exact: false` (adaptive) cases (`decay`, `sir`, `tied`) cannot be
-  compared by grid position, and — this took an actual measurement to learn,
-  not just reasoning about it — not even every grid-*independent*-looking
-  quantity survives the comparison.** `midIndex`/`midTime`/`midSens` name a
-  row in *go-pflow's own* accepted-step grid, which pflow-rs's
-  differently-stepping controller has no reason to share, so those three
-  fields are read from the golden but not asserted. `finalState`/`finalSens`
-  ARE asserted (both grids end at the literal `tspan[1]`, a clamped, exact
-  final step on both sides) — at a relative tolerance reflecting genuine
-  solver accuracy rather than grid alignment (measured: ~9e-7 on `decay`'s
-  single-parameter net, ~1.1e-4 on `sir`'s stiffer 2-parameter net).
+Consequences, all now applied unconditionally in `tests/parity_goldens.rs`
+(previously only for `exact: true` cases):
 
-  `point1`/`point2` MSE/relative-MSE loss+grad and the
-  `point1Adjoint`/`point2Adjoint` reverse-mode loss+grad looked
-  grid-independent going in — they compare against the *dataset's* fixed
-  observation times, not the solver's accepted-step grid — but are NOT
-  asserted for adaptive cases either, because interpolating a trajectory
-  *onto* those fixed times is exactly where grid density bites: go-pflow's
-  fixed controller lands only 13 accepted steps across `[0,10]`
-  (`dtmax=1.0`), so linearly interpolating its own accepted-step values
-  onto e.g. `t=1,2,...,9` carries real (not rounding-noise) deviation from
-  the smooth trajectory — deviation pflow-rs's much denser, unfixed-controller
-  grid (734 steps for the same case) mostly does not share. Measured on
-  `decay`'s `point1` MSE loss: up to ~4.7% relative difference; `tied`
-  (bimolecular, 2 tied params): ~2.7%; `sir` (stiffer, 3 places): ~0.13-3%.
-  Both sides are valid — they're two different interpolants of two
-  genuinely different accepted-step histories — so `tests/parity_goldens.rs`
-  reports these (`eprintln!`, not `assert!`) rather than asserting a bound
-  that would just be asserting "go-pflow's own coarse-grid interpolation
-  artifact," which is not a property of THIS crate to reproduce. What IS
-  asserted for these fields on adaptive cases: they compute without error
-  and every value is finite.
-
-  Adam/Nelder-Mead iterate-sequence goldens are skipped entirely for
-  adaptive cases for the same underlying reason, compounded: a
-  multi-iteration optimizer re-solves at a changing theta every step, so
-  the per-step interpolation deviation above compounds evaluation over
-  evaluation and the two traces have nothing in common to assert past the
-  first shared starting point.
+- `steps`, `midTime`, `midSens` are asserted for every case — the accepted
+  grid position they name is now the same row on both sides.
+- `point1`/`point2` MSE/relative-MSE loss+grad and the
+  `point1Adjoint`/`point2Adjoint` reverse-mode loss+grad are asserted at
+  `EXACT_TOL`. These fold in linear interpolation onto the *dataset's* fixed
+  observation times; with identical accepted-step grids on both sides, that
+  interpolation now lands on the same two bracketing grid points, so the
+  previously-measured "up to ~4.7% relative" divergence (a real artifact of
+  two different coarse-grid interpolants, not a bug) no longer applies —
+  re-measured at ~1e-12 relative or tighter across `decay`/`sir`/`tied`.
+- Adam/Nelder-Mead/`fit` call-trace parity is asserted for every case
+  carrying the corresponding section, `decay`/`tied` included: a
+  multi-iteration optimizer re-solving at a changing theta no longer
+  compounds a per-step grid mismatch, because the grids match at every step,
+  not just the first.
 
 The optimizer/ranking-loss sections (`optimizers[]`, `hinge[]`) touch no ODE
 solver at all and are asserted bit-for-bit unconditionally (well: at
 `EXACT_TOL = 1e-9` relative — see the next paragraph for why that isn't
-literal `==`).
+literal `==`), as before.
 
 ## "Exact" isn't literal bit equality, and that's deliberate
 
