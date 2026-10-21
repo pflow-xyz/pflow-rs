@@ -1,0 +1,23 @@
+# pflow-xyz.lock — files copied byte-identical from pflow-xyz.
+#
+# DO NOT HAND-EDIT A VENDORED FILE. Change it in pflow-xyz and re-run
+# ./scripts/pflow-xyz-fixtures.sh sync. 'check' fails the build otherwise.
+# A failing parity test is a bug in Rust or a deliberate change upstream;
+# it is never fixed by re-syncing (ROADMAP.md ground rule 1).
+#
+# source: github.com/pflow-xyz/pflow-xyz @ 0b50279d9f7f584475019d871bd9414c7c4ce3a6
+#
+# <sha256>  <path in this repo>  <path in pflow-xyz>
+41ce42df2aa067bbe1a01029762b89e979035d95aa6c0b85c984b85793e0e98c  crates/pflow-compose/tests/fixtures/showcase/cafe.bundle.json  examples/showcase/cafe.bundle.json
+396de361e619f9ffe6692e72140ea85ef6ad588dcf3a938c6f4463b9c2e780ea  crates/pflow-verify/tests/fixtures/showcase/cafe-order.json  examples/showcase/cafe-order.json
+396de361e619f9ffe6692e72140ea85ef6ad588dcf3a938c6f4463b9c2e780ea  crates/pflow-mining/tests/fixtures/cafe-order.json  examples/showcase/cafe-order.json
+a4147ca46cb1ccbd473afdbc1887e6a8c2020135165ec43a9dbaa02cbb6cb7af  crates/pflow-mining/tests/fixtures/event-log.json  examples/showcase/fixtures/event-log.json
+86d8c332e95b164bf735b8aa4e5aa9d96d3782f504625326c21b765c53261659  crates/pflow-tokenmodel/tests/fixtures/cid/parity/golden.json  parity/golden.json
+b28adc89256254991ade9d746ebc2266e0d804faf84f18fed6aeda92f64349e1  crates/pflow-tokenmodel/tests/fixtures/cid/parity/fixtures/coffee-shop.jsonld  parity/fixtures/coffee-shop.jsonld
+7ceb53638f892c798febfd00faeef0fd9e64713618a75f852aa99ba3871509c3  crates/pflow-tokenmodel/tests/fixtures/cid/parity/fixtures/knapsack.jsonld  parity/fixtures/knapsack.jsonld
+f3b7cc20962d9708179990ab503610bb7b6bcfc6708738a91676d71b56b703fb  crates/pflow-tokenmodel/tests/fixtures/cid/parity/fixtures/net-a.jsonld  parity/fixtures/net-a.jsonld
+1acb58b38f1026d7e803d51ca3bceb0b4ccf1016d164bdb10b2c23f54ed5b424  crates/pflow-tokenmodel/tests/fixtures/cid/parity/fixtures/net-b.jsonld  parity/fixtures/net-b.jsonld
+ce75b8cd51e8ce4f13653ec9a3467b4f7fd857fef0286cfbbec3fb5fa884d767  crates/pflow-tokenmodel/tests/fixtures/cid/parity/fixtures/with-parents.jsonld  parity/fixtures/with-parents.jsonld
+63674827ffea51a728fcce8880b5b0b57bf65202e841e6b5ac404799f8f05142  crates/pflow-solver/tests/fixtures/ode/fixtures.json  parity/ode/fixtures.json
+6d840239095c77b8b21c761d331e552d32f0be905c8b78711dbed9e965599c2f  crates/pflow-solver/tests/fixtures/ode/expected.json  parity/ode/expected.json
+f6a0aacba2f55087df726a33951d23140cb035108c2b4491f4c318d067a068b9  crates/pflow-learn/parity/goldens.json  parity/learn/goldens.json

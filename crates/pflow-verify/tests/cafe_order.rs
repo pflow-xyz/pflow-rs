@@ -8,31 +8,30 @@
 //! no gap between what this crate reads and what go-pflow's `verify`
 //! package would see on the same file.
 //!
-//! This is a sibling-repo integration check, not a copied golden: no Go
-//! reference output for this exact property set has been captured and
-//! pinned here (that would need a `go-pflow` change to emit one, per
-//! ROADMAP.md's ground rules — there is nothing to copy yet). It skips
-//! quietly when `pflow-xyz` isn't checked out alongside this repo, so CI
-//! elsewhere in the ecosystem isn't broken by a path that only resolves on
-//! the workspace machine.
+//! This is an integration check, not a copied golden: the go-pflow
+//! reference output for the full property set is held field for field by
+//! `tests/showcase_properties.rs`. The model is
+//! `tests/fixtures/showcase/cafe-order.json`, a byte-identical copy of
+//! `pflow-xyz/examples/showcase/cafe-order.json` pinned in `pflow-xyz.lock`;
+//! a missing copy fails this test, it never skips.
 use std::path::PathBuf;
 
 use pflow_metamodel::Model;
 use pflow_verify::{Kind, Property, Verifier};
 
-fn showcase_path() -> Option<PathBuf> {
-    let candidate =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../pflow-xyz/examples/showcase/cafe-order.json");
-    candidate.exists().then_some(candidate)
+fn showcase_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/showcase/cafe-order.json")
 }
 
 #[test]
 fn cafe_order_deserializes_and_verifies() {
-    let Some(path) = showcase_path() else {
-        eprintln!("pflow-xyz not checked out alongside pflow-rs; skipping");
-        return;
-    };
-    let raw = std::fs::read_to_string(path).expect("read cafe-order.json");
+    let path = showcase_path();
+    let raw = std::fs::read_to_string(&path).unwrap_or_else(|e| {
+        panic!(
+            "vendored {} is missing ({e}); restore it with ./scripts/pflow-xyz-fixtures.sh sync",
+            path.display()
+        )
+    });
     let model: Model = serde_json::from_str(&raw).expect("cafe-order.json deserializes as a Model");
 
     assert_eq!(model.places.len(), 7);

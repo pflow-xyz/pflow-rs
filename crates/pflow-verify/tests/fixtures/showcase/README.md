@@ -37,8 +37,11 @@ Unicode arrow `" → "` (U+2192). Evidence strings like `"firing sequence: pay
 this golden pins, so the separator was fixed to match rather than the
 assertion loosened to `contains`.
 
-Skips quietly without a `pflow-xyz` checkout as a sibling of this repo (the
-source `cafe-order.json` lives there), the same as `tests/cafe_order.rs`.
+The source `cafe-order.json` sits next to it in this directory, a
+byte-identical copy of `pflow-xyz/examples/showcase/cafe-order.json` pinned
+in `pflow-xyz.lock` (`./scripts/pflow-xyz-fixtures.sh check`, not
+`go-pflow.lock` — it comes from pflow-xyz, not go-pflow). The test fails,
+never skips, if it is missing; so does `tests/cafe_order.rs`.
 
 The sha256 is pinned in `go-pflow.lock` at the repo root, verified offline
 with `./scripts/go-pflow-goldens.sh check`. The generating commit (recorded

@@ -385,11 +385,15 @@ fn guard_link_lowers_structurally_and_expr_when_it_cannot() {
 
 #[test]
 fn cafe_bundle_showcase_fixture_flattens() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../pflow-xyz/examples/showcase/cafe.bundle.json");
-    let Ok(json) = std::fs::read_to_string(&path) else {
-        eprintln!("skip: no pflow-xyz checkout at {}", path.display());
-        return;
-    };
+    // Byte-identical copy of pflow-xyz/examples/showcase/cafe.bundle.json,
+    // pinned in pflow-xyz.lock. Missing means fail, never skip.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/showcase/cafe.bundle.json");
+    let json = std::fs::read_to_string(&path).unwrap_or_else(|e| {
+        panic!(
+            "vendored {} is missing ({e}); restore it with ./scripts/pflow-xyz-fixtures.sh sync",
+            path.display()
+        )
+    });
     let bundle: Bundle = serde_json::from_str(&json).expect("cafe.bundle.json parses");
     assert_eq!(bundle.subnets.len(), 3);
     assert_eq!(bundle.links.len(), 7);

@@ -5,6 +5,8 @@
 //! against the numbers the live petri-pilot `petri_conformance` MCP tool
 //! reports for the same two files (captured 2026-09-10; the showcase
 //! README's "fitness 0.90, precision 0.80" is the same result, rounded).
+//! Both copies are pinned in `pflow-xyz.lock` at the repo root
+//! (`./scripts/pflow-xyz-fixtures.sh check`).
 //!
 //! Both fixtures are go-pflow's metamodel JSON shape. `pflow-mining` has no
 //! model-JSON reader of its own (that's `pflow-parser`'s job, out of this

@@ -22,7 +22,12 @@ duplicated in a second `golden.json` here:
 | `tie2.jsonld` | `e13ea6966c1381ec033e683f6debdaa52c5b39aac4b5ed834fb927b45017a18e` | `z4EBG9j8AZSNguvWsF6uwoo9PWqURQV2f5YFiYfLXBb9SpvXgt8` |
 
 `pflow-xyz/parity/fixtures/*.jsonld` + `parity/golden.json` are the *other*
-half of the contract — read directly from a sibling `pflow-xyz` checkout by
-`matches_pflow_xyz_golden_cids` (skips quietly without one) rather than
-copied here, since a stale copy could silently drift from the real contract
-in a way a live read cannot.
+half of the contract, vendored byte-identical to `parity/` here
+(`parity/golden.json`, `parity/fixtures/*.jsonld`, same layout as
+pflow-xyz) and replayed by `matches_pflow_xyz_golden_cids`. They used to be
+read live from a sibling `pflow-xyz` checkout, on the theory that a copy
+could drift; in practice the test skipped wherever that checkout was absent
+(CI included), so it checked nothing. Drift is now caught by
+`pflow-xyz.lock` instead: `./scripts/pflow-xyz-fixtures.sh check` pins each
+file's sha256 offline, and `... verify` (run in CI against a fresh clone)
+proves the copies are byte-identical to pflow-xyz at the locked commit.

@@ -14,8 +14,10 @@
 //! matches Go field for field"), which was previously held open pending a
 //! go-pflow-produced golden; `cmd/properties-goldens` is that golden.
 //!
-//! Skips quietly without a `pflow-xyz` checkout as a sibling of this repo,
-//! the same as `tests/cafe_order.rs` and `pflow-compose`'s bundle golden.
+//! The model is `tests/fixtures/showcase/cafe-order.json`, a byte-identical
+//! copy of `pflow-xyz/examples/showcase/cafe-order.json` pinned in
+//! `pflow-xyz.lock` (`scripts/pflow-xyz-fixtures.sh check`). A missing copy
+//! fails this test; it never skips.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -24,10 +26,8 @@ use pflow_metamodel::Model;
 use pflow_verify::{Kind, Method, Property, Status, Verifier};
 use serde_json::Value;
 
-fn showcase_path() -> Option<PathBuf> {
-    let candidate = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../pflow-xyz/examples/showcase/cafe-order.json");
-    candidate.exists().then_some(candidate)
+fn showcase_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/showcase/cafe-order.json")
 }
 
 fn golden() -> Value {
@@ -103,11 +103,13 @@ fn showcase_properties(golden_props: &[Value]) -> Vec<Property> {
 
 #[test]
 fn cafe_order_verify_matches_go_pflow_field_for_field() {
-    let Some(path) = showcase_path() else {
-        eprintln!("pflow-xyz not checked out alongside pflow-rs; skipping");
-        return;
-    };
-    let raw = std::fs::read_to_string(&path).expect("read cafe-order.json");
+    let path = showcase_path();
+    let raw = std::fs::read_to_string(&path).unwrap_or_else(|e| {
+        panic!(
+            "vendored {} is missing ({e}); restore it with ./scripts/pflow-xyz-fixtures.sh sync",
+            path.display()
+        )
+    });
     let model: Model = serde_json::from_str(&raw).expect("cafe-order.json deserializes as a Model");
 
     let g = golden();

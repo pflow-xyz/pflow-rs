@@ -24,8 +24,10 @@ identical. This closes `pflow-rs/ROADMAP.md` Phase 3's previously-open exit
 criterion ("**No go-pflow-produced flatten golden exists yet**" — it does
 now).
 
-Skips quietly without a `pflow-xyz` checkout as a sibling of this repo (the
-source `cafe.bundle.json` lives there), the same as `tests/flatten.rs`'s own
+The source `cafe.bundle.json` is vendored byte-identical to
+`../showcase/cafe.bundle.json` and pinned in `pflow-xyz.lock` at the repo
+root (`./scripts/pflow-xyz-fixtures.sh check`); the test fails, never skips,
+if it is missing — the same as `tests/flatten.rs`'s own
 `cafe_bundle_showcase_fixture_flattens`.
 
 The sha256 is pinned in `go-pflow.lock` at the repo root, verified offline

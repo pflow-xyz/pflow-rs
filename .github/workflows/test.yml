@@ -11,9 +11,50 @@ on:
 # (go-pflow, petri-pilot, beats-bitwrap-io, bitwrap-io) targets Rust or
 # Julia. `cargo test --workspace` + `clippy` is the documented fallback
 # from go-pflow's own ROADMAP.md ("Honest costs") for a repo that isn't
-# getting the ecosystem-wide Bazel rollout.
+# getting the ecosystem-wide Bazel rollout. The 'goldens' job adds the lock
+# checks ROADMAP.md ground rule 2 requires (go-pflow.lock, pflow-xyz.lock,
+# docs.lock).
 
 jobs:
+  # ROADMAP.md ground rule 2 / Tracking: every vendored golden, input and
+  # doc must still be byte-identical to what its lock records. The three
+  # 'check' steps are offline sha256 checks and need no upstream checkout;
+  # the last step clones public pflow-xyz at the locked commit. A failure
+  # here is never fixed by re-running a script's 'sync' (ground rule 1).
+  goldens:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: go-pflow goldens match go-pflow.lock
+        run: ./scripts/go-pflow-goldens.sh check
+
+      - name: pflow-xyz fixtures match pflow-xyz.lock
+        run: ./scripts/pflow-xyz-fixtures.sh check
+
+      - name: vendored docs match docs.lock
+        run: ./scripts/docs-sync.sh check
+
+      # Provenance: prove the locked files really are byte-identical to
+      # public pflow-xyz at the commit pflow-xyz.lock names, not just to
+      # their own recorded hashes.
+      - name: read pinned pflow-xyz commit
+        id: pin
+        run: |
+          commit="$(sed -nE 's|^# source: github.com/pflow-xyz/pflow-xyz @ ([0-9a-f]{40})$|\1|p' pflow-xyz.lock)"
+          [ -n "$commit" ] || { echo "no pinned commit in pflow-xyz.lock" >&2; exit 1; }
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v5
+        with:
+          repository: pflow-xyz/pflow-xyz
+          ref: ${{ steps.pin.outputs.commit }}
+          path: _upstream/pflow-xyz
+          persist-credentials: false
+
+      - name: pflow-xyz.lock matches pflow-xyz at the pinned commit
+        run: PFLOW_XYZ="$GITHUB_WORKSPACE/_upstream/pflow-xyz" ./scripts/pflow-xyz-fixtures.sh verify
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -40,9 +81,9 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      # Advisory, not a gate: pre-existing warnings in pflow-core/pflow-solver
-      # (needless_range_loop, type_complexity) predate this workflow and
-      # are not this job's job to fail on. New warnings on touched code are
-      # visible in the job log either way.
+      # Advisory, not a gate: pre-existing warnings across the workspace
+      # (needless_range_loop, type_complexity and others) predate this
+      # workflow and are not this job's job to fail on. New warnings on
+      # touched code are visible in the job log either way.
       - name: clippy
         run: cargo clippy --workspace --all-targets || true
