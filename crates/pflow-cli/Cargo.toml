@@ -20,7 +20,6 @@ pflow-tokenmodel = { path = "../pflow-tokenmodel", version = "0.3.0" }
 pflow-solver = { path = "../pflow-solver", version = "0.3.0" }
 pflow-validation = { path = "../pflow-validation", version = "0.3.0" }
 pflow-verify = { path = "../pflow-verify", version = "0.3.0" }
-pflow-reachability = { path = "../pflow-reachability", version = "0.3.0" }
 pflow-results = { path = "../pflow-results", version = "0.3.0" }
 pflow-visualization = { path = "../pflow-visualization", version = "0.3.0" }
 pflow-compose = { path = "../pflow-compose", version = "0.3.0" }

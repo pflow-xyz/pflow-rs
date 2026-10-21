@@ -24,17 +24,13 @@ The papers extend this further — showing the incidence matrix enables algebrai
 | `pflow-macros` | `schema!` proc macro for compile-time DSL validation |
 | `pflow-zk` | ZK proof traits (`PetriProver`), `IncidenceMatrix` extraction, `fire_transition()` |
 | `pflow-zk-arkworks` | Groth16 prover over BN254 with Poseidon hashing (structural R1CS) |
-| `pflow-zk-risc0` | risc0 zkVM wrapper prover (simulation mode; full STARK requires toolchain) |
 | `pflow-reachability` | Reachability graph/BFS, coverability, Farkas P/T invariants, eigenvector centrality |
 | `pflow-validation` | Structural validation (structure/connectivity/deadlock-heuristic/unbounded/conservation checks) |
 | `pflow-verify` | Property verification (deadlock-free, bounded, live, invariants, ...) with structural-then-exhaustive proof strategy |
 | `pflow-compose` | `Bundle`/`Flatten` typed subnet composition (token/data/event/guard links), `templates` (SIR/SEIR/queue/...), `derive` (evaluation-net transforms), model-extension ops |
 | `pflow-mcp` | MCP server exposing Petri net tools — `petri_*` names/shapes mirror petri-pilot's MCP server; `pflow_*` names are pflow-rs-only extras |
 | `pflow-cli` | `pflow` CLI binary — parity with go-pflow's `cmd/pflow` (create/validate/verify/expand/simulate/analyze/summary/compare/events/visualize/plot) |
-| `pflow-engine` | State machine harness for continuous Petri net simulation — condition/action rules over `pflow_core::net::PetriNet` + `pflow_solver` (`step`/`run`/`stop`/`simulate`), ported from go-pflow's `engine` package |
-| `pflow-monitoring` | Real-time predictive process monitoring — `Monitor`/`Predictor`/`Case`/`Alert`, ODE-based completion prediction, SLA alerting, ported from go-pflow's `monitoring` package |
-| `pflow-eventsource` | In-memory event-sourcing store (`Event`/`Store`/`MemoryStore`), ported from go-pflow's `eventsource` package — the in-memory half only, per the SQLite carve-out in ROADMAP.md |
-| `pflow-visualization` | SVG rendering for Petri nets, state charts, workflows and ODE solutions, ported from go-pflow's `visualization` and `plotter` packages |
+| `pflow-visualization` | SVG rendering for Petri nets and ODE solutions, ported from go-pflow's `visualization` and `plotter` packages |
 | `pflow` | Umbrella crate re-exporting all of the above |
 
 **Which engine for which question** (ODE vs SSA vs SDE): `docs/engine-selection.md`,
@@ -53,7 +49,6 @@ Rust"; update it in the same commit as the code.
 cargo test --workspace              # All tests
 cargo test -p pflow-zk              # Foundation crate only
 cargo test -p pflow-zk-arkworks     # Arkworks prover
-cargo test -p pflow-zk-risc0        # risc0 prover (simulation)
 cargo test -p pflow-solver          # ODE + SSA (incl. the byte-exact SSA goldens); the full workspace build is slow
 ```
 
@@ -117,7 +112,7 @@ rather than a separately-built ODE reference.
 
 ## ZK Proofs
 
-Two contrasting strategies prove the same statement: "transition T transforms marking M into M'."
+One backend proves the statement: "transition T transforms marking M into M'." (The risc0 zkVM backend, `pflow-zk-risc0`, was removed 2026-10-21 — see ROADMAP.md, *Not ported, on purpose*.)
 
 ### arkworks (structural)
 
@@ -130,32 +125,10 @@ Compiles net topology into R1CS constraints directly. Circuit structure:
 
 Uses BN254 curve + Groth16 (128-byte proofs, ~2ms verification).
 
-### risc0 (zkVM)
-
-Wraps transition logic in a RISC-V guest program. Two modes:
-- **Simulation** (default): executes guest logic natively, no real proofs
-- **Real STARK proofs** (`prove` feature): requires `cargo risczero install`
-
-```bash
-cargo test -p pflow-zk-risc0                  # Simulation mode
-cargo test -p pflow-zk-risc0 --features prove # Real STARK proofs (~10s)
-```
-
-### Running benchmarks
-
-```bash
-cargo bench -p pflow --features zk-arkworks --bench zk_bench
-cargo run --example zk_compare -p pflow --features zk-arkworks,zk-risc0 --release           # Sim mode
-cargo run --example zk_compare -p pflow --features zk-arkworks,zk-risc0-prove --release     # Real STARK
-cargo run --example zk_compare -p pflow --features zk-arkworks,zk-risc0-prove --release -- 3 5 10  # Custom sizes
-```
-
 ### Feature flags
 
 ```toml
 pflow = { features = ["zk-arkworks"] }       # Groth16 prover
-pflow = { features = ["zk-risc0"] }          # risc0 prover (simulation)
-pflow = { features = ["zk-risc0-prove"] }    # risc0 prover (real STARK)
 pflow = { features = ["zk"] }                # Shared traits only
 ```
 

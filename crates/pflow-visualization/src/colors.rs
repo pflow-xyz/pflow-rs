@@ -2,7 +2,7 @@
 //! ported from go-pflow's `visualization/render.go` and `petri.Escape`.
 //!
 //! Two escaping functions exist because go-pflow has two: `render.go`'s
-//! `escapeXML` (net/statemachine/workflow labels) escapes five characters
+//! `escapeXML` (net labels) escapes five characters
 //! including quotes, while `petri.Escape` (used by `plotter/svg.go`) only
 //! escapes `&`, `<`, `>`. Collapsing them into one would either under-escape
 //! attribute-adjacent net labels or over-escape plot text relative to Go's

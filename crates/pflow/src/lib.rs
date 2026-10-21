@@ -18,8 +18,6 @@ pub use pflow_solver::{simulate_ssa, SsaModel, SsaOptions, SsaResult};
 pub use pflow_zk as zk;
 #[cfg(feature = "zk-arkworks")]
 pub use pflow_zk_arkworks as zk_arkworks;
-#[cfg(feature = "zk-risc0")]
-pub use pflow_zk_risc0 as zk_risc0;
 
 #[cfg(test)]
 mod tests {

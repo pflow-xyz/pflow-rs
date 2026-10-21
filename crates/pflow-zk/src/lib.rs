@@ -1,11 +1,10 @@
 //! ZK proof infrastructure for Petri nets.
 //!
 //! Provides a shared `PetriProver` trait and supporting types for proving
-//! Petri net transition firings in zero knowledge. Two backend implementations
-//! exist:
+//! Petri net transition firings in zero knowledge. One backend implementation
+//! exists:
 //!
 //! - **pflow-zk-arkworks**: Compiles net topology into R1CS constraints (Groth16 + Poseidon)
-//! - **pflow-zk-risc0**: Wraps the simulator in a zkVM guest (STARK proofs)
 
 pub mod incidence;
 pub mod types;

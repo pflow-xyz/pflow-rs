@@ -1,9 +1,8 @@
 //! `pflow` — command-line parity with go-pflow's `cmd/pflow`
 //! (ROADMAP.md Phase 6). Subcommands and flags mirror the Go CLI one for
 //! one where a Rust library counterpart exists; `sweep` is not implemented
-//! (no `pflow-sweep`-shaped optimizer is ported — `pflow-results::sweep`
-//! covers post-hoc analysis of an already-run parameter sweep, not driving
-//! one, and building that driver is out of this phase's scope) and
+//! (no `pflow-sweep`-shaped optimizer is ported, and building that driver
+//! is out of this phase's scope) and
 //! `plot`/`visualize` are real, backed by `pflow-visualization`, which
 //! landed alongside this CLI.
 

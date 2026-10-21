@@ -566,11 +566,11 @@ fn same_event(a: &Event, b: &Event) -> bool {
 
 /// Stamps an explicit `kind` on every place, matching go-pflow's
 /// `NormalizeKinds`: an unset kind is otherwise ambiguous across the
-/// ecosystem. `pub` (rather than a private copy per crate) because
-/// `pflow-statemachine`, `pflow-workflow` and `pflow-actor`'s `to_meta_model`
-/// emitters need the exact same stamp go-pflow's `metamodel.NormalizeKinds`
-/// applies before returning a `Model` — see ROADMAP.md ground rule 4's
-/// "one home per language" for why this isn't reimplemented per crate.
+/// ecosystem. `pub` (rather than a private copy per crate) because any
+/// `to_meta_model` emitter needs the exact same stamp go-pflow's
+/// `metamodel.NormalizeKinds` applies before returning a `Model` — see
+/// ROADMAP.md ground rule 4's "one home per language" for why this isn't
+/// reimplemented per crate.
 pub fn normalize_kinds(m: &mut Model) {
     for p in &mut m.places {
         if p.kind.is_none() {
