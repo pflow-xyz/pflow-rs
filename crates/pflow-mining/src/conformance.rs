@@ -4,11 +4,44 @@
 //! Multi-color nets are unfolded first ([`PetriNet::expand_colors`]), so
 //! replay consumes and produces per color: a trace that supplies the wrong
 //! color is counted as a missing token rather than satisfied by a summed pool.
+//!
+//! # Gates: inhibitor and read arcs
+//!
+//! Replay honours inhibitor and read arcs (go-pflow `84ae2a9`, "mining:
+//! honour inhibitor and read arcs in conformance replay"). Before that fix
+//! — in go-pflow and in this port alike — replay, `is_enabled` and
+//! `fire_transition_silent` each walked `net.arcs` on their own and read
+//! every place -> transition arc as a consuming input and every transition
+//! -> place arc as an output, so an inhibitor arc *demanded* a token from
+//! the place it exists to require empty and a read arc *produced* a token
+//! into the place it only tests.
+//!
+//! go-pflow's fix gives its replay one private classification (`rulesFor`).
+//! This port goes one step further, per ROADMAP.md ground rule 4 (the
+//! firing rule has one home): the expanded net is converted once into a
+//! [`pflow_metamodel::Model`] (`replay_model`), and every question of
+//! which arc consumes, produces or only tests — and whether a transition is
+//! enabled, and what a proper firing does to the marking — is answered by
+//! the shared firing rule ([`Model::inputs`]/[`Model::outputs`]/
+//! [`Model::tests`]/[`Model::enabled`]/[`Model::fire`]). What stays here is
+//! replay's own bookkeeping, which is not a firing rule: the missing-token
+//! tally, and the "force fire" repair a non-enabled event gets.
+//!
+//! The tally follows go-pflow exactly: a consuming input short of its weight
+//! is missing the tokens it is short; a read arc short of its weight
+//! likewise; an inhibitor arc whose place is not clear is *one* unmet
+//! condition however many tokens sit in it. Gates are checked, never moved,
+//! even by a force fire.
+//!
+//! Activities map to transitions by display label (`label_text`, then
+//! `label`, then id), as go-pflow's `buildActivityMapping` does at
+//! `84ae2a9` — unchanged by that fix.
 
 use std::collections::{HashMap, HashSet};
 
 use pflow_core::PetriNet;
 use pflow_eventlog::{EventLog, Trace};
+use pflow_metamodel::{Arc as MmArc, ArcType, Model, Place as MmPlace, Transition as MmTransition};
 
 /// Token counts during replay: place id -> count.
 pub type TokenState = HashMap<String, i64>;
@@ -54,11 +87,12 @@ pub fn check_conformance(log: &EventLog, net: &PetriNet) -> ConformanceResult {
         ..Default::default()
     };
 
+    let model = replay_model(&net);
     let activity_to_transition = build_activity_mapping(&net);
     let initial_marking = initial_marking(&net);
 
     for trace in log.traces() {
-        let trace_result = replay_trace(trace, &net, &activity_to_transition, &initial_marking);
+        let trace_result = replay_trace(trace, &net, &model, &activity_to_transition, &initial_marking);
 
         result.produced_tokens += trace_result.produced_tokens;
         result.consumed_tokens += trace_result.consumed_tokens;
@@ -119,6 +153,7 @@ fn initial_marking(net: &PetriNet) -> TokenState {
 fn replay_trace(
     trace: &Trace,
     net: &PetriNet,
+    model: &Model,
     activity_to_transition: &HashMap<String, String>,
     initial_marking: &TokenState,
 ) -> TraceReplayResult {
@@ -138,7 +173,7 @@ fn replay_trace(
             continue;
         };
 
-        let (missing, consumed, produced) = fire_transition(net, trans_id, &mut marking);
+        let (missing, consumed, produced) = fire_transition(model, trans_id, &mut marking);
         result.missing_tokens += missing;
         result.consumed_tokens += consumed;
         result.produced_tokens += produced;
@@ -182,55 +217,182 @@ fn replay_trace(
     result
 }
 
+/// The expanded net as the shared firing rule sees it: one
+/// [`pflow_metamodel::Model`] built once per check, so replay asks
+/// `pflow-metamodel` rather than re-deriving arc roles from `net.arcs`.
+///
+/// The Shape A -> Shape B arc mapping is the one go-pflow's metapetri and
+/// `parser.ModelFromJSON` (here: `pflow_core::colors::unfold`) use: an
+/// `inhibit_transition` arc drawn place -> transition is an inhibitor (blocks
+/// while the place holds at least the weight); one drawn transition -> place
+/// is a read arc (needs the place to hold at least the weight), emitted as
+/// the metamodel's explicit read arc from the place to the transition.
+/// Neither moves a token. Which end is the transition decides the direction,
+/// matching the order of go-pflow's `rulesFor` switch.
+///
+/// Three choices keep replay's numbers go-pflow's, not just its semantics:
+///
+///   - **No capacity.** Every place is unbounded here (`capacity: 0`).
+///     go-pflow's replay never consulted capacity, before `84ae2a9` or
+///     after, so carrying it would make a capacity-bounded net replay
+///     differently from go-pflow.
+///   - **Last arc wins.** go-pflow keys each role by place
+///     (`inputs[place] = weight`), so a second arc in the same role between
+///     the same place and transition replaces the first. Duplicates are
+///     collapsed the same way, rather than handed to the firing rule as two
+///     arcs.
+///   - **Dangling endpoints are places.** An arc naming a node the net does
+///     not declare still demands (or receives) tokens there in go-pflow, so
+///     such a node becomes an empty place rather than being silently
+///     dropped by the firing rule's "token place" filter. An arc between two
+///     transitions, or two places, is malformed and contributes nothing.
+fn replay_model(net: &PetriNet) -> Model {
+    let mut model = Model::default();
+
+    let mut place_ids: Vec<&String> = net.places.keys().collect();
+    place_ids.sort();
+    let mut known: HashSet<&str> = HashSet::new();
+    for id in place_ids {
+        known.insert(id);
+        model.places.push(MmPlace {
+            id: id.clone(),
+            initial: net.places[id].initial.iter().map(|&v| v as i64).sum(),
+            ..Default::default()
+        });
+    }
+
+    let mut trans_ids: Vec<&String> = net.transitions.keys().collect();
+    trans_ids.sort();
+    for id in trans_ids {
+        model.transitions.push(MmTransition {
+            id: id.clone(),
+            ..Default::default()
+        });
+    }
+
+    let is_transition = |id: &str| net.transitions.contains_key(id);
+    let mut index: HashMap<(String, String, ArcType), usize> = HashMap::new();
+    for arc in &net.arcs {
+        // `as i64` truncates toward zero like go-pflow's `int(...)`; an
+        // unset (zero) weight reads as 1 in the firing rule, as it does in
+        // `rulesFor`.
+        let weight = arc.weight_sum() as i64;
+        let (place, transition, typ) = if is_transition(&arc.target) && !is_transition(&arc.source) {
+            let typ = if arc.inhibit_transition {
+                ArcType::Inhibitor
+            } else {
+                ArcType::Normal
+            };
+            (&arc.source, &arc.target, typ)
+        } else if is_transition(&arc.source) && !is_transition(&arc.target) {
+            let typ = if arc.inhibit_transition {
+                ArcType::Read
+            } else {
+                ArcType::Normal
+            };
+            (&arc.target, &arc.source, typ)
+        } else {
+            continue;
+        };
+        if !known.contains(place.as_str()) {
+            known.insert(place.as_str());
+            model.places.push(MmPlace {
+                id: place.clone(),
+                ..Default::default()
+            });
+        }
+        // A normal arc keeps its drawn direction (input or output); a gate
+        // always points place -> transition, which is how the metamodel
+        // spells both inhibitor and read arcs.
+        let (from, to) = if typ == ArcType::Normal && is_transition(&arc.source) {
+            (transition.clone(), place.clone())
+        } else {
+            (place.clone(), transition.clone())
+        };
+        let key = (from.clone(), to.clone(), typ);
+        match index.get(&key) {
+            Some(&k) => model.arcs[k].weight = weight,
+            None => {
+                index.insert(key, model.arcs.len());
+                model.arcs.push(MmArc {
+                    from,
+                    to,
+                    weight,
+                    typ,
+                    ..Default::default()
+                });
+            }
+        }
+    }
+
+    model
+}
+
+/// How far `marking` is from satisfying `trans_id`'s non-consuming gates
+/// (go-pflow's `gateShortfall`): the tokens each read arc needs and does not
+/// find, plus one per inhibitor arc whose place is not clear. A gate is a
+/// condition rather than a token, so a blocked inhibitor counts once however
+/// many tokens sit in its place — replay's "missing tokens" is a count of
+/// unmet requirements, and that is one requirement.
+fn gate_shortfall(model: &Model, trans_id: &str, marking: &TokenState) -> i64 {
+    let mut short = 0i64;
+    for gate in model.tests(trans_id) {
+        let have = *marking.get(&gate.place).unwrap_or(&0);
+        match gate.typ {
+            ArcType::Inhibitor => {
+                if have >= gate.weight {
+                    short += 1;
+                }
+            }
+            _ => {
+                if have < gate.weight {
+                    short += gate.weight - have;
+                }
+            }
+        }
+    }
+    short
+}
+
 /// Attempts to fire a transition, returning `(missing, consumed, produced)`
 /// token counts and mutating `marking` in place. Mirrors go-pflow's
 /// "force fire": if not fully enabled, still consumes what's available and
 /// counts the shortfall as missing, rather than refusing to fire at all.
-fn fire_transition(net: &PetriNet, trans_id: &str, marking: &mut TokenState) -> (i64, i64, i64) {
-    let mut input_places: HashMap<String, i64> = HashMap::new();
-    for arc in &net.arcs {
-        if arc.target == trans_id {
-            let mut weight = arc.weight_sum() as i64;
-            if weight == 0 {
-                weight = 1;
-            }
-            input_places.insert(arc.source.clone(), weight);
-        }
-    }
+/// Gates are counted in `missing` when unmet and never moved.
+fn fire_transition(model: &Model, trans_id: &str, marking: &mut TokenState) -> (i64, i64, i64) {
+    let inputs = model.inputs(trans_id);
+    let outputs = model.outputs(trans_id);
 
     let mut missing = 0i64;
     let mut consumed = 0i64;
-    let mut enabled = true;
-    for (place_id, &required) in &input_places {
-        let available = *marking.get(place_id).unwrap_or(&0);
-        if available < required {
-            missing += required - available;
-            enabled = false;
+    for input in &inputs {
+        let available = *marking.get(&input.place).unwrap_or(&0);
+        if available < input.weight {
+            missing += input.weight - available;
         }
-        consumed += required;
+        consumed += input.weight;
     }
+    missing += gate_shortfall(model, trans_id, marking);
 
-    // Force fire: consume what's available even when not fully enabled,
-    // leaving the shortfall recorded in `missing` rather than refusing to
-    // fire (a partial replay tells you more than a stalled one).
-    for (place_id, &required) in &input_places {
-        let available = *marking.get(place_id).unwrap_or(&0);
-        if enabled || available >= required {
-            *marking.entry(place_id.clone()).or_insert(0) -= required;
-        } else {
-            marking.insert(place_id.clone(), 0);
-        }
-    }
+    let produced: i64 = outputs.iter().map(|o| o.weight).sum();
 
-    let mut produced = 0i64;
-    for arc in &net.arcs {
-        if arc.source == trans_id {
-            let mut weight = arc.weight_sum() as i64;
-            if weight == 0 {
-                weight = 1;
+    if model.enabled(trans_id, marking) {
+        *marking = model.fire(trans_id, marking);
+    } else {
+        // Force fire: consume what's available even when not fully enabled,
+        // leaving the shortfall recorded in `missing` rather than refusing
+        // to fire (a partial replay tells you more than a stalled one). A
+        // short input is drained to zero; gates are left alone.
+        for input in &inputs {
+            let entry = marking.entry(input.place.clone()).or_insert(0);
+            if *entry >= input.weight {
+                *entry -= input.weight;
+            } else {
+                *entry = 0;
             }
-            *marking.entry(arc.target.clone()).or_insert(0) += weight;
-            produced += weight;
+        }
+        for output in &outputs {
+            *marking.entry(output.place.clone()).or_insert(0) += output.weight;
         }
     }
 
@@ -278,6 +440,7 @@ pub struct PrecisionResult {
 /// replay.
 pub fn check_precision(log: &EventLog, net: &PetriNet) -> PrecisionResult {
     let (net, _) = net.expand_colors();
+    let model = replay_model(&net);
     let activity_to_transition = build_activity_mapping(&net);
     let initial_marking = initial_marking(&net);
 
@@ -293,7 +456,7 @@ pub fn check_precision(log: &EventLog, net: &PetriNet) -> PrecisionResult {
                 state_visits.insert(state_key.clone(), HashSet::new());
                 let mut enabled = HashSet::new();
                 for trans_id in net.transitions.keys() {
-                    if is_enabled(&net, trans_id, &marking) {
+                    if is_enabled(&model, trans_id, &marking) {
                         enabled.insert(trans_id.clone());
                     }
                 }
@@ -302,7 +465,7 @@ pub fn check_precision(log: &EventLog, net: &PetriNet) -> PrecisionResult {
 
             if let Some(trans_id) = activity_to_transition.get(activity) {
                 state_visits.get_mut(&state_key).unwrap().insert(trans_id.clone());
-                fire_transition_silent(&net, trans_id, &mut marking);
+                fire_transition_silent(&model, trans_id, &mut marking);
             }
         }
     }
@@ -344,42 +507,31 @@ fn marking_to_key(marking: &TokenState) -> String {
     key
 }
 
-fn is_enabled(net: &PetriNet, trans_id: &str, marking: &TokenState) -> bool {
-    for arc in &net.arcs {
-        if arc.target == trans_id {
-            let mut weight = arc.weight_sum() as i64;
-            if weight == 0 {
-                weight = 1;
-            }
-            if *marking.get(&arc.source).unwrap_or(&0) < weight {
-                return false;
-            }
-        }
-    }
-    true
+/// Whether `trans_id` is enabled at `marking` — the shared firing rule's
+/// answer ([`Model::enabled`]): consuming inputs present, read arcs
+/// satisfied, inhibitors clear.
+fn is_enabled(model: &Model, trans_id: &str, marking: &TokenState) -> bool {
+    model.enabled(trans_id, marking)
 }
 
-fn fire_transition_silent(net: &PetriNet, trans_id: &str, marking: &mut TokenState) {
-    for arc in &net.arcs {
-        if arc.target == trans_id {
-            let mut weight = arc.weight_sum() as i64;
-            if weight == 0 {
-                weight = 1;
-            }
-            let entry = marking.entry(arc.source.clone()).or_insert(0);
-            if *entry >= weight {
-                *entry -= weight;
-            }
+/// Fires a transition without tracking metrics. Enabled, it is exactly
+/// [`Model::fire`]. Not enabled (precision replays the log's event
+/// regardless), it consumes each input only where enough tokens are present
+/// and still produces every output, as go-pflow's `fireTransitionSilent`
+/// does. Gates (inhibitor and read arcs) move nothing either way.
+fn fire_transition_silent(model: &Model, trans_id: &str, marking: &mut TokenState) {
+    if model.enabled(trans_id, marking) {
+        *marking = model.fire(trans_id, marking);
+        return;
+    }
+    for input in model.inputs(trans_id) {
+        let entry = marking.entry(input.place).or_insert(0);
+        if *entry >= input.weight {
+            *entry -= input.weight;
         }
     }
-    for arc in &net.arcs {
-        if arc.source == trans_id {
-            let mut weight = arc.weight_sum() as i64;
-            if weight == 0 {
-                weight = 1;
-            }
-            *marking.entry(arc.target.clone()).or_insert(0) += weight;
-        }
+    for output in model.outputs(trans_id) {
+        *marking.entry(output.place).or_insert(0) += output.weight;
     }
 }
 
@@ -426,6 +578,10 @@ impl ConformanceResult {
         out
     }
 }
+
+#[cfg(test)]
+#[path = "conformance_gates_tests.rs"]
+mod gates_tests;
 
 #[cfg(test)]
 mod tests {
