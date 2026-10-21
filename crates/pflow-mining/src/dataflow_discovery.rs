@@ -410,7 +410,11 @@ fn key_consistency(per_key: &HashMap<String, Vec<i64>>) -> f64 {
     if per_key.is_empty() {
         return 0.0;
     }
-    let counts: Vec<f64> = per_key.values().map(|ts| ts.len() as f64).collect();
+    // Sorted-key order: the variance sum below is not exact in floating
+    // point, so `HashMap` iteration order would otherwise leak into it.
+    let mut keys: Vec<&String> = per_key.keys().collect();
+    keys.sort();
+    let counts: Vec<f64> = keys.iter().map(|k| per_key[*k].len() as f64).collect();
     let mean = counts.iter().sum::<f64>() / counts.len() as f64;
     if mean == 0.0 {
         return 0.0;

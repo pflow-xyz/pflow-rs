@@ -242,8 +242,8 @@ impl<'a> Analyzer<'a> {
         let initial = &self.results.simulation.initial_state;
         let r#final = &self.results.data.summary.final_state;
 
-        let initial_total: f64 = initial.values().sum();
-        let final_total: f64 = r#final.values().sum();
+        let initial_total = sum_sorted_by_key(initial);
+        let final_total = sum_sorted_by_key(r#final);
 
         let conserved = (final_total - initial_total).abs() < 1e-6;
 
@@ -320,6 +320,14 @@ impl<'a> Analyzer<'a> {
 /// Duplicates a map, matching go-pflow's `copyMap` helper.
 pub(crate) fn copy_map(m: &HashMap<String, f64>) -> HashMap<String, f64> {
     m.clone()
+}
+
+/// Sums a state map's values in sorted-key order, so the float total does not
+/// depend on `HashMap` iteration order (randomized per map instance).
+fn sum_sorted_by_key(state: &HashMap<String, f64>) -> f64 {
+    let mut entries: Vec<(&String, &f64)> = state.iter().collect();
+    entries.sort_by(|a, b| a.0.cmp(b.0));
+    entries.into_iter().map(|(_, v)| *v).sum()
 }
 
 #[cfg(test)]
