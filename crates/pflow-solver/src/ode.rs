@@ -37,7 +37,9 @@ impl Problem {
         rates: HashMap<String, f64>,
     ) -> Self {
         let f = build_ode_function(&net, &rates);
-        let state_labels: Vec<String> = initial_state.keys().cloned().collect();
+        // Sorted, not `HashMap` order: the state vector's layout (and the
+        // public `state_labels` order) must not vary between instances.
+        let state_labels = sorted_labels(initial_state.keys());
         let state_index: HashMap<String, usize> = state_labels
             .iter()
             .enumerate()
@@ -63,11 +65,29 @@ impl Problem {
     }
 }
 
+/// Collects labels in lexicographic order.
+///
+/// Every place/transition walk that builds an index or accumulates floats goes
+/// through this, so results do not depend on `HashMap` iteration order (which
+/// is randomized per map instance). Summing a place's flux terms in a
+/// different order changes the last bits of `du`, and an adaptive step
+/// controller can amplify that into a different accepted step. Same rule
+/// `pflow-learn`'s `LearnableProblem` applies to its state vector.
+///
+/// go-pflow's `solver` iterates Go maps here (randomized per run), so no fixed
+/// order matches it on every run; lexicographic is the reproducible choice.
+fn sorted_labels<'a>(labels: impl Iterator<Item = &'a String>) -> Vec<String> {
+    let mut v: Vec<String> = labels.cloned().collect();
+    v.sort();
+    v
+}
+
 /// Constructs the ODE derivative function for a Petri net using mass-action kinetics.
 fn build_ode_function(net: &PetriNet, rates: &HashMap<String, f64>) -> ODEFunc {
-    // Pre-compute structure for the closure
-    let place_labels: Vec<String> = net.places.keys().cloned().collect();
-    let trans_labels: Vec<String> = net.transitions.keys().cloned().collect();
+    // Pre-compute structure for the closure. Transitions are walked in sorted
+    // order so each place's flux terms accumulate deterministically.
+    let place_labels = sorted_labels(net.places.keys());
+    let trans_labels = sorted_labels(net.transitions.keys());
     let arcs: Vec<(String, String, f64)> = net
         .arcs
         .iter()
@@ -150,17 +170,18 @@ fn build_vec_ode_function(
         }
     }
 
-    // Build compact transition table: (rate, inputs, outputs)
-    let transitions: Vec<(f64, Vec<(usize, f64)>, Vec<(usize, f64)>)> = net
-        .transitions
-        .keys()
-        .map(|label| {
-            let rate = rates.get(label).copied().unwrap_or(1.0);
-            let inputs = input_map.remove(label.as_str()).unwrap_or_default();
-            let outputs = output_map.remove(label.as_str()).unwrap_or_default();
-            (rate, inputs, outputs)
-        })
-        .collect();
+    // Build compact transition table: (rate, inputs, outputs), in sorted
+    // transition order so `du[idx]` accumulates in the same order every time.
+    let transitions: Vec<(f64, Vec<(usize, f64)>, Vec<(usize, f64)>)> =
+        sorted_labels(net.transitions.keys())
+            .iter()
+            .map(|label| {
+                let rate = rates.get(label).copied().unwrap_or(1.0);
+                let inputs = input_map.remove(label.as_str()).unwrap_or_default();
+                let outputs = output_map.remove(label.as_str()).unwrap_or_default();
+                (rate, inputs, outputs)
+            })
+            .collect();
 
     Box::new(move |_t: f64, u: &[f64]| -> Vec<f64> {
         let mut du = vec![0.0; n_places];
