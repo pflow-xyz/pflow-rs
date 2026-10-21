@@ -12,11 +12,24 @@ Both files are **byte-identical copies** of the canonical corpus in
 from; `tests/ode_parity.rs` verifies the local copy matches that hash before
 comparing anything, so a stale or edited copy fails loudly.
 
-To refresh after the upstream corpus changes:
+Both files are pinned in `pflow-xyz.lock` at the repo root (sha256 plus the
+pflow-xyz commit they were copied from). To refresh after a deliberate
+upstream change, from a clean pflow-xyz checkout:
 
 ```sh
-cp ../pflow-xyz/parity/ode/{fixtures,expected}.json crates/pflow-solver/tests/fixtures/ode/
+PFLOW_XYZ=../pflow-xyz ./scripts/pflow-xyz-fixtures.sh sync
 ```
+
+A failing `ode_parity.rs` is never fixed by re-syncing (ROADMAP.md ground
+rule 1).
+
+Provenance note (2026-10): the `expected.json` first copied here matched no
+committed pflow-xyz revision — its `goPflow` field read `../go-pflow
+(devel)`, i.e. it was generated against an uncommitted go-pflow tree. It was
+replaced by pflow-xyz `9620ca1`'s committed regeneration against the pinned
+go-pflow `v0.26.0` (`goPflow: "v0.26.0"`), which differs only in last-digit
+floats on non-bit-stable fixtures, well inside `REL_TOL`; `ode_parity.rs`
+passes unchanged against it.
 
 The same corpus is replayed by pflow-xyz's own `parity/ode/ode_parity_test.go`
 (go-pflow, bit-exact) and `parity/ode/ode_expected_test.ts` (petri-solver.js,

@@ -792,30 +792,27 @@ mod tests {
         }
     }
 
-    fn fixtures_dir() -> Option<std::path::PathBuf> {
-        let candidates = [
-            "../../../pflow-xyz/parity/fixtures",
-            "../../pflow-xyz/parity/fixtures",
-        ];
-        candidates
-            .iter()
-            .map(std::path::PathBuf::from)
-            .find(|p| p.is_dir())
+    /// `tests/fixtures/cid/parity/` mirrors `pflow-xyz/parity/`'s
+    /// `golden.json` + `fixtures/*.jsonld`, byte-identical, pinned in
+    /// `pflow-xyz.lock` (`scripts/pflow-xyz-fixtures.sh check`).
+    fn parity_dir() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/cid/parity")
     }
 
     /// The real cross-language contract: byte-exact against
-    /// `pflow-xyz/parity/golden.json`, skipped quietly without a
-    /// `pflow-xyz` checkout next to this one (the same pattern
-    /// `pflow-verify`/`pflow-compose`'s showcase-fixture tests use).
+    /// `pflow-xyz/parity/golden.json`, replayed from the vendored copy. A
+    /// missing copy fails this test; it never skips.
     #[test]
     fn matches_pflow_xyz_golden_cids() {
-        let Some(dir) = fixtures_dir() else {
-            eprintln!("skipping: no pflow-xyz checkout found next to pflow-rs");
-            return;
-        };
-        let golden_path = dir.join("../golden.json");
-        let golden: Value =
-            serde_json::from_str(&std::fs::read_to_string(&golden_path).unwrap()).unwrap();
+        let dir = parity_dir().join("fixtures");
+        let golden_path = parity_dir().join("golden.json");
+        let golden_text = std::fs::read_to_string(&golden_path).unwrap_or_else(|e| {
+            panic!(
+                "vendored {} is missing ({e}); restore it with ./scripts/pflow-xyz-fixtures.sh sync",
+                golden_path.display()
+            )
+        });
+        let golden: Value = serde_json::from_str(&golden_text).unwrap();
         let golden = golden.as_object().unwrap();
 
         let mut checked = 0;
@@ -823,7 +820,8 @@ mod tests {
             if name == "_comment" {
                 continue;
             }
-            let raw = std::fs::read(dir.join(name)).unwrap();
+            let raw = std::fs::read(dir.join(name))
+                .unwrap_or_else(|e| panic!("vendored parity fixture {name} is missing: {e}"));
             let (cid, _) = compute_cid(&raw).unwrap();
             assert_eq!(
                 cid,

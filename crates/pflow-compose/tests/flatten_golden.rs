@@ -11,10 +11,10 @@
 //! and asserts the bytes are identical. **Never fixed by regenerating the
 //! golden** — a byte difference is a finding about `flatten`.
 //!
-//! Skips quietly without a `pflow-xyz` checkout as a sibling of this repo
-//! (the same source `tests/flatten.rs`'s
-//! `cafe_bundle_showcase_fixture_flattens` already reads), since the source
-//! bundle lives there, not in this repo.
+//! The source bundle is `tests/fixtures/showcase/cafe.bundle.json`, a
+//! byte-identical copy of `pflow-xyz/examples/showcase/cafe.bundle.json`
+//! pinned in `pflow-xyz.lock` (`scripts/pflow-xyz-fixtures.sh check`). A
+//! missing copy fails this test; it never skips.
 
 use pflow_compose::bundle::Bundle;
 use serde_json::Value;
@@ -26,7 +26,7 @@ fn golden_path() -> std::path::PathBuf {
 }
 
 fn source_bundle_path() -> std::path::PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../pflow-xyz/examples/showcase/cafe.bundle.json")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/showcase/cafe.bundle.json")
 }
 
 /// Re-encodes JSON with every object's keys sorted alphabetically,
@@ -112,13 +112,13 @@ fn sort_value(v: &Value) -> Value {
 
 #[test]
 fn cafe_bundle_flattens_byte_exact_against_go_pflow_golden() {
-    let Ok(source) = std::fs::read_to_string(source_bundle_path()) else {
-        eprintln!(
-            "skip: no pflow-xyz checkout at {}",
+    let source = std::fs::read_to_string(source_bundle_path()).unwrap_or_else(|e| {
+        panic!(
+            "vendored source bundle {} is missing ({e}); restore it with \
+             ./scripts/pflow-xyz-fixtures.sh sync (see pflow-xyz.lock)",
             source_bundle_path().display()
-        );
-        return;
-    };
+        )
+    });
     let bundle: Bundle = serde_json::from_str(&source).expect("cafe.bundle.json parses");
     let flat = bundle.flatten().expect("cafe bundle flattens");
 
