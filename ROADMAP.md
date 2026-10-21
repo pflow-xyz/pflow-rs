@@ -18,21 +18,21 @@ The acceptance test throughout is the pflow showcase
 together exercise every feature the suite has. Each phase below names which
 variations it unlocks, so "how far is Rust" has a one-line answer at any time.
 
-## Status (2026-09-10)
+## Status (2026-10-21)
 
 | go-pflow package | Rust crate | Parity | Held by |
 |---|---|---|---|
-| `solver` (Tsit5, RK, implicit, equilibrium) | `pflow-solver` | full | `parity/ode` goldens (vendored via `pflow-xyz.lock`) |
+| `solver` (Tsit5, RK, implicit, equilibrium) | `pflow-solver` | **partial**. Tsit5 is compared on 5 of the 10 fixtures in the ODE corpus, the single-color ones: the 4 go-pflow marks `bitStable` are asserted bit-exact, and `sir` (`bitStable: false`, because go-pflow's flux order follows Go map iteration) is held to a relative bound of 1e-12. The 5 multi-color fixtures (`two-color-starved`, `two-color-selective`, `two-color-coupled`, `three-color-gap`, `two-color-unnamed`) are skipped: go-pflow's `solver` unfolds colors first (`petri.ExpandColors`, `solver/ode.go`), and `pflow-solver` integrates the net as given. `pflow-core` has the port (`PetriNet::expand_colors`) but the solver does not call it. go-pflow's `Solution.Truncated` (step limit hit before the horizon) is not ported; `pflow_solver::ode::Solution` has no such field. The RK, implicit and equilibrium solvers are not compared against any go-pflow output | `crates/pflow-solver/tests/ode_parity.rs` against `tests/fixtures/ode/{fixtures,expected}.json`. `expected.json` was produced by go-pflow v0.26.0; pflow-xyz hosts both files under `parity/ode/`, and they are vendored from there via `pflow-xyz.lock` (pflow-xyz @ `0b50279`), not via `go-pflow.lock`. The test asserts the skip list and the compared count (5), so a change to either fails |
 | `stochastic` portable SSA | `pflow-solver::ssa` | byte-exact | `tests/fixtures/ssa/*.json` (six goldens) |
 | `stochastic` SDE | `pflow-solver::ssa::sde` | byte-exact | `tests/fixtures/sde/*.json` (five goldens, `cmd/sde-goldens`, landed 2026-09-10): `chain`/`sir`/`dimer` carry a normal series asserted `==` on every double, same as the SSA goldens; `gates`/`coffeeshop` are refused fixtures whose `diverged`/`reason`/`caveats` are asserted `==` too, not just `contains` — which required rewriting `sde.rs`'s own `gating_reasons` to match go-pflow's `Model.Gating()` wording field for field (arc counts, `[a b c]`-style place lists) rather than the free-form prose it read before |
-| `stochastic` stages, schedules, guard, supply, likelihood | `pflow-solver::stochastic`, `pflow-learn::likelihood` | stages (`fold_throughput`, `drop_stage_contentions`), schedules with **per-realization marking carry** across boundaries (`run_boundaries`, `rates_at`, `simulate_from` — the post-v0.28.1 fixed carry, never the rounded-mean bug), guard-aware propensities, `classify_supply` (Farkas-style P-invariant basis via `pflow-tropical`), `FitDiscrete`/`NegLogLikelihood`; `Result` parity (`Caveats`/`Assumptions` apart, time-weighted `Metrics`, `Contended`, `Depleted`) | unit tests, plus a go-pflow-produced scheduled/staged golden landed 2026-09-10 (`tests/fixtures/scheduled/cafe-service.json`, `cmd/scheduled-goldens`), byte-exact end to end: the `forecastRefusal` half (`forecast_schedule_refusal` — the one branch of `Forecast` this crate ports, the schedule-refusal check before any ODE integration) and the scheduled/staged `simulate` result itself, all ~780 reported doubles plus every `Final` value, asserted `==` in `tests/scheduled_parity.rs`'s `scheduled_run_matches_go_pflow_exactly` — closed by fixing `engine::ssa`'s waiting-time draw to the portable, no-clamp `-plog(1.0 - u)` shape `ssa::mod` already used correctly elsewhere (see the note below) |
+| `stochastic` stages, schedules, guard, supply, likelihood | `pflow-solver::stochastic`, `pflow-learn::likelihood` | stages (`fold_throughput`, `drop_stage_contentions`), schedules with **per-realization marking carry** across boundaries (`run_boundaries`, `rates_at`, `simulate_from` — the post-v0.28.1 fixed carry, never the rounded-mean bug), guard-aware propensities, `classify_supply` (Farkas-style P-invariant basis via `pflow-tropical`), `FitDiscrete`/`NegLogLikelihood`; `Result` parity (`Caveats`/`Assumptions` apart, time-weighted `Metrics`, `Contended`, `Depleted`). Not ported: `Forecast`, `ValidateDelays`, and what go-pflow added after the `go-pflow.lock` pin (`ContinueStreams`, `Context`/`MaxSteps`/`MaxPlaceTokens`, `Result.Truncated`); see *Tracked gaps* | unit tests, plus a go-pflow-produced scheduled/staged golden landed 2026-09-10 (`tests/fixtures/scheduled/cafe-service.json`, `cmd/scheduled-goldens`), byte-exact end to end: the `forecastRefusal` half and the scheduled/staged `simulate` result itself. `Forecast` is **not ported**: the refusal is checked by `forecast_schedule_refusal`, a helper defined inside `tests/scheduled_parity.rs` (line 56) that reproduces go-pflow's `m.HasSchedules()` branch for the test's sake, not a `pflow_solver::stochastic` function. The `simulate` result is checked on all 768 reported doubles (12 places × 64 sample times) plus all 12 `Final` values, asserted `==` in `tests/scheduled_parity.rs`'s `scheduled_run_matches_go_pflow_exactly` — closed by fixing `engine::ssa`'s waiting-time draw to the portable, no-clamp `-plog(1.0 - u)` shape `ssa::mod` already used correctly elsewhere (see the note below) |
 | `learn` | `pflow-learn` | full | `parity/learn/goldens.json` (vendored via `pflow-xyz.lock`) |
-| `tokenmodel` | `pflow-tokenmodel` | full — **and no longer including go-pflow's known runtime defects**: `Runtime::enabled`/`execute` now route through `pflow-metamodel`'s shared firing rule instead of go-pflow's hardcoded `< 1` check, so declared arc weight, inhibitor and read arcs are honoured and `execute` moves the declared weight rather than one hardcoded token; `Arc` gained optional `weight`/`type` fields (absent from go-pflow's own schema) to have something for the firing rule to read. Also: role-based access control (`pflow_metamodel::AccessControl`, ported from `access.go`'s `Role`/`AccessRule`) wired into `Runtime::execute_as`/`access_allows`. **This is a deliberate, documented divergence from go-pflow's runtime, not a golden it produced** — see `runtime.rs`'s module doc for the full rationale, the follow-up go-pflow needs (fix `tokenmodel.Runtime` the same way, or add the same `Arc` fields, so the two do not keep diverging), and exactly what stays a faithful match (arcs that are all weight-1/normal-typed — the only shape go-pflow can express — behave identically on both sides). Also: `canonical_cid::compute_cid` — the ecosystem's `CIDv1(dag-json, sha2-256, base58btc)` over URDNA2015-canonicalized N-Quads, a from-scratch (but pflow-jl-ported, see Phase 6) canonicalizer independent of `Schema::cid()`'s local identity hash | unit tests; `canonical_cid` additionally held to `pflow-xyz/parity/golden.json` (all five fixtures, vendored to `tests/fixtures/cid/parity/` via `pflow-xyz.lock`) plus two ported tie-breaking fixtures |
+| `tokenmodel` | `pflow-tokenmodel` | full — **and no longer including go-pflow's known runtime defects**: `Runtime::enabled`/`execute` now route through `pflow-metamodel`'s shared firing rule instead of go-pflow's hardcoded `< 1` check, so declared arc weight, inhibitor and read arcs are honoured and `execute` moves the declared weight rather than one hardcoded token; `Arc` gained optional `weight`/`type` fields to have something for the firing rule to read. Also: role-based access control (`pflow_metamodel::AccessControl`, ported from `access.go`'s `Role`/`AccessRule`) wired into `Runtime::execute_as`/`access_allows`. go-pflow has since made the matching change in `8133101` (2026-09-25, after the `go-pflow.lock` pin `d84dc01`): `tokenmodel.Arc` gained `Weight` (0 = 1) and `Type` (`""`/`"inhibitor"`/`"read"`), wire-compatible with this crate's fields, and `Runtime.Enabled`/`Execute`/`ExecuteWith{Bindings,GuardFuncs}` apply the same rule (reimplemented inside `tokenmodel`, which cannot import `metamodel`). The two runtimes now agree by construction, but no go-pflow-produced golden holds them to each other, and `runtime.rs`'s and `schema.rs`'s doc comments still describe go-pflow's pre-`8133101` behaviour. Also: `canonical_cid::compute_cid` — the ecosystem's `CIDv1(dag-json, sha2-256, base58btc)` over URDNA2015-canonicalized N-Quads, a from-scratch (but pflow-jl-ported, see Phase 6) canonicalizer independent of `Schema::cid()`'s local identity hash | unit tests; `canonical_cid` additionally held to `pflow-xyz/parity/golden.json` (all five fixtures, vendored to `tests/fixtures/cid/parity/` via `pflow-xyz.lock`) plus two ported tie-breaking fixtures |
 | DSL (petri-pilot `pkg/dsl`) | `pflow-dsl` | parses `cafe-loyalty.pflow`; adds Rust codegen | unit tests |
 | `petri` (Shape A net, colors) | `pflow-core` | Shape A JSON reader (`@id`, places/transitions keyed by id, null-tolerant vectors) + `colors.go` port (`expand_colors`, `expand_state`, `short_color_names`, `unfold` — arc-less color copies pruned, output-side inhibitor → explicit read arc) | unit tests; exercised end-to-end by `pflow-parser`'s editor-shape goldens (`parsed`/`expanded` sections) |
 | `parser` (`ModelFromJSON`, Shape A → B) | `pflow-parser` | `is_pflow_json`, `model_from_json` — the one Shape A → Shape B converter (color unfolding, short color names, output-side inhibitor → explicit read arc, color-copy Y offset) | `go-pflow/parser/testdata/editor-shape/*.json` (7 fixtures, all three of `parsed`/`expanded`/`unfolded` per fixture), copied byte-identical via `go-pflow.lock` |
 | `metamodel` (Shape B, firing rule, compose, stages, schedule, parameters, access) | `pflow-metamodel`, `pflow-compose` | model + firing rule + gating + stages + schedule + parameters; compose now ported — see the `metamodel` compose row below; **access enforcement now ported** (`pflow-metamodel::access::AccessControl` — role-hierarchy resolution, transition/`"*"` rule matching, "empty roles = any authenticated user" — built fresh on go-pflow's `Role`/`AccessRule` types rather than copied, since go-pflow's own `access.go` declares only the types and never resolves them; the shape it mirrors is petri-pilot's `pkg/bridge/access.go`. No go-pflow fixture to hold it to byte-for-byte, so it is new-rather-than-ported, the same interim state Phase 2's dangling-arc check documents), used by `pflow-tokenmodel::Runtime::execute_as`; the SSA's `compile()` now classifies arcs through `Model::inputs`/`outputs`/`tests` instead of a private copy | unit tests; the editor-shape `unfolded` goldens above pin the `Model` shape it deserializes into; SSA goldens prove the shared classification agrees with the SSA's own (previously separate) rule |
-| `reachability`, `validation`, `verify` | `pflow-reachability`, `pflow-validation`, `pflow-verify` | reachability graph/BFS, cycle detection, liveness, `PathTo`/`CanFire`/`CanTransitionFire`, Karp–Miller coverability witness (`FindUnboundedWitness`), minimal-support Farkas P/T invariants (a new home — see the crate's own doc comment for why `pflow-tropical`'s null-space basis is a different algorithm and stays), eigenvector centrality (`spectral.go`, four functions folded into one shared power-iteration helper); validation's structure/connectivity/deadlock-heuristic/unbounded/conservation checks plus a dangling-arc check go-pflow itself doesn't have; verify's full property language (`deadlock-free`, `bounded`, `live`, `terminating`, `reachable`/`unreachable`, `invariant`, `mutual-exclusion`, `conserves`) with structural-then-exhaustive proof strategy. Built on `pflow-metamodel`'s already color-unfolded `Model`, so go-pflow's `ColorMap` base-name expansion and the Shape-A-only `+Inf` capacity-vector clamp bug have no analogue here (documented in `pflow-validation`'s crate doc) | unit tests (55 across the three crates); `pflow-polyglot`'s `parity/reachability.golden` for the coffee machine, replayed byte-for-byte (`pflow-reachability/tests/coffee_machine_golden.rs`); `pflow-verify/tests/cafe_order.rs` against the showcase's `cafe-order.json` (vendored byte-identical via `pflow-xyz.lock`; fails, never skips, if missing); **`pflow-verify/tests/showcase_properties.rs`** replays go-pflow's own `cmd/properties-goldens` golden (`tests/fixtures/showcase/properties.json`, landed 2026-09-10) for the same file field for field — `status`/`method`/`detail`/`evidence`/`counterexample`, not just the statuses `cafe_order.rs` checks — closing the exit criterion below with an actual byte-exact contract rather than the sibling-repo integration check it was held by before. Caught and fixed one real divergence: `format_trace`/the terminating-cycle join used an ASCII `" -> "`; go-pflow's `formatTrace` joins with the Unicode arrow `" → "` (U+2192) |
+| `reachability`, `validation`, `verify` | `pflow-reachability`, `pflow-validation`, `pflow-verify` | reachability graph/BFS, cycle detection, liveness, `PathTo`/`CanFire`/`CanTransitionFire`, Karp–Miller coverability witness (`FindUnboundedWitness`), minimal-support Farkas P/T invariants (a new home — see the crate's own doc comment for why `pflow-tropical`'s null-space basis is a different algorithm and stays), eigenvector centrality (`spectral.go`, four functions folded into one shared power-iteration helper); validation's structure/connectivity/deadlock-heuristic/unbounded/conservation checks plus a dangling-arc check go-pflow itself doesn't have; verify's full property language (`deadlock-free`, `bounded`, `live`, `terminating`, `reachable`/`unreachable`, `invariant`, `mutual-exclusion`, `conserves`) with structural-then-exhaustive proof strategy. Built on `pflow-metamodel`'s already color-unfolded `Model`, so go-pflow's `ColorMap` base-name expansion and the Shape-A-only `+Inf` capacity-vector clamp bug have no analogue here (documented in `pflow-validation`'s crate doc). **Gap: expression guards are ignored without a caveat.** `pflow-verify` explores the `Model` through the shared firing rule, which does not evaluate `Transition::guard`, and its `Report` has no diagnostics field, so a guarded transition is explored as if unguarded and a verdict that depends on the guard comes back proved or refuted with nothing saying so. go-pflow's `verify` runs on `metamodel/metapetri`'s model→net conversion, whose `Diagnostics` record each dropped guard (`GUARD_DROPPED`) and cap the affected verdicts to Unknown; `metapetri` is not ported (see its own row). The showcase golden does not catch this because `cafe-order.json` declares no guards | unit tests (55 across the three crates); `pflow-polyglot`'s `parity/reachability.golden` for the coffee machine, replayed byte-for-byte (`pflow-reachability/tests/coffee_machine_golden.rs`); `pflow-verify/tests/cafe_order.rs` against the showcase's `cafe-order.json` (vendored byte-identical via `pflow-xyz.lock`; fails, never skips, if missing); **`pflow-verify/tests/showcase_properties.rs`** replays go-pflow's own `cmd/properties-goldens` golden (`tests/fixtures/showcase/properties.json`, landed 2026-09-10) for the same file field for field — `status`/`method`/`detail`/`evidence`/`counterexample`, not just the statuses `cafe_order.rs` checks — closing the exit criterion below with an actual byte-exact contract rather than the sibling-repo integration check it was held by before. Caught and fixed one real divergence: `format_trace`/the terminating-cycle join used an ASCII `" -> "`; go-pflow's `formatTrace` joins with the Unicode arrow `" → "` (U+2192) |
 | `metamodel` compose (`Bundle`/`Flatten`, `compose_matrix`, `compose_guard`, `compose_fuse`, `queue.go`, `patterns_compose.go`) | `pflow-compose` | `Bundle`/`Subnet`/`Link`/`Endpoint` types with the same JSON shape as `cafe.bundle.json`; `flatten`/`flatten_with_map` (identity short-circuit, union-find place/transition equivalence classes, associative fusion, place-merge rules, arc retargeting+merge under `sum`/`max`, `GuardLink` lowering to read/inhibitor arcs or a guard conjunct with the same operator table as `compose_guard.go`); the net-type × link-kind legality matrix (`compose_matrix.go`); `NewQueue`/`IsUnboundedQueue` (bounded queue via the complementary-place idiom); a `ResourcePool` subnet constructor (the composable form of `patterns_compose.go`'s `(*ResourcePool).ToSubnet`, built directly rather than through the generic `PetriNet[R]` machinery — see the crate's module doc for why) | unit tests per module (union-find associativity, guard-lowering operator table, legality matrix, queue capacity invariant); integration tests in `tests/flatten.rs` pinned against the exact cases in go-pflow's `metamodel/compose_test.go` (identity, non-aliasing, associativity under link/subnet reordering, wire fusion, place-merge rules incl. kind/type-conflict rejection, EventLink fusion with initiator-owns-route, guard-link structural lowering) plus a direct flatten of the showcase's own `cafe.bundle.json` (vendored byte-identical via `pflow-xyz.lock`; fails, never skips, if missing); **`tests/flatten_golden.rs`** holds that same flatten to go-pflow's own `cmd/bundle-goldens` output (`tests/fixtures/bundle/cafe.flatten.json`, landed 2026-09-10) byte-for-byte as canonical JSON — the golden that used not to exist (below) now does, and the flatten matches it exactly once the test's own canonicalizer neutralizes the two languages' JSON encoders formatting an integral `f64` differently (`20` vs `20.0`), which is not a finding about `flatten`. `StateMachine`/`Workflow`/`EventSourced` (`patterns.go`'s other three composable patterns) are **not ported** — see `pflow-compose::resource_pool`'s module doc for why |
 | petri-pilot `pkg/mcp` extension op set (`applyOperation`/`compareModels`, exposed as `petri_extend`/`sim_extend`) | `pflow-compose::extend` | not a go-pflow package — petri-pilot is the one home for this op language, ported here rather than reinvented; the full `add_place`/`add_transition`/`add_arc`/`remove_place`/`remove_transition`/`remove_arc`/`add_event`/`add_event_field`/`remove_event`/`add_binding`/`remove_binding` op set plus `ModelDiff`/`compare_models`. `add_role`/`add_access`/`remove_role`/`remove_access` stay refused with the same "roles are now managed via extensions" message petri-pilot gives, since neither side has ported the extension registry itself | unit tests |
 | `templates`, `derive` | `pflow-compose::templates`, `pflow-compose::derive` | `templates`: `sir`/`seir`/`queue`/`producer-consumer`/`workflow` generators over `pflow_core::PetriNet` (Shape A, matching go-pflow's own `petri.PetriNet`-based templates rather than the Shape B model the rest of this crate uses), plus a name-dispatched `generate`/`list`; `derive`: `add_catalyzed_copy`, `replace_with_hazard`, `write_only_places`, `drop_places`, `drop_transitions`, `drop_readbacks` — the net→net evaluation-net transforms, ported field-for-field | unit tests per generator/transform (no go-pflow golden exists for either package; go-pflow's own tests are likewise unit tests, not goldens) |
@@ -46,6 +46,13 @@ variations it unlocks, so "how far is Rust" has a one-line answer at any time.
 | `zkcompile` (gnark) / `prover` | `pflow-zk`, `-arkworks` | different backends by design; see *Not ported* | — |
 | `visualization`, `plotter` | `pflow-visualization` | net SVG (`render.go`/`svg.go`, direct from `pflow_core::PetriNet` — skips the JSON-LD round trip go-pflow's own `RenderSVG` does, since `pflow_core::PetriNet` already is that shape), plotter line-plot SVG (`plotter/svg.go`, ported whole); the state machine and workflow SVG renderers (`statemachine_svg.go`, `workflow_svg.go`) were **removed 2026-10-21** with the crates they drew (last version at `98bfd83`) | unit tests — **no reference SVGs exist to hold this to a byte-identical golden**: neither `visualization/testdata` nor `plotter/testdata` exists in go-pflow (confirmed by reading both packages directly, 2026-09-10), and go-pflow's own tests for both packages assert structure (`strings.Contains`), not full-document equality, because node draw order follows Go's own unordered `map` iteration — not reproducible even between two runs on the Go side. Two of `colors_test.go`'s own tests (`TestSVGFullnessUsesTheWholeCapacityVector`'s `placeIsDrawnFull` helper) exist specifically to warn against the bare-substring-vs-full-class-attribute mistake this port's own first draft made and fixed before landing |
 | `eventsource` SQLite store, `graphql`, `cache`, `compat` | — | not planned (the in-memory `eventsource` half was ported, then removed 2026-10-21 — see the row above) | — |
+| `metamodel/metapetri` (model→net bridge for `verify`, with `Diagnostics` such as `GUARD_DROPPED`) | — | **gap, not ported**. `pflow-verify` reads `Model` directly, so it has no conversion step and no diagnostics; the consequence is the unflagged guard blind spot recorded in the `verify` row above | — |
+| `saga` (compensable steps as a net; added in go-pflow `4a827f4`, 2026-10-20, after the `go-pflow.lock` pin) | — | **gap, not ported** | — |
+| `tokenmodel/dataflow` (Beam/Dataflow-style streaming execution, plus its `transport` wire layer) | — | **gap, not ported**. `pflow-mining::dataflow_discovery` has minimal local `PipelineSpec`/`WindowSpec`/`TriggerSpec` types for discovery output only | — |
+| `tokenmodel/windowing` | — | **gap, not ported** | — |
+| `tokenmodel/subnet` (subnet composition for `tokenmodel/petri`) | — | **gap, not ported**. `pflow-compose`'s `Bundle`/`Subnet` port the `metamodel` compose layer, not this one | — |
+| `tokenmodel/petri` (Petri semantics as a tokenmodel specialization, structural invariant analysis) | — | **gap, not ported** | — |
+| `codegen/solidity` (Solidity contracts and guard translation from token model schemas) | — | **gap, not ported**. Separate from the `zkcompile` Solidity verifier listed under *Not ported, on purpose* | — |
 | Rust-only: `pflow-tropical`, `pflow-macros` | — | ahead of Go | — |
 
 Showcase scorecard today: **kinetics** replays byte-exact once the SSA JSON
@@ -57,11 +64,13 @@ the shared terminal-state heuristic — see Phase 2); **market** runs
 unverified; **bundle** loads and flattens byte-exact against go-pflow's own
 `cmd/bundle-goldens` output (`pflow-compose::Bundle::flatten` against the
 showcase's own `cafe.bundle.json` — see Phase 3); **service** (Variation
-II, `cafe-service.json`: stages/schedules) now loads and runs — schedule
-dispatch, stage expansion and `Forecast`'s schedule refusal all exercised
-against a go-pflow-generated golden (Phase 1) — but its numeric output is
-not yet byte-exact, only shape-checked; **theme** and **application** do not
-load.
+II, `cafe-service.json`: stages/schedules) loads, runs and replays
+byte-exact against go-pflow's `cmd/scheduled-goldens` output: every
+reported double and every `Final` value is asserted `==`
+(`scheduled_run_matches_go_pflow_exactly`, Phase 1). Its `Forecast`
+refusal string is matched too, but only by a helper inside the test, since
+`Forecast` itself is not ported; **theme** and **application** do not
+load. Score: not 8/8.
 
 ## Ground rules
 
@@ -130,7 +139,7 @@ Exit: `cafe.jsonld` → `unfolded` equals the golden byte-for-byte after
 canonical JSON serialisation; every SSA golden still passes through the
 shared firing rule. **Unlocks: theme, kinetics, order (structurally).**
 
-### Phase 1 — Complete `stochastic` · ~4.5k Go lines · **done except scheduled/staged byte-exact parity** (2026-09-10)
+### Phase 1 — Complete `stochastic` · ~4.5k Go lines · **done for the scope below, including scheduled/staged byte-exact parity** (2026-09-10); `Forecast`, `ValidateDelays` and go-pflow's later additions are open gaps (see *Tracked gaps*)
 
 - Stages (`fold_throughput`, `drop_stage_contentions`), schedules with
   **per-realization marking carry** across boundaries (`run_boundaries`,
@@ -152,21 +161,25 @@ shared firing rule. **Unlocks: theme, kinetics, order (structurally).**
   `Metrics` time-weighted mean/P95/utilization/in-flight, `Contended`
   (capacity-first, then longest-wait-first sort), `Depleted`
   (recovered vs not).
-- **`Forecast` stays out of scope except for one branch, ported specifically
-  to hold the new golden below**: the schedule-refusal check
-  (`m.HasSchedules()`, before any ODE integration is attempted) is now
-  `pflow_solver::stochastic::forecast_schedule_refusal`
-  (`tests/scheduled_parity.rs`'s doc comment names it precisely). The rest
-  of `Forecast` — the continuous mass-action dispatch, `checkDivergence`,
-  the non-schedule `Gating()` refusal — remains unported: `pflow-solver::ode`
+- **`Forecast` is not ported.** The golden below carries a
+  `forecastRefusal` field, and the schedule-refusal check it holds
+  (`m.HasSchedules()`, before any ODE integration is attempted) is
+  reproduced by `forecast_schedule_refusal`, a private helper defined in
+  `crates/pflow-solver/tests/scheduled_parity.rs` (line 56). It is test
+  code, not part of `pflow_solver::stochastic`'s API, so a library caller
+  has no `Forecast` and no refusal to call. All of `Forecast`, including
+  the continuous mass-action dispatch, `checkDivergence` and the
+  non-schedule `Gating()` refusal, remains unported: `pflow-solver::ode`
   already runs the ODE side directly and dispatching *from* the stochastic
   module to it is orthogonal plumbing, not part of "complete `stochastic`"
   as scoped by the guard/supply/likelihood/stages/schedule list above;
   revisit alongside a `Simulate`-equivalent single entry point if one is
-  wanted. `ValidateDelays` (`metamodel/delay.go`) is not yet ported to
-  `pflow-metamodel`, so a negative delay is silently clamped to zero here
-  rather than refused with go-pflow's error text — narrower than Go, tracked
-  as a gap rather than fixed by inventing a different error path.
+  wanted. `ValidateDelays` (`metamodel/delay.go`, present at the lock pin)
+  is not yet ported to `pflow-metamodel`, so a negative delay is silently
+  clamped to zero (`pflow-solver/src/stochastic/compile.rs`, line 222)
+  rather than refused with go-pflow's error text. That accepts input Go
+  refuses; it is tracked as a gap rather than fixed by inventing a
+  different error path.
 - **The scheduled/staged engine now carries a numeric byte-parity contract —
   closed, not just measured.** go-pflow's *default* `stochastic.Simulate`/
   `SimulateSchedule` path was never given a byte-exact cross-language
@@ -183,7 +196,7 @@ shared firing rule. **Unlocks: theme, kinetics, order (structurally).**
   `-plog(1.0 - u)` shape `ssa::mod` already used correctly elsewhere and
   that go-pflow's `portableSampler.wait()` actually specifies. Draw *order*
   was never the problem; the draw *transform* was wrong on one call site.
-  Fixed (one line, `stochastic/engine.rs`), all ~780 reported doubles now
+  Fixed (one line, `stochastic/engine.rs`), all 768 reported doubles now
   land bit-for-bit — `tests/scheduled_parity.rs`'s
   `scheduled_run_matches_go_pflow_exactly` asserts `==` on every one, and on
   every `Final` value too.
@@ -204,15 +217,19 @@ shared firing rule. **Unlocks: theme, kinetics, order (structurally).**
   by `petri-sde_test.ts` — closing the three-way go-pflow/pflow-rs/pflow-xyz
   contract, not just the go-pflow/pflow-rs half of it.
 
-Exit: showcase `fixtures/ssa-go-seed42.json` replays `==`; the new
-go-pflow-generated scheduled/staged golden (`cmd/scheduled-goldens`) is
-vendored and its `forecastRefusal` half replays `==` — `Forecast` refuses
-`cafe-service.json` with the exact reason string go-pflow gives — but the
-scheduled/staged `Result` itself does **not yet** replay `==` (see above);
-that half of this exit criterion is still open. **Unlocks: service
-(structurally — schedule/stage dispatch runs end to end and its refusal
-path is byte-exact); market (verified) unlocking is unaffected, it does not
-depend on this engine's numeric parity.**
+Exit: showcase `fixtures/ssa-go-seed42.json` replays `==` (**not held**:
+no test in this repo reads that file; see the kinetics note in the
+scorecard); the new go-pflow-generated scheduled/staged golden
+(`cmd/scheduled-goldens`) is vendored and replays `==` on both halves.
+The scheduled/staged `Result` matches on every reported double and every
+`Final` value (`scheduled_run_matches_go_pflow_exactly`), and the
+`forecastRefusal` reason, caveats and method match go-pflow's
+(`forecast_refuses_cafe_service_with_go_pflow_reason`). The refusal half
+is checked against the test-local `forecast_schedule_refusal` helper,
+because `Forecast` is not ported. **Unlocks: service (schedule/stage
+dispatch runs end to end and its numeric output is byte-exact); market
+(verified) unlocking is unaffected, it does not depend on this engine's
+numeric parity.**
 
 ### Phase 2 — Analysis (`reachability`, `validation`, `verify`) · ~6.4k Go lines · **done** (2026-09-10)
 
@@ -414,7 +431,7 @@ Exit: conformance fitness for the showcase event log equals Go to the last
 printed digit. **Unlocks: application's conformance half; finishes the
 showcase's analysis columns.**
 
-### Phase 5 — Execution runtimes (`statemachine`, `workflow`, `actor`, `engine`, `tokenmodel` fixes) · ~11k Go lines · **done** (2026-09-10); runtime crates **removed 2026-10-21**
+### Phase 5 — Execution runtimes (`statemachine`, `workflow`, `actor`, `engine`, `tokenmodel` fixes) · ~11k Go lines · **not done: exit criterion unmet** (application does not load, showcase is not 8/8). The ports landed 2026-09-10; the runtime crates were **removed 2026-10-21**; the `tokenmodel` fixes and access control remain
 
 The `statemachine`/`workflow`/`actor`/`engine`/`monitoring`/`eventsource`
 ports below landed in one commit and were removed 2026-10-21: nothing in
@@ -423,41 +440,39 @@ listed under *Not ported, on purpose*; the last version is at commit
 `98bfd83`. The `tokenmodel` fixes and access control below are unaffected.
 
 - `statemachine` and `workflow` builders and engines, `metasubnet`, the
-  workflow monitor; `actor` (bus, subnets, metabundle) — **done**,
-  `pflow-statemachine`/`pflow-workflow`/`pflow-actor`. See the Status table
-  row above for what each crate covers and the deliberate scope narrowing
-  (`actor.go`'s internal-Petri-net-dispatching runtime and the
-  `tokenmodel/subnet`-targeting `ToBundle` are not ported).
+  workflow monitor; `actor` (bus, subnets, metabundle) — ported as
+  `pflow-statemachine`/`pflow-workflow`/`pflow-actor`, then **removed
+  2026-10-21** (last version at `98bfd83`). `actor.go`'s
+  internal-Petri-net-dispatching runtime and the `tokenmodel/subnet`-targeting
+  `ToBundle` were never ported.
 - `engine` (the unified ODE + event-sourced runtime petri-pilot's
-  `pflow-engine.js` derives from) — **done**, `pflow-engine`. See the Status
-  table row above.
+  `pflow-engine.js` derives from) — ported as `pflow-engine`, then
+  **removed 2026-10-21** (last version at `98bfd83`).
 - `tokenmodel::Runtime` used to match go-pflow faithfully, which meant it
   also matched its defects: enablement hardcoded to `< 1` so **weights were
   ignored**, inhibitors ignored, one token moved per arc, guards never
   evaluated (on the plain, bindings-free entry points — see below). **Fixed
-  this phase, on the side of the two options this repo could actually take
-  unilaterally**: coordinating a simultaneous go-pflow fix isn't something a
-  Rust-only change here can do, so rather than leave the bug in place,
-  `pflow-tokenmodel::Runtime` now routes `enabled`/`execute` through
-  `pflow-metamodel`'s shared firing rule from Phase 0 (ground rule 4)
-  instead of go-pflow's private, buggy copy. **This is a deliberate,
-  documented divergence in behaviour from go-pflow, not a golden go-pflow
-  produced and Rust replays** — spelled out in full, including exactly what
-  still matches go-pflow and what a go-pflow-side fix would need to look
-  like, in `pflow-tokenmodel/src/runtime.rs`'s module doc comment and the
-  Status table row above. `Enabled`/`Execute`'s guard-blindness is
+  this phase**: `pflow-tokenmodel::Runtime` routes `enabled`/`execute`
+  through `pflow-metamodel`'s shared firing rule from Phase 0 (ground
+  rule 4) instead of go-pflow's private copy. When this landed it was a
+  deliberate divergence from go-pflow, not a golden go-pflow produced and
+  Rust replays. `Enabled`/`Execute`'s guard-blindness is
   unchanged (matches go-pflow; only `ExecuteWithBindings`/
   `ExecuteWithGuardFuncs` evaluate guards, on both sides) since a guard
   expression needs bindings this crate has no way to invent for the
   plain entry points.
-  - **Follow-up needed on the go-pflow side**, tracked here since it can't
-    be filed there directly: either port this same fix into
-    `tokenmodel.Runtime` (route through `metamodel.Enabled`/`Fire`), or add
-    `weight`/`type` fields to `tokenmodel.Arc` matching the ones added here,
-    so a schema using them means the same thing in both languages. Until
-    then, a schema whose arcs are all weight-1/normal-typed — the only
-    shape go-pflow's wire format can express — behaves identically on both
-    sides; anything using the new fields is Rust-only.
+  - **go-pflow has since done the follow-up** in `8133101` (2026-09-25,
+    after the `go-pflow.lock` pin `d84dc01`): `tokenmodel.Arc` gained
+    `Weight` (`json:"weight,omitempty"`, 0 = 1) and `Type`
+    (`json:"type,omitempty"`: `""`, `"inhibitor"` or `"read"`), wire-compatible
+    with the fields added here, and `Runtime.Enabled`/`Execute`/
+    `ExecuteWith{Bindings,GuardFuncs}` now consume and test `weight` tokens
+    the same way. go-pflow reimplements the rule inside `tokenmodel` (which
+    cannot import `metamodel`) rather than sharing it. A schema using the new
+    fields now means the same thing in both languages. Still open: no
+    go-pflow-produced golden holds the two runtimes to each other, and
+    `pflow-tokenmodel`'s `runtime.rs` module doc and `schema.rs` `Arc` doc
+    still say go-pflow lacks these fields.
 - `monitoring` (monitor, predictor) with `eventsource` in-memory store only
   — **done**, `pflow-monitoring` + `pflow-eventsource`. See the Status table
   rows above.
@@ -485,7 +500,10 @@ unit tests ported case-for-case rather than a byte-identical JSON golden,
 per the ground rules ("go-pflow generates, Rust replays" — there is nothing
 to copy yet).
 
-Exit: **application** replays end to end. Showcase is 8/8.
+Exit: **application** replays end to end. Showcase is 8/8. **Not met:**
+**theme** and **application** do not load (see the scorecard under
+*Status*), so this phase is not done, whatever its individual bullets
+say.
 
 ### Phase 6 — Surfaces (`visualization`, `plotter`, CLI, MCP) · ~4.5k Go lines + tool parity · **visualization/plotter, canonical CID, MCP tools and CLI done** (2026-09-10)
 
@@ -600,6 +618,50 @@ Exit: **application** replays end to end. Showcase is 8/8.
 Exit: `pflow-rs` appears in the showcase README's score table with the same
 columns as Go.
 
+## Tracked gaps
+
+Things go-pflow has that pflow-rs does not, recorded so they are not
+mistaken for parity. Packages with no Rust counterpart at all are rows in
+the Status table above (`metamodel/metapetri`, `saga`, `tokenmodel/dataflow`,
+`tokenmodel/windowing`, `tokenmodel/subnet`, `tokenmodel/petri`,
+`codegen/solidity`).
+
+**Present at the `go-pflow.lock` pin (`d84dc01`, 2026-09-10) but not ported:**
+
+- `solver`: color unfolding before integration (`petri.ExpandColors` in
+  `solver/ode.go`) and `Solution.Truncated`. `tests/ode_parity.rs` therefore
+  compares 5 of the 10 ODE fixtures.
+- `stochastic.Forecast`. Only its schedule-refusal branch is reproduced, and
+  only inside `crates/pflow-solver/tests/scheduled_parity.rs`.
+- `metamodel.ValidateDelays`. `pflow-solver/src/stochastic/compile.rs`
+  (line 222) clamps a negative delay to 0 where go-pflow refuses the model.
+- `metamodel/metapetri` and its `Diagnostics` (`GUARD_DROPPED`).
+  `pflow-verify` ignores expression guards and says nothing about it (see the
+  `verify` row).
+
+**Added to go-pflow after the pin (`d84dc01..a8375b2`), not tracked by
+`go-pflow.lock` and not ported:**
+
+- `stochastic/testdata/scheduled/restart-streams.json`, a new
+  scheduled-SSA golden (`23d4104`, 2026-10-02). It is not vendored and has
+  no `go-pflow.lock` entry.
+- `stochastic.Options.ContinueStreams`, one PRNG stream per realization
+  across schedule segments (`23d4104`, v0.33.0).
+- `stochastic.Options.Context`, `MaxSteps` and `MaxPlaceTokens`, opt-in
+  bounds on one call (`c9a6025`, v0.32.0). `pflow_solver::stochastic::Options`
+  has none of these; the engine caps each SSA run loop at a fixed
+  `MAX_STEPS = 1_000_000` (`stochastic/engine.rs`).
+- `stochastic.Result.Truncated` (with `Diverged`/`Reason` set when a step
+  limit cuts a run short) and SDE results populating `Depleted` (`f09a0bd`,
+  v0.31.0). `pflow_solver::stochastic::SimResult` has no `truncated` field
+  and `ssa::sde::SdeResult` has no `depleted` field.
+- `saga` (`4a827f4`, 2026-10-20).
+
+Changes after the pin that pflow-rs already matches: `84ae2a9` (mining
+conformance honours inhibitor and read arcs; ported in `a0a2eb1`) and
+`8133101` (`tokenmodel.Runtime` honours weight, inhibitor and read arcs,
+which pflow-rs already did; see Phase 5).
+
 ## Not ported, on purpose
 
 | Package | Reason | Revisit when |
@@ -655,6 +717,8 @@ columns as Go.
     and each vendored file's own `_comment` records the commit with a
     `-dirty` suffix so the provenance is honest rather than silently
     rewritten to look like a clean sync. `go-pflow.lock`'s entries were
-    updated by hand to match, not through `sync`. The next `sync` run
-    against a committed go-pflow tree that includes these four commands will
-    refresh them the normal way and drop the `-dirty` suffix.
+    updated by hand to match, not through `sync`. go-pflow has since
+    committed the four generators (`d152f8a`, 2026-09-13), but
+    `go-pflow.lock` still pins `d84dc01`, so the vendored files keep the
+    `-dirty` suffix until a `sync` against a go-pflow commit at or after
+    `d152f8a` refreshes them the normal way.

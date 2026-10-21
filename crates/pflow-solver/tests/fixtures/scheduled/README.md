@@ -20,30 +20,25 @@ cannot run on a continuous engine, so `Forecast` refuses rather than
 integrating it flat, before ever calling the ODE solver. This is not an
 `error`; `Forecast` returns `(*Result, nil)` with `Diverged: true`.
 
-`tests/scheduled_parity.rs` checks two different claims against this one
-file, and they are not the same claim:
+`tests/scheduled_parity.rs` checks this file with three tests:
 
 - **`forecast_refuses_cafe_service_with_go_pflow_reason`** asserts `==`
-  against `forecastRefusal.reason`/`.caveats`/`.method` — the one branch of
-  `stochastic.Forecast` this crate ports (the schedule-refusal check,
-  `m.HasSchedules()`, before any ODE integration), added specifically to
-  hold this field. `Forecast`'s continuous mass-action dispatch itself
-  remains unported — see `pflow-rs/ROADMAP.md` Phase 1, "Not ported in this
-  phase, by design."
-- **`scheduled_run_matches_go_pflow_shape`/
-  `scheduled_numeric_divergence_is_measured_not_claimed`** run
-  `pflow_solver::stochastic::simulate` (which dispatches to
-  `simulate_schedule`) over the same model/options and check the *shape* of
-  the result (method, place set, sample grid, `Final` keys) plus report —
-  without asserting — how many of the reported doubles land bit-for-bit on
-  go-pflow's. `pflow_solver::stochastic`'s own module doc is explicit that
-  this engine "has no byte-parity contract": it reuses this crate's portable
-  Xoshiro256/`plog` generator for its randomness, but not go-pflow's RNG draw
-  order (stage/schedule bookkeeping calls it in a different sequence). As of
-  this golden, the measured agreement is a minority of the ~780 doubles
-  (12 places × 65 samples) — genuinely partial, not a rounding-noise near
-  miss — which is why `ROADMAP.md`'s Status table still holds this engine to
-  "unit tests" rather than claiming byte-exact parity from this file.
+  against `forecastRefusal.reason`/`.caveats`/`.method`. go-pflow's
+  `stochastic.Forecast` is **not ported**: the refusal is produced by
+  `forecast_schedule_refusal`, a helper defined in the test file itself
+  that reproduces `Forecast`'s `m.HasSchedules()` branch. It is not part of
+  `pflow_solver::stochastic`'s API. See `ROADMAP.md` Phase 1.
+- **`scheduled_run_matches_go_pflow_shape`** runs
+  `pflow_solver::stochastic::simulate` (which dispatches to the schedule
+  path) over the same model, options and seed and checks the shape of the
+  result: method, place set, sample grid and `Final` keys.
+- **`scheduled_run_matches_go_pflow_exactly`** asserts `==` on every
+  reported double (12 places x 64 sample times, 768 values) and on all 12
+  `Final` values. This used to be a measured-not-claimed check (roughly a
+  third of the doubles matched) because `stochastic::engine::ssa` drew its
+  waiting time as `-plog(u)` with a clamp, go-pflow's non-portable shape,
+  instead of the portable `-plog(1.0 - u)`. With that fixed the run is
+  byte-exact, and `ROADMAP.md`'s Status table says so.
 
 The sha256 is pinned in `go-pflow.lock` at the repo root, verified offline
 with `./scripts/go-pflow-goldens.sh check`. The file's own `_comment` names

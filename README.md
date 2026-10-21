@@ -8,14 +8,31 @@ Rust port of [go-pflow](https://github.com/pflow-xyz/go-pflow) — Petri net mod
 
 | Crate | Description |
 |-------|-------------|
-| `pflow-core` | Petri net types (Place, Transition, Arc), fluent Builder API, state map utilities |
-| `pflow-solver` | ODE solvers (Tsit5, RK45, RK4, Euler, Heun, Midpoint, BS32), implicit methods, equilibrium detection |
+| `pflow-core` | Petri net types (Place, Transition, Arc), fluent Builder API, state map utilities, Shape A JSON and color expansion |
+| `pflow-metamodel` | Shape B model (places, transitions, arcs, stages, schedules, parameters) and the one shared firing rule |
+| `pflow-parser` | Shape A to Shape B converter (the pflow.xyz editor document to a `pflow-metamodel` model) |
+| `pflow-solver` | ODE solvers (Tsit5, RK45, RK4, Euler, Heun, Midpoint, BS32), implicit methods, equilibrium detection; portable Gillespie SSA, chemical Langevin SDE, and the scheduled/staged stochastic engine |
+| `pflow-learn` | Parameter fitting, sensitivities, gradient and derivative-free optimizers for Petri net ODEs |
 | `pflow-tokenmodel` | Token model schema, snapshot, runtime execution, validation, content-addressed identity |
 | `pflow-dsl` | S-expression DSL: lexer, parser, interpreter, builder, codegen |
 | `pflow-macros` | `schema!` proc macro — compile-time DSL parsing with zero runtime overhead |
+| `pflow-reachability` | Reachability graph, coverability, Farkas P/T invariants, spectral analysis |
+| `pflow-validation` | Structural validation checks for `pflow-metamodel` nets |
+| `pflow-verify` | Property verification (deadlock-free, bounded, live, invariants, reachability) |
+| `pflow-compose` | `Bundle`/`Flatten` composition, templates, derive, model-extension operations |
+| `pflow-eventlog` | Process event log types plus CSV/JSONL readers |
+| `pflow-mining` | Process discovery (Alpha, Heuristic Miner) and token-replay conformance checking |
+| `pflow-results` | Structured simulation results (types, analysis, builder, io) |
+| `pflow-visualization` | SVG rendering for Petri nets and ODE solutions |
+| `pflow-tropical` | Tropical semiring (max-plus algebra) for Petri net analysis; Rust-only |
 | `pflow-zk` | ZK proof traits (`PetriProver`), `IncidenceMatrix` extraction, `fire_transition()` |
 | `pflow-zk-arkworks` | Groth16 prover over BN254 with Poseidon hashing (structural R1CS) |
-| `pflow` | Umbrella crate re-exporting all of the above |
+| `pflow-cli` | `pflow` command-line binary, modelled on go-pflow's `cmd/pflow` |
+| `pflow-mcp` | MCP server exposing Petri net tools (`petri_*`, plus `pflow_*` extras) |
+| `pflow` | Umbrella crate: re-exports `pflow-core`, `pflow-dsl`, `pflow-solver` and `pflow-tokenmodel` as modules, a few common items (`PetriNet`, `solve`, `simulate_ssa`, `schema!`, ...), and `pflow-zk`/`pflow-zk-arkworks` behind the `zk`/`zk-arkworks` features. The other crates are used directly |
+
+How far each crate is from go-pflow parity is tracked in `ROADMAP.md`'s
+Status table.
 
 ## Quick Start
 
@@ -285,11 +302,16 @@ pflow = { features = ["zk-arkworks"] }       # Groth16 prover
 
 ## Dependencies
 
-Minimal external dependencies:
+The `pflow` umbrella with default features (`pflow-core`, `pflow-solver`,
+`pflow-tokenmodel`, `pflow-dsl`, `pflow-macros`) needs few external crates:
 
 - `serde`, `serde_json` — serialization
 - `sha2`, `hex` — content-addressed identity
 - `thiserror` — error types
+- `proc-macro2`, `quote`, `syn` — the `schema!` macro
+
+`pflow-solver` itself has no external runtime dependencies. The ZK and MCP
+crates bring in more (arkworks; `rmcp`, `tokio`, `schemars`).
 
 ## License
 

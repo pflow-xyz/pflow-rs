@@ -1,31 +1,71 @@
 {
   "name": "pflow",
-  "description": "Petri net simulation and analysis MCP server",
-  "version": "0.2.1",
+  "description": "Petri net simulation and analysis MCP server. petri_* tools mirror petri-pilot's MCP tool names and response shapes where a matching Go tool exists; pflow_* tools are pflow-rs-only extras. Every tool accepts DSL S-expression text, tokenmodel Schema JSON, pflow.xyz Shape A JSON, or Shape B Model JSON.",
+  "version": "0.3.0",
   "tools": [
     {
       "name": "pflow_build",
       "description": "Parse a Petri net model and return its topology: places, transitions, arcs, and initial state"
     },
     {
-      "name": "pflow_validate",
+      "name": "petri_validate",
       "description": "Validate a Petri net model (DSL or JSON), return structure summary and content-addressed ID (CID)"
     },
     {
       "name": "pflow_fire",
-      "description": "Fire discrete transitions step-by-step on a Petri net"
+      "description": "Fire discrete transitions step-by-step on a Petri net. Returns token state after each step and which transitions are enabled"
     },
     {
-      "name": "pflow_simulate",
-      "description": "Run ODE simulation of a Petri net over time"
+      "name": "petri_simulate",
+      "description": "Run ODE simulation of a Petri net over time. Returns downsampled time series for all places"
     },
     {
       "name": "pflow_equilibrium",
-      "description": "Find the equilibrium (steady state) of a Petri net ODE system"
+      "description": "Find the equilibrium (steady state) of a Petri net ODE system. Reports whether equilibrium was reached and the final state"
     },
     {
-      "name": "pflow_analyze",
-      "description": "Analyze Petri net structure: incidence matrix, enabled transitions"
+      "name": "petri_stochastic",
+      "description": "Run the portable Gillespie SSA (seeded, byte-exact across go-pflow/pflow-rs/pflow-xyz/pflow-jl). Returns the ensemble mean and stddev per place on a fixed time grid"
+    },
+    {
+      "name": "petri_analyze",
+      "description": "Analyze Petri net structure: incidence matrix (input/output/delta per transition), enabled transitions at initial marking"
+    },
+    {
+      "name": "petri_verify",
+      "description": "Check declarative properties (deadlock-free, bounded, live, terminating, conserves, reachable, unreachable, mutual exclusion, linear invariants). Returns proved/refuted/unknown per property with the proof method and a replayable counterexample on refutation"
+    },
+    {
+      "name": "petri_invariants",
+      "description": "Compute minimal-support P-invariants and T-invariants, plus whether every place is covered by some invariant (sufficient for structural boundedness)"
+    },
+    {
+      "name": "petri_conformance",
+      "description": "Replay an event log against a model: fitness, precision, F-score, and per-trace diagnostics"
+    },
+    {
+      "name": "petri_scenario",
+      "description": "What-if: override the initial marking, rates, or a rate schedule (or compare named scenarios) and run the model's own stochastic engine"
+    },
+    {
+      "name": "petri_extend",
+      "description": "Apply structural operations (add/remove place, transition, arc, event, event field, binding) to a model. Returns the modified model and which operations applied or failed"
+    },
+    {
+      "name": "petri_diff",
+      "description": "Compare two models and show structural differences: added/removed places, transitions, and arcs"
+    },
+    {
+      "name": "petri_canonical",
+      "description": "Content-addressed identifier for a model: the ecosystem URDNA2015 + CIDv1 when the input is JSON-LD-shaped (Shape A), otherwise a labelled pflow-rs identity hash"
+    },
+    {
+      "name": "petri_lumping",
+      "description": "Check ordinary lumpability of the CTMC a model's stochastic engine samples: the coarsest partition of the reachable state space that is itself an exact-answer CTMC (bounded by max_states)"
+    },
+    {
+      "name": "petri_dataset",
+      "description": "Generate a synthetic event log (CSV: case_id,activity,timestamp) from a seeded stochastic playout of the model"
     }
   ]
 }

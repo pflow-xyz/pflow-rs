@@ -8,7 +8,7 @@ Petri nets are a universal formal backbone. Define your system as a Petri net an
 
 1. **Continuous simulation** — ODE solvers model token flow as differential equations, finding equilibria and dynamics
 2. **Discrete execution** — the same net fires transitions step-by-step as a state machine, with a DSL and content-addressed identity (CID) for deterministic specification
-3. **Zero-knowledge proofs** — the incidence matrix extracted from the net compiles directly into ZK circuits (Groth16 or STARK), proving "transition T legally transformed state M into M'" without revealing the full state
+3. **Zero-knowledge proofs** — the incidence matrix extracted from the net compiles directly into ZK circuits (Groth16 via arkworks; the risc0 STARK backend was removed 2026-10-21), proving "transition T legally transformed state M into M'" without revealing the full state
 
 The papers extend this further — showing the incidence matrix enables algebraic reductions (integer reduction for smaller circuits) and connections to tropical geometry (earned compression).
 
@@ -16,7 +16,9 @@ The papers extend this further — showing the incidence matrix enables algebrai
 
 | Crate | Purpose |
 |-------|---------|
-| `pflow-core` | Core types: `PetriNet`, `Place`, `Transition`, `Arc`, `State`, fluent `Builder` |
+| `pflow-core` | Core types: `PetriNet`, `Place`, `Transition`, `Arc`, `State`, fluent `Builder`; Shape A JSON and color expansion (`colors.rs`) |
+| `pflow-metamodel` | Shape B `Model` (stages, schedules, parameters, access) and the one shared firing rule every engine calls |
+| `pflow-parser` | Shape A → Shape B converter (`is_pflow_json`, `model_from_json`), held to go-pflow's editor-shape goldens |
 | `pflow-solver` | ODE solvers (Tsitouras 5/4, RK45, etc.), equilibrium detection, vectorized fast path; `ssa` — portable Gillespie SSA (byte-exact with go-pflow/pflow-xyz/pflow-jl); `ssa::sde` — chemical Langevin SDE (intrinsic noise, byte-exact with go-pflow/pflow-xyz) |
 | `pflow-learn` | System identification: forward + adjoint sensitivities, gradient (Adam/backtracking) and derivative-free (Nelder-Mead) fitting, MLP rate functions, tied parameters — ported from go-pflow's `learn`, held to the same Go/JS goldens (`parity/`) |
 | `pflow-tokenmodel` | Token model `Schema`, `Runtime`, content-addressed identity (CID) |
@@ -30,8 +32,12 @@ The papers extend this further — showing the incidence matrix enables algebrai
 | `pflow-compose` | `Bundle`/`Flatten` typed subnet composition (token/data/event/guard links), `templates` (SIR/SEIR/queue/...), `derive` (evaluation-net transforms), model-extension ops |
 | `pflow-mcp` | MCP server exposing Petri net tools — `petri_*` names/shapes mirror petri-pilot's MCP server; `pflow_*` names are pflow-rs-only extras |
 | `pflow-cli` | `pflow` CLI binary — parity with go-pflow's `cmd/pflow` (create/validate/verify/expand/simulate/analyze/summary/compare/events/visualize/plot) |
+| `pflow-eventlog` | Event log types plus CSV/JSONL readers, ported from go-pflow's `eventlog` |
+| `pflow-mining` | Alpha/Heuristic Miner discovery, footprint matrix, token-replay conformance, timing, ported from go-pflow's `mining` |
+| `pflow-results` | Simulation result types, analysis, builder, io, ported from go-pflow's `results` |
 | `pflow-visualization` | SVG rendering for Petri nets and ODE solutions, ported from go-pflow's `visualization` and `plotter` packages |
-| `pflow` | Umbrella crate re-exporting all of the above |
+| `pflow-tropical` | Tropical (max-plus) semiring analysis, integer null-space P/T invariant basis; Rust-only |
+| `pflow` | Umbrella crate. Re-exports only `pflow-core`, `pflow-dsl`, `pflow-solver` and `pflow-tokenmodel` (as `core`/`dsl`/`solver`/`tokenmodel`), a handful of items (`Builder`, `PetriNet`, `State`, `schema!`, `find_equilibrium`, `solve`, `Options`, `Problem`, `Solution`, `simulate_ssa`, `SsaModel`, `SsaOptions`, `SsaResult`), and `pflow-zk`/`pflow-zk-arkworks` behind the `zk`/`zk-arkworks` features. Every other crate is a direct dependency, not reachable through `pflow` |
 
 **Which engine for which question** (ODE vs SSA vs SDE): `docs/engine-selection.md`,
 vendored from go-pflow (`scripts/docs-sync.sh check`/`sync`, same hash-lock
@@ -64,10 +70,11 @@ converts when the caller supplies the order.
 
 `tests/fixtures/ssa/*.json` are byte-identical copies of
 `go-pflow/stochastic/testdata/portable/` (README there names the commit and
-sha256s); `tests/ssa_parity.rs` asserts `==` on every double across all five
-fixtures (`chain`, `sir`, `dimer`, `coffeeshop`, `gates`) and fails if any is
-missing. A mismatch is a bug in the port, never a reason to regenerate.
-serde_json is a **dev-dependency only** (pflow-solver stays dependency-free)
+sha256s); `tests/ssa_parity.rs` asserts `==` on every double across all six
+fixtures (`chain`, `sir`, `dimer`, `coffeeshop`, `gates`, `timed`) and fails
+if any is missing. A mismatch is a bug in the port, never a reason to regenerate.
+serde_json is a **dev-dependency only** (pflow-solver's runtime dependencies
+are `pflow-core`, `pflow-metamodel` and `pflow-tropical`, no external crates)
 and is built with `float_roundtrip`: its default float parser misreads
 `0.47140452079103085` in `chain.json` by one ulp, which
 `golden_floats_round_trip` guards against.
