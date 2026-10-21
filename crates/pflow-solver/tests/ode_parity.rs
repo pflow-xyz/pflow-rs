@@ -21,14 +21,19 @@
 //! with a last-bit `t[i]` mismatch, and that is the moment to loosen to a
 //! relative bound — not before.
 //!
-//! The one thing that is NOT deterministic is flux accumulation order: both
-//! sides iterate transitions from a hash map (Go's randomized per run, Rust's
-//! `HashMap` per process), so a place summing three or more flux terms —
+//! The one thing go-pflow does NOT make deterministic is flux accumulation
+//! order: its `buildVecODEFunction` iterates transitions from a Go map
+//! (randomized per run), so a place summing three or more flux terms —
 //! `sir`'s `I`: two from `infect`, one from `recover` — can differ in the last
-//! bit. go-pflow's generator solves each fixture several times and flags such
-//! fixtures `bitStable: false`; those are held to `REL_TOL` instead. Sorting
-//! transition labels in both `build_vec_ode_function` and go-pflow's
-//! `buildVecODEFunction` would make them exact too.
+//! bit between Go runs. go-pflow's generator solves each fixture several
+//! times and flags such fixtures `bitStable: false`; those are held to
+//! `REL_TOL` instead. Rust's side is deterministic: `build_vec_ode_function`
+//! walks transitions in sorted label order (see `tests/ode_determinism.rs`),
+//! so a `bitStable: false` fixture is now either always exact or never exact
+//! against the recorded golden. `sir` is always exact today (sorted order
+//! `infect`, `recover` happens to be the order of the Go run recorded), but
+//! the bound stays at `REL_TOL`: go-pflow itself does not sort, so the golden
+//! only pins one of its possible orders.
 //!
 //! Trap, recorded because it cost an hour: serde_json's default float parser
 //! is NOT correctly rounded — `"11.928215568647225"` came back one ulp off
