@@ -18,33 +18,20 @@ pflow-dsl = { path = "../pflow-dsl", version = "0.3.0" }
 pflow-macros = { path = "../pflow-macros", version = "0.3.0" }
 pflow-zk = { path = "../pflow-zk", version = "0.3.0", optional = true }
 pflow-zk-arkworks = { path = "../pflow-zk-arkworks", version = "0.3.0", optional = true }
-pflow-zk-risc0 = { path = "../pflow-zk-risc0", version = "0.3.0", optional = true }
 
 [features]
 zk = ["dep:pflow-zk"]
 zk-arkworks = ["zk", "dep:pflow-zk-arkworks"]
-zk-risc0 = ["zk", "dep:pflow-zk-risc0"]
-zk-risc0-prove = ["zk-risc0", "pflow-zk-risc0/prove"]
 
 [dev-dependencies]
 serde_json = "1"
 criterion = { version = "0.5", features = ["html_reports"] }
 pflow-zk = { path = "../pflow-zk", version = "0.3.0" }
 pflow-zk-arkworks = { path = "../pflow-zk-arkworks", version = "0.3.0" }
-pflow-zk-risc0 = { path = "../pflow-zk-risc0", version = "0.3.0" }
 
 [[bench]]
 name = "sudoku_bench"
 harness = false
-
-[[bench]]
-name = "zk_bench"
-harness = false
-required-features = ["zk-arkworks", "zk-risc0"]
-
-[[example]]
-name = "zk_compare"
-required-features = ["zk-arkworks", "zk-risc0"]
 
 [[example]]
 name = "zk_tictactoe"

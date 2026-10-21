@@ -8,7 +8,7 @@
 //! and its generated per-app `permissions.go`. This module is a from-scratch
 //! Rust port of *that* enforcement shape, built directly on the [`Role`] /
 //! [`AccessRule`] types both languages already share, so a Rust execution
-//! path (`pflow-tokenmodel::Runtime`, `pflow-engine`) has something to call
+//! path (`pflow-tokenmodel::Runtime`) has something to call
 //! rather than reimplementing role resolution a third time. There is no
 //! go-pflow fixture to hold this to byte-for-byte; it is covered by unit
 //! tests, the same interim state several other new-rather-than-ported checks

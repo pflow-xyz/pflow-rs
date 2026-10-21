@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true
-description = "Structured simulation results, parameter sensitivity, and what-if hypothesis evaluation, ported from go-pflow's results/sensitivity/hypothesis packages"
+description = "Structured simulation results (types, analysis, builder, io), ported from go-pflow's results package"
 keywords = ["petri-net", "simulation", "analysis"]
 categories = ["simulation", "data-structures"]
 

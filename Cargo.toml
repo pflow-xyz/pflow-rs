@@ -11,7 +11,6 @@ members = [
     "crates/pflow-macros",
     "crates/pflow-zk",
     "crates/pflow-zk-arkworks",
-    "crates/pflow-zk-risc0",
     "crates/pflow",
     "crates/pflow-cli",
     "crates/pflow-mcp",
@@ -23,12 +22,6 @@ members = [
     "crates/pflow-eventlog",
     "crates/pflow-mining",
     "crates/pflow-results",
-    "crates/pflow-statemachine",
-    "crates/pflow-workflow",
-    "crates/pflow-actor",
-    "crates/pflow-eventsource",
-    "crates/pflow-engine",
-    "crates/pflow-monitoring",
     "crates/pflow-visualization",
 ]
 
