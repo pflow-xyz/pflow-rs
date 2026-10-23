@@ -8,7 +8,7 @@ on:
 
 # No Bazel here, and none planned (ROADMAP.md item 8): Cargo is the native
 # toolchain and nothing else in this ecosystem's Bazel investment
-# (go-pflow, petri-pilot, beats-bitwrap-io, bitwrap-io) targets Rust or
+# (go-pflow, sim-pflow-xyz, beats-bitwrap-io, bitwrap-io) targets Rust or
 # Julia. `cargo test --workspace` + `clippy` is the documented fallback
 # from go-pflow's own ROADMAP.md ("Honest costs") for a repo that isn't
 # getting the ecosystem-wide Bazel rollout. The 'goldens' job adds the lock

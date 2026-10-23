@@ -190,9 +190,8 @@ pub fn parse_any_model(text: &str) -> Result<Model, String> {
 /// arc and an `inhibit_transition` flag. A read arc is encoded the standard
 /// way — an input arc and an output arc of the same weight between the same
 /// place and transition, netting zero token movement but still gating
-/// enablement on the place holding at least `weight` — the same trick
-/// petri-pilot's own `buildVerifyNet`-adjacent bridges use for the same
-/// mismatch. An inhibitor arc maps directly onto `inhibit_transition`.
+/// enablement on the place holding at least `weight` — the usual trick
+/// for this mismatch. An inhibitor arc maps directly onto `inhibit_transition`.
 pub fn model_to_petri_net(model: &Model) -> pflow_core::PetriNet {
     let mut net = pflow_core::PetriNet::new();
 

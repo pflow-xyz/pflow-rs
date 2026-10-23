@@ -87,7 +87,7 @@ fn rnn_learns_pipeline_cycle() {
 
 #[test]
 fn rnn_learns_ttt_trajectories() {
-    let net = pflow_tropical::ttt_fixtures::pilot_ttt();
+    let net = pflow_tropical::ttt_fixtures::llm_ttt();
     let np = net.num_places();   // 33
     let nt = net.num_transitions(); // 35
 
@@ -208,7 +208,7 @@ fn rnn_hidden_state_distinguishes_context() {
 // Test 6: RNN plays TTT — train then play complete games
 // ──────────────────────────────────────────────────────────
 
-/// Render a TTT board from a pilot_ttt marking.
+/// Render a TTT board from a llm_ttt marking.
 /// Place layout (alphabetical, 33 places):
 ///   0: game_active, 1: move_tokens,
 ///   2..10: o00..o22, 11: o_turn,
@@ -247,7 +247,7 @@ fn game_outcome(result: &GameResult) -> &'static str {
 
 #[test]
 fn rnn_plays_ttt() {
-    let net = pflow_tropical::ttt_fixtures::pilot_ttt();
+    let net = pflow_tropical::ttt_fixtures::llm_ttt();
     let np = net.num_places();
     let nt = net.num_transitions();
 
@@ -319,7 +319,7 @@ fn rnn_plays_ttt() {
 
 #[test]
 fn rnn_vs_random_play() {
-    let net = pflow_tropical::ttt_fixtures::pilot_ttt();
+    let net = pflow_tropical::ttt_fixtures::llm_ttt();
     let np = net.num_places();
     let nt = net.num_transitions();
 
@@ -372,7 +372,7 @@ fn ttt_reward_x(final_marking: &[i64]) -> f64 {
 
 #[test]
 fn rnn_self_play_ttt() {
-    let net = pflow_tropical::ttt_fixtures::pilot_ttt();
+    let net = pflow_tropical::ttt_fixtures::llm_ttt();
     let np = net.num_places();
     let nt = net.num_transitions();
 
@@ -688,7 +688,7 @@ fn rnn_core_ttt_self_play() {
 
     // Key insight: the core net (tropical) has no turn enforcement.
     // The RNN discovers it can "cheat" — X plays multiple consecutive moves.
-    // This is *why* the observer layer exists in pilot_ttt: to structurally
+    // This is *why* the observer layer exists in llm_ttt: to structurally
     // enforce alternation. Without it, any reward-seeking policy exploits the gap.
     assert!(
         post_x_wins > pre_x_wins,
@@ -960,7 +960,7 @@ fn core_vs_full_ttt_comparison() {
     // Core net: 27 places, 18 transitions (tropical, no observer)
     let core_net = pflow_tropical::ttt_fixtures::builder_ttt();
     // Full net: 33 places, 35 transitions (with win/draw/turn observer)
-    let full_net = pflow_tropical::ttt_fixtures::pilot_ttt();
+    let full_net = pflow_tropical::ttt_fixtures::llm_ttt();
 
     // Train both on random games
     let core_trajs = generate_game_trajectories_capped(&core_net, 200, 9, 42);

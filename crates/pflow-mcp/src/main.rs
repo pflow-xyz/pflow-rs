@@ -14,10 +14,8 @@ use tokio::io::{stdin, stdout};
 /// Every tool below accepts a model as DSL S-expression text (starting with
 /// `(`), the tokenmodel Schema's native JSON, the pflow.xyz editor's Shape A
 /// JSON, or `pflow_metamodel::Model`'s Shape B JSON — see
-/// `tools::convert::parse_any_model`. Tool names and response shapes mirror
-/// petri-pilot's MCP server (`pkg/mcp/`) one for one where a Go tool of the
-/// same name exists, so a client cannot tell which server answered
-/// (ROADMAP.md Phase 6).
+/// `tools::convert::parse_any_model`. Response shapes follow go-pflow's types
+/// field for field where one exists (ROADMAP.md Phase 6).
 const MODEL_DESC: &str =
     "Petri net model as DSL S-expression, tokenmodel Schema JSON, pflow.xyz Shape A JSON, or metamodel Shape B JSON";
 
@@ -443,8 +441,8 @@ impl ServerHandler for PflowServer {
         ServerInfo {
             instructions: Some(format!(
                 "pflow MCP server: build, simulate, verify, and analyze Petri net models. \
-                 Tool names and response shapes mirror petri-pilot's MCP server (petri_*) where a \
-                 matching tool exists; pflow_* tools are pflow-rs-only extras. {MODEL_DESC}."
+                 petri_* tools build, simulate, verify and analyze models; \
+                 pflow_* tools are pflow-rs-only extras. {MODEL_DESC}."
             )),
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             ..Default::default()

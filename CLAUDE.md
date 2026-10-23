@@ -30,7 +30,7 @@ The papers extend this further — showing the incidence matrix enables algebrai
 | `pflow-validation` | Structural validation (structure/connectivity/deadlock-heuristic/unbounded/conservation checks) |
 | `pflow-verify` | Property verification (deadlock-free, bounded, live, invariants, ...) with structural-then-exhaustive proof strategy |
 | `pflow-compose` | `Bundle`/`Flatten` typed subnet composition (token/data/event/guard links), `templates` (SIR/SEIR/queue/...), `derive` (evaluation-net transforms), model-extension ops |
-| `pflow-mcp` | MCP server exposing Petri net tools — `petri_*` names/shapes mirror petri-pilot's MCP server; `pflow_*` names are pflow-rs-only extras |
+| `pflow-mcp` | MCP server exposing Petri net tools — `petri_*` tools build, simulate, verify and analyze models; `pflow_*` names are pflow-rs-only extras |
 | `pflow-cli` | `pflow` CLI binary — parity with go-pflow's `cmd/pflow` (create/validate/verify/expand/simulate/analyze/summary/compare/events/visualize/plot) |
 | `pflow-eventlog` | Event log types plus CSV/JSONL readers, ported from go-pflow's `eventlog` |
 | `pflow-mining` | Alpha/Heuristic Miner discovery, footprint matrix, token-replay conformance, timing, ported from go-pflow's `mining` |
@@ -151,10 +151,10 @@ An MCP (Model Context Protocol) server that exposes Petri net tools. Configured 
 
 Every tool accepts a model as DSL S-expression text, the tokenmodel
 Schema's native JSON, pflow.xyz Shape A JSON, or `pflow_metamodel::Model`
-Shape B JSON (`tools::convert::parse_any_model`). `petri_*` names and
-response shapes mirror petri-pilot's MCP server one for one where a Go tool
-of the same name exists, so a client cannot tell which server answered;
-`pflow_*` names have no petri-pilot counterpart.
+Shape B JSON (`tools::convert::parse_any_model`). Response shapes follow
+go-pflow's types field for field where one exists (`verify.Report`,
+`mining.ConformanceResult`); `pflow_*` tools (`pflow_build`, `pflow_fire`,
+`pflow_equilibrium`) are pflow-rs-only extras.
 
 | Tool | Purpose |
 |------|---------|

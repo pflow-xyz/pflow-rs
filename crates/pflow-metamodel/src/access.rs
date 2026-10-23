@@ -3,8 +3,8 @@
 //! go-pflow's own `metamodel/access.go` declares [`Role`] and [`AccessRule`]
 //! (see `schema.rs`, where they are ported) and stops there — nothing in
 //! go-pflow itself resolves role inheritance or checks a rule against a
-//! caller's roles; that logic lives downstream, in petri-pilot's
-//! `pkg/bridge/access.go` (`ResolveRoleHierarchy`, `AccessSpec.RulesForTransition`)
+//! caller's roles; that logic lived downstream, in the retired Go app
+//! generator's `pkg/bridge/access.go` (`ResolveRoleHierarchy`, `AccessSpec.RulesForTransition`)
 //! and its generated per-app `permissions.go`. This module is a from-scratch
 //! Rust port of *that* enforcement shape, built directly on the [`Role`] /
 //! [`AccessRule`] types both languages already share, so a Rust execution

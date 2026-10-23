@@ -2,7 +2,8 @@
 //!
 //! Two independent constructions of the same game:
 //! 1. **Builder (hand-declared)**: from pflow-rs tictactoe.rs example
-//! 2. **Petri-pilot (LLM-declared)**: from petri-pilot code-to-flow output
+//! 2. **LLM-declared**: from code-to-flow output (today `sim_code_to_flow`
+//!    on sim.pflow.xyz)
 //!
 //! Conjecture 4 claims these converge on the same structure.
 
@@ -135,10 +136,10 @@ pub fn builder_ttt() -> NetMatrix {
     NetMatrix::from_incidence(incidence, initial, place_labels, transition_labels)
 }
 
-/// Petri-pilot (LLM-declared) TTT net from petri-pilot code-to-flow output.
+/// LLM-declared TTT net from code-to-flow output.
 /// 33 places, 35 transitions, 189 arcs — includes turn control, win detection, draw.
 /// Win transitions consume (not catalytic) — game ends on win so tokens don't return.
-pub fn pilot_ttt() -> NetMatrix {
+pub fn llm_ttt() -> NetMatrix {
     let np = 33;
     let labels = place_labels();
     let initial = initial_marking();
@@ -586,15 +587,15 @@ pub fn builder_ttt_nxn_full(n: usize) -> NetMatrix {
     NetMatrix::new(incidence, input, initial, place_labels, transition_labels)
 }
 
-/// Builder TTT with win detection (matching pilot topology).
+/// Builder TTT with win detection (matching the LLM-declared topology).
 pub fn builder_ttt_full() -> NetMatrix {
-    // Same structure as pilot_ttt — this is the "hand-declared" equivalent
-    pilot_ttt()
+    // Same structure as llm_ttt — this is the "hand-declared" equivalent
+    llm_ttt()
 }
 
-/// PetriNet-returning variant of pilot_ttt (for pflow integration tests).
+/// PetriNet-returning variant of llm_ttt (for pflow integration tests).
 #[cfg(feature = "pflow")]
-pub fn pilot_ttt_petri_net() -> PetriNet {
+pub fn llm_ttt_petri_net() -> PetriNet {
     let mut b = PetriNet::build();
 
     for i in 0..3 {

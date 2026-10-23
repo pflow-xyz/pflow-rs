@@ -1,7 +1,7 @@
 //! Composition, templates, derivation and model-extension operations,
 //! ported from go-pflow's `metamodel` (`compose*.go`, `queue.go`,
 //! `patterns_compose.go`), `templates` and `derive` packages, plus
-//! petri-pilot's `petri_extend`/`sim_extend` op set.
+//! the `petri_extend`/`sim_extend` op set.
 //!
 //! # Bundle -> Flatten
 //!
@@ -49,7 +49,7 @@
 //! # Extension operations
 //!
 //! [`extend`] applies the `add_place`/`add_transition`/`add_arc`/... op set
-//! petri-pilot's `petri_extend`/`sim_extend` MCP tools expose, and diffs two
+//! sim.pflow.xyz's `sim_extend` MCP tool exposes, and diffs two
 //! models the way `sim_compare` does.
 
 pub mod bundle;

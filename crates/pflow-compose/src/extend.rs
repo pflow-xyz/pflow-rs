@@ -1,7 +1,7 @@
 //! Model-extension operations: the `petri_extend` / `sim_extend` op set,
-//! ported from petri-pilot's `pkg/mcp/server.go` (`applyOperation`,
-//! `compareModels`). Not a go-pflow package — petri-pilot is where these
-//! operations are actually defined and exposed as an MCP tool — but it is
+//! ported from the retired Go MCP server's `pkg/mcp/server.go` (`applyOperation`,
+//! `compareModels`). Not a go-pflow package — that server is where these
+//! operations were actually defined and exposed as an MCP tool — but it was
 //! the "one home" for this op language, so it is ported here rather than
 //! reinvented against `pflow-metamodel::Model` a second time.
 

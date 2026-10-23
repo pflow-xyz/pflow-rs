@@ -1,6 +1,6 @@
 //! `petri_extend`: applies structural operations to a model and returns the
-//! result, via [`pflow_compose::apply_operations`]. Mirrors petri-pilot's
-//! `pkg/mcp/server.go` (`applyOperation` op set): `add_place`,
+//! result, via [`pflow_compose::apply_operations`]. Mirrors the retired Go MCP server's
+//! `applyOperation` op set: `add_place`,
 //! `add_transition`, `add_arc`, `add_event`, `add_event_field`,
 //! `add_binding`, `remove_place`, `remove_transition`, `remove_arc`,
 //! `remove_event`, `remove_binding`.

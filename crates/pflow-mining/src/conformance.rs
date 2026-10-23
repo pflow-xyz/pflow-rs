@@ -653,12 +653,12 @@ mod tests {
     }
 
     #[test]
-    fn showcase_fitness_and_precision_match_the_pilot_golden() {
+    fn showcase_fitness_and_precision_match_the_go_mcp_golden() {
         // Same golden as `tests/conformance_golden.rs`, which replays the
         // byte-copied showcase fixtures directly; this unit test hand-builds
         // the same net/log inline (in relative-millisecond timestamps) as a
         // fast, dependency-free regression that doesn't need the fixture
-        // files. Values captured 2026-09-10 from the live petri-pilot
+        // files. Values captured 2026-09-10 from the then-live Go
         // `petri_conformance` MCP tool; the showcase README rounds this to
         // "fitness 0.90, precision 0.80, three of five traces fit".
         let net = cafe_order_net();

@@ -4,7 +4,7 @@
 //!
 //! go-pflow's `eventlog` has readers only (`ParseCSV`, `ParseJSONL`), no
 //! writers — nothing in that package or its callers (`mining`, the showcase,
-//! petri-pilot's `petri_conformance`) ever serializes an `EventLog` back out,
+//! the retired `petri_conformance` MCP tool) ever serializes an `EventLog` back out,
 //! so there is no Go behavior for a writer to hold parity with. This crate
 //! matches that: `csv`/`jsonl` are readers.
 

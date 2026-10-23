@@ -3,13 +3,13 @@
 //! stochastic engine ([`pflow_solver::stochastic`]) forward — the same
 //! engine `pflow_stochastic` uses under the hood, so an operator question
 //! ("what if one more barista") gets an answer computed the same way the
-//! net says it would happen. Mirrors petri-pilot's `pkg/mcp/scenario.go`
+//! net says it would happen. Mirrors the retired Go `petri_scenario` tool
 //! (SSA path; `engine: "ode"` is not offered here — see the module doc on
 //! why the ODE path is out of scope for this phase).
 //!
 //! `scenarios`, when given, runs each named override on one seed and
 //! reports them side by side — the only way to tell a real difference from
-//! the dice, per petri-pilot's own doc comment on the tool.
+//! the dice, per the Go tool's own doc comment.
 
 use super::convert::parse_any_model;
 use pflow_metamodel::{Model, RateSegment};

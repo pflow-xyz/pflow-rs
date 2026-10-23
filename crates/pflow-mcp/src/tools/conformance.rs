@@ -1,8 +1,8 @@
 //! `petri_conformance`: replays a real event log against a model and
 //! reports fitness (can the model reproduce what happened?) and precision
 //! (does the model allow behaviour never observed?), via
-//! [`pflow_mining::conformance`]. Mirrors petri-pilot's
-//! `pkg/mcp/conformance.go`.
+//! [`pflow_mining::conformance`]. Mirrors the retired Go
+//! `petri_conformance` tool.
 
 use super::convert::{model_to_petri_net, parse_any_model};
 use pflow_eventlog::{Event, EventLog};
@@ -32,7 +32,7 @@ struct TraceOut {
     missing_activities: Vec<String>,
 }
 
-/// One log event, tolerant of the same key aliases petri-pilot accepts:
+/// One log event, tolerant of these key aliases:
 /// `case`/`caseId`/`case_id`/`trace`, `activity`/`action`/`task`/`event`/`transition`.
 #[derive(serde::Deserialize)]
 struct RawEvent {

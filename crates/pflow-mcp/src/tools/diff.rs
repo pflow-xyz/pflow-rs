@@ -1,7 +1,7 @@
 //! `petri_diff`: structural differences between two models
 //! (added/removed places, transitions, arcs), via
-//! [`pflow_compose::extend::compare_models`]. Mirrors petri-pilot's
-//! `petri_diff` tool (`pkg/mcp/server.go`'s `diffTool`/`compareModels`).
+//! [`pflow_compose::extend::compare_models`]. Mirrors the retired Go
+//! `petri_diff` tool (`diffTool`/`compareModels`).
 
 use super::convert::parse_any_model;
 use pflow_compose::compare_models;

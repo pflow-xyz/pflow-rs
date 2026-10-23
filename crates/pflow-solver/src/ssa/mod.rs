@@ -313,7 +313,7 @@ impl CompiledModel {
 /// read test or inhibitor test of a transition) is answered afterward by
 /// `pflow_metamodel::Model::inputs`/`outputs`/`tests`, the shared firing
 /// rule, rather than re-derived here (ROADMAP.md ground rule 4: "five
-/// disagreeing copies is how petri-pilot went wrong").
+/// disagreeing copies is how the Go ecosystem went wrong").
 fn validate_and_convert_arcs(
     model: &SsaModel,
     place_index: &HashMap<&str, usize>,

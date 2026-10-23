@@ -2,8 +2,8 @@
 //! from `pflow-xyz/examples/showcase/fixtures/event-log.json`) against
 //! `tests/fixtures/cafe-order.json` (byte-copied from
 //! `pflow-xyz/examples/showcase/cafe-order.json`) and checks the result
-//! against the numbers the live petri-pilot `petri_conformance` MCP tool
-//! reports for the same two files (captured 2026-09-10; the showcase
+//! against the numbers the then-live Go `petri_conformance` MCP tool
+//! reported for the same two files (captured 2026-09-10; the showcase
 //! README's "fitness 0.90, precision 0.80" is the same result, rounded).
 //! Both copies are pinned in `pflow-xyz.lock` at the repo root
 //! (`./scripts/pflow-xyz-fixtures.sh check`).
@@ -78,7 +78,7 @@ fn parse_showcase_log(src: &str) -> EventLog {
 }
 
 #[test]
-fn showcase_conformance_matches_the_pilot_golden() {
+fn showcase_conformance_matches_the_go_mcp_golden() {
     let net = parse_metamodel_net(&fixture("cafe-order.json"));
     let log = parse_showcase_log(&fixture("event-log.json"));
 

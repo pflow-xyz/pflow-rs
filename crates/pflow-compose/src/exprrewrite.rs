@@ -7,7 +7,7 @@ use std::sync::OnceLock;
 
 /// Matches an aggregate call whose sole argument is a quoted place
 /// reference: `tokens("p")`, `sum('balances')`, `count("q")`, `minOf("x")`,
-/// `min("x")`. Two guard dialects are covered — petri-pilot's `pkg/dsl`
+/// `min("x")`. Two guard dialects are covered — sim-pflow-xyz's `pkg/dsl`
 /// (`sum`/`count`/`tokens`/`minOf`/`maxOf`) and go-pflow's
 /// `tokenmodel/guard` (`min`/`max`) — and both quote styles appear in the
 /// wild.

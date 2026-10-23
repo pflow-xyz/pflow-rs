@@ -6,7 +6,7 @@
 //! companion event-log format and `pflow-eventlog`'s CSV reader both
 //! understand.
 //!
-//! **Approximation, not a port.** The private `sim`/petri-pilot fork's
+//! **Approximation, not a port.** sim-pflow-xyz's
 //! `sim_dataset` walks a case-per-arrival playout keyed to a declared
 //! arrival transition (`eventgen.Playout`), which has no counterpart
 //! ported into this workspace. This tool instead treats each of the

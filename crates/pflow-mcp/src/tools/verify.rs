@@ -1,5 +1,5 @@
 //! `petri_verify`: checks declarative properties against a model. Mirrors
-//! petri-pilot's `pkg/mcp/verify.go` — same shorthand grammar
+//! the retired Go `petri_verify` tool — same shorthand grammar
 //! (`"deadlock-free"`, `"reachable:a=1,b=1"`, `"mutex:a,b<=2"`, a bare
 //! linear expression) and object form (`{"kind":"invariant","expr":"..."}`),
 //! same JSON response shape (`Report` plus a `summary` string).

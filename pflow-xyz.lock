@@ -5,12 +5,12 @@
 # A failing parity test is a bug in Rust or a deliberate change upstream;
 # it is never fixed by re-syncing (ROADMAP.md ground rule 1).
 #
-# source: github.com/pflow-xyz/pflow-xyz @ 0b50279d9f7f584475019d871bd9414c7c4ce3a6
+# source: github.com/pflow-xyz/pflow-xyz @ c75ab81b4c269eeecba46c00d9acb4c4074fd278
 #
 # <sha256>  <path in this repo>  <path in pflow-xyz>
 41ce42df2aa067bbe1a01029762b89e979035d95aa6c0b85c984b85793e0e98c  crates/pflow-compose/tests/fixtures/showcase/cafe.bundle.json  examples/showcase/cafe.bundle.json
-396de361e619f9ffe6692e72140ea85ef6ad588dcf3a938c6f4463b9c2e780ea  crates/pflow-verify/tests/fixtures/showcase/cafe-order.json  examples/showcase/cafe-order.json
-396de361e619f9ffe6692e72140ea85ef6ad588dcf3a938c6f4463b9c2e780ea  crates/pflow-mining/tests/fixtures/cafe-order.json  examples/showcase/cafe-order.json
+2dd5ff08b4f65c1ad939a727a203417403c118c7c67ce8143382cf6434f92dcc  crates/pflow-verify/tests/fixtures/showcase/cafe-order.json  examples/showcase/cafe-order.json
+2dd5ff08b4f65c1ad939a727a203417403c118c7c67ce8143382cf6434f92dcc  crates/pflow-mining/tests/fixtures/cafe-order.json  examples/showcase/cafe-order.json
 a4147ca46cb1ccbd473afdbc1887e6a8c2020135165ec43a9dbaa02cbb6cb7af  crates/pflow-mining/tests/fixtures/event-log.json  examples/showcase/fixtures/event-log.json
 86d8c332e95b164bf735b8aa4e5aa9d96d3782f504625326c21b765c53261659  crates/pflow-tokenmodel/tests/fixtures/cid/parity/golden.json  parity/golden.json
 b28adc89256254991ade9d746ebc2266e0d804faf84f18fed6aeda92f64349e1  crates/pflow-tokenmodel/tests/fixtures/cid/parity/fixtures/coffee-shop.jsonld  parity/fixtures/coffee-shop.jsonld

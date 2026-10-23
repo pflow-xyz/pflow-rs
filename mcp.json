@@ -1,6 +1,6 @@
 {
   "name": "pflow",
-  "description": "Petri net simulation and analysis MCP server. petri_* tools mirror petri-pilot's MCP tool names and response shapes where a matching Go tool exists; pflow_* tools are pflow-rs-only extras. Every tool accepts DSL S-expression text, tokenmodel Schema JSON, pflow.xyz Shape A JSON, or Shape B Model JSON.",
+  "description": "Petri net simulation and analysis MCP server. petri_* tools build, simulate, verify and analyze models; pflow_* tools are pflow-rs-only extras. Every tool accepts DSL S-expression text, tokenmodel Schema JSON, pflow.xyz Shape A JSON, or Shape B Model JSON.",
   "version": "0.3.0",
   "tools": [
     {

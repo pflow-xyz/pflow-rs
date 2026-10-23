@@ -1,5 +1,5 @@
 //! `pflow verify` — same shorthand/object property grammar as
-//! `pflow-mcp`'s `petri_verify` (and petri-pilot's `pkg/mcp/verify.go`).
+//! `pflow-mcp`'s `petri_verify`.
 //! The parser is intentionally duplicated rather than shared: it is CLI/MCP
 //! request-shaping glue, not library logic ground rule 4 applies to.
 

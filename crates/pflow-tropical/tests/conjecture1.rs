@@ -14,7 +14,7 @@
 //! 2. **Throughput from topology**: the tropical eigenvalue λ equals the net's throughput
 
 use pflow_tropical::{Matrix, NEG_INF, mat_pow, tropical_mul, eigenvalue, NetMatrix};
-use pflow_tropical::ttt_fixtures::pilot_ttt;
+use pflow_tropical::ttt_fixtures::llm_ttt;
 
 /// Tropical matrix-vector multiply: y[i] = max_j(A[i][j] + x[j]).
 fn tropical_mat_vec(a: &Matrix, x: &[f64]) -> Vec<f64> {
@@ -264,7 +264,7 @@ fn tropical_power_tracks_firing_times() {
 
 #[test]
 fn ttt_tropical_adjacency_structure() {
-    let net = pilot_ttt();
+    let net = llm_ttt();
 
     // Verify dimensions
     assert_eq!(net.num_places(), 33);
@@ -314,7 +314,7 @@ fn ttt_tropical_adjacency_structure() {
 
 #[test]
 fn ttt_discrete_firing_flow() {
-    let net = pilot_ttt();
+    let net = llm_ttt();
 
     let find_t = |name: &str| -> usize {
         net.transition_labels.iter().position(|l| l == name).unwrap()
