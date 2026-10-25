@@ -10,6 +10,7 @@
 pub mod access;
 pub mod error;
 pub mod firing;
+pub mod indexed;
 pub mod parameters;
 pub mod schedule;
 pub mod schema;
@@ -18,6 +19,7 @@ pub mod stages;
 pub use access::AccessControl;
 pub use error::{Error, Result};
 pub use firing::{ArcRef, Marking};
+pub use indexed::IndexedModel;
 pub use schedule::RateSegment;
 pub use schema::{
     AccessRule, Arc, ArcType, AssertedClass, Binding, Constraint, ControlGroup, Disruption, Event,
