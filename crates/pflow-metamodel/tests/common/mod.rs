@@ -10,6 +10,7 @@
 #![allow(dead_code)]
 
 use pflow_metamodel::game::{Game, Solver};
+use pflow_metamodel::order::Chain;
 
 pub const NETS: [&str; 3] = ["tic-tac-toe", "connect-3", "connect-4"];
 
@@ -106,9 +107,14 @@ pub const BUDGET: usize = 3_000_000;
 
 /// (value, nodes) of each position, each solved by a fresh solver.
 pub fn fresh(g: &Game, all: &[Vec<i64>]) -> Vec<(f64, usize)> {
+    fresh_with(g, all, &Chain::default())
+}
+
+/// [`fresh`], ordering moves by `chain`.
+pub fn fresh_with(g: &Game, all: &[Vec<i64>], chain: &Chain) -> Vec<(f64, usize)> {
     all.iter()
         .map(|mk| {
-            let mut s = Solver::new(g, BUDGET);
+            let mut s = Solver::with_chain(g, BUDGET, chain.clone());
             let v = s.value(mk).unwrap().expect("within the node budget");
             (v, s.nodes())
         })

@@ -24,7 +24,8 @@
 //! loss), so a value is found as a run of yes/no searches, one per gap
 //! between adjacent rewards ("is it above this one?"), each with a window
 //! that narrow. They share one transposition table, which persists across
-//! calls, and a history heuristic orders moves.
+//! calls, and a chain of [`crate::order`] pieces (by default the table's best
+//! move, a winning one, then history) orders moves.
 //!
 //! A value is exact. Past its budget a search returns `None`, never a
 //! guess. `tests` hold it to a plain minimax on tic-tac-toe (bits) and on
@@ -36,6 +37,7 @@ use std::hash::{BuildHasherDefault, Hasher};
 use crate::bits::BitModel;
 use crate::error::{Error, Result};
 use crate::indexed::{Enabled, IndexedModel, TransitionSet};
+use crate::order::{Chain, Ctx};
 
 /// A two-sided game on a net, over dense markings in `ix.places` order.
 /// See the module docs.
@@ -197,7 +199,7 @@ impl Game {
 }
 
 /// A settled marking the search plays moves from.
-trait Walk: Clone {
+pub(crate) trait Walk: Clone {
     /// The moves here, into `out`.
     fn moves(&self, g: &Game, out: &mut Vec<usize>);
     /// Whether no move is enabled.
@@ -352,10 +354,11 @@ struct Entry {
 const NO_MOVE: u32 = u32::MAX;
 
 /// Alpha-beta with a transposition table that persists across calls (so
-/// solving the positions of one game reuses work) and a history heuristic
+/// solving the positions of one game reuses work) and a [`Chain`] of pieces
 /// for move order. One per thread.
 pub struct Solver<'a> {
     g: &'a Game,
+    chain: Chain,
     tt: HashMap<u128, Entry, BuildHasherDefault<KeyHasher>>,
     history: Vec<u32>,
     nodes: usize,
@@ -370,8 +373,14 @@ impl<'a> Solver<'a> {
 
     /// A solver giving up on a value past `budget` nodes.
     pub fn new(g: &'a Game, budget: usize) -> Self {
+        Self::with_chain(g, budget, Chain::default())
+    }
+
+    /// A solver ordering moves by `chain`.
+    pub fn with_chain(g: &'a Game, budget: usize, chain: Chain) -> Self {
         Self {
             g,
+            chain,
             tt: HashMap::default(),
             history: vec![0; g.ix.transitions.len()],
             nodes: 0,
@@ -486,8 +495,13 @@ impl<'a> Solver<'a> {
             return Ok(Some(x));
         }
         let s = g.mover(&moves)?;
-        // Children, best first: the remembered best move, then moves that
-        // end the game in the mover's favour, then by history.
+        // Children, best first, as the order chain ranks them.
+        let cx = Ctx {
+            g,
+            mover: s,
+            first,
+            history: &self.history,
+        };
         let mut kids = Vec::with_capacity(moves.len());
         for &t in &moves {
             let mut next = w.clone();
@@ -495,16 +509,9 @@ impl<'a> Solver<'a> {
                 self.spilled = true;
                 return Ok(None);
             }
-            let rank = if t as u32 == first {
-                u64::MAX
-            } else if next.over(g) && s * next.score(g)? > 0.0 {
-                u64::MAX - 1
-            } else {
-                self.history[t] as u64
-            };
-            kids.push((rank, t, next));
+            kids.push((self.chain.key(&cx, t, &next)?, t, next));
         }
-        kids.sort_by_key(|x| std::cmp::Reverse(x.0));
+        kids.sort_by(|x, y| self.chain.before(&x.0, &y.0));
         let (a0, b0) = (a, b);
         let mut best = (
             if s > 0.0 {
@@ -527,7 +534,7 @@ impl<'a> Solver<'a> {
                 b = b.min(v);
             }
             if a >= b {
-                self.history[*t] += 1;
+                self.chain.cutoff(&mut self.history, *t);
                 break;
             }
         }

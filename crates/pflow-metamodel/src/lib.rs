@@ -13,6 +13,7 @@ pub mod error;
 pub mod firing;
 pub mod game;
 pub mod indexed;
+pub mod order;
 pub mod parameters;
 pub mod schedule;
 pub mod schema;
@@ -23,6 +24,7 @@ pub use bits::BitModel;
 pub use error::{Error, Result};
 pub use firing::{ArcRef, Marking};
 pub use indexed::{Enabled, IndexedModel, TransitionSet};
+pub use order::{Chain, Piece};
 pub use schedule::RateSegment;
 pub use schema::{
     AccessRule, Arc, ArcType, AssertedClass, Binding, Constraint, ControlGroup, Disruption, Event,
