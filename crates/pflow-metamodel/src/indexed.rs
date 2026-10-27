@@ -311,6 +311,29 @@ impl IndexedModel {
                 .all(|&(p, d, cap)| mk[p].saturating_add(d) <= cap)
     }
 
+    /// How many tokens `mk` is short of enabling `t`: what its input and
+    /// read arcs lack, what its inhibitors and capacities have too much of.
+    /// Zero exactly when `t` is enabled; `u64::MAX` for a transition with a
+    /// negative weight, which never is.
+    pub fn deficit(&self, t: usize, mk: &[i64]) -> u64 {
+        let a = &self.arcs[t];
+        if a.invalid {
+            return u64::MAX;
+        }
+        let short = |x: i64| x.max(0) as u64;
+        let mut d = 0u64;
+        for &(p, w) in a.inputs.iter().chain(&a.reads) {
+            d = d.saturating_add(short(w.saturating_sub(mk[p])));
+        }
+        for &(p, w) in &a.inhibitors {
+            d = d.saturating_add(short(mk[p].saturating_sub(w).saturating_add(1)));
+        }
+        for &(p, add, cap) in &a.capacities {
+            d = d.saturating_add(short(mk[p].saturating_add(add).saturating_sub(cap)));
+        }
+        d
+    }
+
     /// The transitions that can fire at `mk`, in declaration order.
     pub fn enabled_transitions(&self, mk: &[i64]) -> Vec<usize> {
         (0..self.arcs.len())

@@ -114,7 +114,7 @@ pub fn fresh(g: &Game, all: &[Vec<i64>]) -> Vec<(f64, usize)> {
 pub fn fresh_with(g: &Game, all: &[Vec<i64>], chain: &Chain) -> Vec<(f64, usize)> {
     all.iter()
         .map(|mk| {
-            let mut s = Solver::with_chain(g, BUDGET, chain.clone());
+            let mut s = Solver::with_chain(g, BUDGET, chain.clone()).unwrap();
             let v = s.value(mk).unwrap().expect("within the node budget");
             (v, s.nodes())
         })

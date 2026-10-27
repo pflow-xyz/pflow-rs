@@ -249,6 +249,20 @@ impl BitModel {
             .all(|&(w, care, one)| mk[w] & care == one)
     }
 
+    /// How many of transition `t`'s conditions `mk` fails: the bits among
+    /// those it looks at that are not what it needs. Zero exactly when `t`
+    /// is enabled; `u32::MAX` for a transition no 0/1 marking enables.
+    pub fn deficit(&self, t: usize, mk: &[u64]) -> u32 {
+        if self.never[t] {
+            return u32::MAX;
+        }
+        let (a, b) = self.test_spans[t];
+        self.tests[a as usize..b as usize]
+            .iter()
+            .map(|&(w, care, one)| ((mk[w] & care) ^ one).count_ones())
+            .sum()
+    }
+
     /// The transitions that can fire at `mk`.
     pub fn enabled_set(&self, mk: &[u64]) -> TransitionSet {
         let mut s = TransitionSet::empty(self.spans.len());
@@ -355,6 +369,11 @@ mod tests {
                 };
                 assert_eq!(bm.counts(&bits), mk);
                 let on = ix.enabled_transitions(&mk);
+                for t in 0..n {
+                    let is = on.contains(&t);
+                    assert_eq!(bm.deficit(t, &bits) == 0, is, "{t} at {mk:?} in {m:?}");
+                    assert_eq!(ix.deficit(t, &mk) == 0, is, "{t} at {mk:?} in {m:?}");
+                }
                 assert_eq!(
                     bm.enabled_set(&bits).iter().collect::<Vec<_>>(),
                     on,

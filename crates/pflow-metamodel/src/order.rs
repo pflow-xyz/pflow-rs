@@ -75,17 +75,52 @@ impl Orderer for History {
     }
 }
 
+/// Moves that play towards more of the mover's goals: the goals its output
+/// places feed ([`Game::centrality`]), fixed per transition. Needs goals.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Centrality;
+
+/// Moves after which more of the mover's goals that its output places feed
+/// ([`Game::fed`]) are one token short of enabled. Goals the move cannot
+/// touch are left out: it is cheaper than counting all of them and ranked
+/// the Connect-4 sample the same. Needs goals.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Threats;
+
+impl Orderer for Centrality {
+    fn key<W: Walk>(&self, cx: &Ctx, t: usize, _: &W) -> Result<u64> {
+        Ok(cx.g.centrality[t] as u64)
+    }
+}
+
+impl Orderer for Threats {
+    fn key<W: Walk>(&self, cx: &Ctx, t: usize, next: &W) -> Result<u64> {
+        Ok(cx.g.fed[t]
+            .iter()
+            .filter(|&&i| next.deficit(cx.g, cx.g.goals[i as usize].t) == 1)
+            .count() as u64)
+    }
+}
+
 /// A piece of a chain, by name. See [`Piece::parse`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Piece {
     TtBest(TtBest),
     ImmediateWin(ImmediateWin),
     History(History),
+    Centrality(Centrality),
+    Threats(Threats),
 }
 
 impl Piece {
     /// The names [`Piece::parse`] takes.
-    pub const NAMES: [&'static str; 3] = ["tt_best", "immediate_win", "history"];
+    pub const NAMES: [&'static str; 5] = [
+        "tt_best",
+        "immediate_win",
+        "history",
+        "centrality",
+        "threats",
+    ];
 
     /// The piece called `name`.
     pub fn parse(name: &str) -> Result<Self> {
@@ -93,6 +128,8 @@ impl Piece {
             "tt_best" => Self::TtBest(TtBest),
             "immediate_win" => Self::ImmediateWin(ImmediateWin),
             "history" => Self::History(History),
+            "centrality" => Self::Centrality(Centrality),
+            "threats" => Self::Threats(Threats),
             _ => {
                 return Err(Error::Game(format!(
                     "unknown order piece {name:?} (known: {:?})",
@@ -108,7 +145,14 @@ impl Piece {
             Self::TtBest(_) => "tt_best",
             Self::ImmediateWin(_) => "immediate_win",
             Self::History(_) => "history",
+            Self::Centrality(_) => "centrality",
+            Self::Threats(_) => "threats",
         }
+    }
+
+    /// Whether the piece reads the net's goals ([`Game::goals`]).
+    pub fn needs_goals(&self) -> bool {
+        matches!(self, Self::Centrality(_) | Self::Threats(_))
     }
 }
 
@@ -118,6 +162,8 @@ impl Orderer for Piece {
             Self::TtBest(p) => p.key(cx, t, next),
             Self::ImmediateWin(p) => p.key(cx, t, next),
             Self::History(p) => p.key(cx, t, next),
+            Self::Centrality(p) => p.key(cx, t, next),
+            Self::Threats(p) => p.key(cx, t, next),
         }
     }
 
@@ -126,6 +172,8 @@ impl Orderer for Piece {
             Self::TtBest(p) => p.cutoff(history, t),
             Self::ImmediateWin(p) => p.cutoff(history, t),
             Self::History(p) => p.cutoff(history, t),
+            Self::Centrality(p) => p.cutoff(history, t),
+            Self::Threats(p) => p.cutoff(history, t),
         }
     }
 }
@@ -137,6 +185,8 @@ impl Piece {
             Self::TtBest(_) => TtBest::DECISIVE,
             Self::ImmediateWin(_) => ImmediateWin::DECISIVE,
             Self::History(_) => History::DECISIVE,
+            Self::Centrality(_) => Centrality::DECISIVE,
+            Self::Threats(_) => Threats::DECISIVE,
         }
     }
 }
@@ -181,6 +231,19 @@ impl Chain {
 
     pub fn pieces(&self) -> &[Piece] {
         &self.pieces
+    }
+
+    /// Refuses a chain that `g` cannot run: a piece that reads goals, when
+    /// the net declares none (no automatic transition pays a reward).
+    pub fn check(&self, g: &Game) -> Result<()> {
+        match self.pieces.iter().find(|p| p.needs_goals()) {
+            Some(p) if g.goals.is_empty() => Err(Error::Game(format!(
+                "order piece {:?} reads the net's goals, but no automatic transition pays a \
+                 reward place",
+                p.name()
+            ))),
+            _ => Ok(()),
+        }
     }
 
     /// The keys of move `t`.
