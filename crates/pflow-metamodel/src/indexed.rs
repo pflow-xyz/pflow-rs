@@ -15,6 +15,18 @@
 //! net of what the same firing consumes from it. A negative weight makes a
 //! transition never enabled. `tests::agrees_with_the_reference_rule` checks
 //! all of it against [`Model::enabled`] and [`Model::fire`] on random nets.
+//!
+//! A search that walks from marking to marking need not recheck every
+//! transition after each firing. [`Enabled`] keeps, for each transition,
+//! how many of its conditions (an arc's threshold, an inhibitor, a
+//! capacity) the marking fails, and the set of those failing none. Firing
+//! `t` changes only the places on its arcs, so
+//! [`IndexedModel::fire_tracked`] re-evaluates just the conditions on those
+//! places. A place every move touches (a turn token) costs one comparison
+//! per arc on it rather than a recheck of every transition with an arc
+//! there. `tests::tracked_sets_match_a_full_recheck` compares it with
+//! [`IndexedModel::enabled_set`], counts included, after every firing of
+//! long random walks.
 
 use std::collections::HashMap;
 
@@ -43,6 +55,126 @@ pub struct IndexedModel {
     /// Transition ids, in declaration order: what a transition index means.
     pub transitions: Vec<String>,
     arcs: Vec<Arcs>,
+    /// Per place: (transition, condition) for every condition on it.
+    conds: Vec<Vec<(usize, Cond)>>,
+    /// Per transition: the places its firing changes (its arcs' places).
+    touched: Vec<Vec<usize>>,
+}
+
+/// One condition a transition's enablement puts on one place's count.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Cond {
+    /// A consuming or read arc: at least this many.
+    AtLeast(i64),
+    /// An inhibitor arc: fewer than this many.
+    Below(i64),
+    /// A capacity: the count plus this increase stays within this bound.
+    Capped(i64, i64),
+}
+
+impl Cond {
+    fn holds(self, v: i64) -> bool {
+        match self {
+            Cond::AtLeast(w) => v >= w,
+            Cond::Below(w) => v < w,
+            Cond::Capped(d, cap) => v.saturating_add(d) <= cap,
+        }
+    }
+}
+
+/// A set of transitions, by index, as a bitset.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TransitionSet {
+    words: Vec<u64>,
+}
+
+impl TransitionSet {
+    fn empty(n: usize) -> Self {
+        Self {
+            words: vec![0; n.div_ceil(64)],
+        }
+    }
+
+    fn set(&mut self, t: usize, on: bool) {
+        let (w, b) = (t / 64, 1u64 << (t % 64));
+        if on {
+            self.words[w] |= b;
+        } else {
+            self.words[w] &= !b;
+        }
+    }
+
+    /// Whether `t` is in the set.
+    pub fn contains(&self, t: usize) -> bool {
+        self.words[t / 64] >> (t % 64) & 1 == 1
+    }
+
+    /// No transition is enabled.
+    pub fn is_empty(&self) -> bool {
+        self.words.iter().all(|&w| w == 0)
+    }
+
+    /// The transitions in the set, in index (declaration) order.
+    pub fn iter(&self) -> impl Iterator<Item = usize> + '_ {
+        self.words.iter().enumerate().flat_map(|(i, &w)| {
+            let mut w = w;
+            std::iter::from_fn(move || {
+                (w != 0).then(|| {
+                    let b = w.trailing_zeros() as usize;
+                    w &= w - 1;
+                    i * 64 + b
+                })
+            })
+        })
+    }
+
+    /// The first transition, in index order, that is in both sets.
+    pub fn first_in(&self, other: &TransitionSet) -> Option<usize> {
+        self.words
+            .iter()
+            .zip(&other.words)
+            .enumerate()
+            .find_map(|(i, (&a, &b))| {
+                let w = a & b;
+                (w != 0).then(|| i * 64 + w.trailing_zeros() as usize)
+            })
+    }
+}
+
+/// The transitions enabled at a marking, kept up to date as it fires
+/// ([`IndexedModel::fire_tracked`]): a [`TransitionSet`] and, per
+/// transition, how many of its conditions fail.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Enabled {
+    set: TransitionSet,
+    failing: Vec<u32>,
+}
+
+impl Enabled {
+    /// The enabled transitions.
+    pub fn set(&self) -> &TransitionSet {
+        &self.set
+    }
+
+    /// Whether `t` is enabled.
+    pub fn contains(&self, t: usize) -> bool {
+        self.set.contains(t)
+    }
+
+    /// No transition is enabled.
+    pub fn is_empty(&self) -> bool {
+        self.set.is_empty()
+    }
+
+    /// The enabled transitions, in index (declaration) order.
+    pub fn iter(&self) -> impl Iterator<Item = usize> + '_ {
+        self.set.iter()
+    }
+
+    /// The first enabled transition, in index order, that is in `among`.
+    pub fn first_in(&self, among: &TransitionSet) -> Option<usize> {
+        self.set.first_in(among)
+    }
 }
 
 impl Model {
@@ -63,7 +195,7 @@ impl Model {
                 .filter(|p| p.is_token())
                 .and_then(|_| index.get(id).copied())
         };
-        let arcs = self
+        let arcs: Vec<Arcs> = self
             .transitions
             .iter()
             .map(|t| {
@@ -109,10 +241,38 @@ impl Model {
                 a
             })
             .collect();
+        let mut conds: Vec<Vec<(usize, Cond)>> = vec![vec![]; places.len()];
+        for (u, a) in arcs.iter().enumerate() {
+            // An invalid transition is never enabled; its conditions never
+            // matter.
+            if a.invalid {
+                continue;
+            }
+            for &(p, w) in a.inputs.iter().chain(&a.reads) {
+                conds[p].push((u, Cond::AtLeast(w)));
+            }
+            for &(p, w) in &a.inhibitors {
+                conds[p].push((u, Cond::Below(w)));
+            }
+            for &(p, d, cap) in &a.capacities {
+                conds[p].push((u, Cond::Capped(d, cap)));
+            }
+        }
+        let touched = arcs
+            .iter()
+            .map(|a| {
+                let mut ps: Vec<usize> = a.inputs.iter().chain(&a.outputs).map(|x| x.0).collect();
+                ps.sort_unstable();
+                ps.dedup();
+                ps
+            })
+            .collect();
         IndexedModel {
             places,
             transitions: self.transitions.iter().map(|t| t.id.clone()).collect(),
             arcs,
+            conds,
+            touched,
         }
     }
 }
@@ -152,6 +312,51 @@ impl IndexedModel {
         (0..self.arcs.len())
             .filter(|&t| self.enabled(t, mk))
             .collect()
+    }
+
+    /// The transitions that can fire at `mk`, with the counts
+    /// [`IndexedModel::fire_tracked`] keeps current.
+    pub fn enabled_set(&self, mk: &[i64]) -> Enabled {
+        let n = self.arcs.len();
+        let mut failing: Vec<u32> = self.arcs.iter().map(|a| a.invalid as u32).collect();
+        for (p, cs) in self.conds.iter().enumerate() {
+            for &(u, c) in cs {
+                failing[u] += !c.holds(mk[p]) as u32;
+            }
+        }
+        let set = self.set_of((0..n).filter(|&t| failing[t] == 0));
+        Enabled { set, failing }
+    }
+
+    /// A set of transitions, from their indices.
+    pub fn set_of(&self, ts: impl IntoIterator<Item = usize>) -> TransitionSet {
+        let mut s = TransitionSet::empty(self.arcs.len());
+        for t in ts {
+            s.set(t, true);
+        }
+        s
+    }
+
+    /// Fires `t` in place and brings `en`, the enabled set at `mk`, up to
+    /// date, re-evaluating only the conditions on the places `t` changes.
+    /// Like [`Model::fire`], it does not check enablement.
+    pub fn fire_tracked(&self, t: usize, mk: &mut [i64], en: &mut Enabled) {
+        let touched = &self.touched[t];
+        // Take out the conditions' verdicts at the old counts, fire, and put
+        // in those at the new ones. A transition's last update comes after
+        // all of its conditions here are back in, so its bit ends right.
+        for &p in touched {
+            for &(u, c) in &self.conds[p] {
+                en.failing[u] -= !c.holds(mk[p]) as u32;
+            }
+        }
+        self.fire_in_place(t, mk);
+        for &p in touched {
+            for &(u, c) in &self.conds[p] {
+                en.failing[u] += !c.holds(mk[p]) as u32;
+                en.set.set(u, en.failing[u] == 0);
+            }
+        }
     }
 
     /// Fires `t` in place. Like [`Model::fire`], it does not check
@@ -290,6 +495,56 @@ mod tests {
             fired > 10_000,
             "the random nets exercise enabled firings ({fired})"
         );
+    }
+
+    #[test]
+    fn tracked_sets_match_a_full_recheck() {
+        let mut r = Lcg(11);
+        let mut steps = 0;
+        for _ in 0..3000 {
+            let m = random_model(&mut r);
+            let ix = m.indexed();
+            let mut mk: Vec<i64> = (0..ix.places.len()).map(|_| r.below(4) as i64).collect();
+            let mut en = ix.enabled_set(&mk);
+            let listed: Vec<usize> = en.iter().collect();
+            assert_eq!(listed, ix.enabled_transitions(&mk));
+            for _ in 0..30 {
+                // Mostly enabled moves, sometimes any transition (fire does
+                // not check), so the walk also leaves the reachable set.
+                let on: Vec<usize> = en.iter().collect();
+                let t = if !on.is_empty() && r.below(4) != 0 {
+                    on[r.below(on.len() as u64) as usize]
+                } else if ix.transitions.is_empty() {
+                    break;
+                } else {
+                    r.below(ix.transitions.len() as u64) as usize
+                };
+                ix.fire_tracked(t, &mut mk, &mut en);
+                assert_eq!(en, ix.enabled_set(&mk), "after {t} at {mk:?} in {m:?}");
+                steps += 1;
+            }
+        }
+        assert!(steps > 50_000, "the walks fire enough ({steps})");
+    }
+
+    #[test]
+    fn transition_sets_iterate_in_order_across_words() {
+        let ix = Model {
+            transitions: (0..130)
+                .map(|i| Transition {
+                    id: format!("t{i}"),
+                    ..Default::default()
+                })
+                .collect(),
+            ..Default::default()
+        }
+        .indexed();
+        let s: TransitionSet = ix.set_of([129, 0, 64, 63, 65]);
+        assert_eq!(s.iter().collect::<Vec<_>>(), vec![0, 63, 64, 65, 129]);
+        assert!(s.contains(64) && !s.contains(62));
+        assert_eq!(s.first_in(&ix.set_of([65, 129])), Some(65));
+        assert_eq!(s.first_in(&ix.set_of([1])), None);
+        assert!(ix.set_of([]).is_empty() && !s.is_empty());
     }
 
     #[test]

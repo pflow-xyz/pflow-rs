@@ -19,7 +19,7 @@ pub mod stages;
 pub use access::AccessControl;
 pub use error::{Error, Result};
 pub use firing::{ArcRef, Marking};
-pub use indexed::IndexedModel;
+pub use indexed::{Enabled, IndexedModel, TransitionSet};
 pub use schedule::RateSegment;
 pub use schema::{
     AccessRule, Arc, ArcType, AssertedClass, Binding, Constraint, ControlGroup, Disruption, Event,
