@@ -303,6 +303,11 @@ impl BitModel {
         &self.wakes[t]
     }
 
+    /// The number of `u64` words a bit marking takes: one bit per place.
+    pub fn words(&self) -> usize {
+        self.words
+    }
+
     /// The number of `u64` words an enabled set for
     /// [`BitModel::fire_tracked`] takes: one bit per transition.
     pub fn set_words(&self) -> usize {

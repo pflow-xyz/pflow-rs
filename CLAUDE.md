@@ -17,7 +17,7 @@ The papers extend this further — showing the incidence matrix enables algebrai
 | Crate | Purpose |
 |-------|---------|
 | `pflow-core` | Core types: `PetriNet`, `Place`, `Transition`, `Arc`, `State`, fluent `Builder`; Shape A JSON and color expansion (`colors.rs`) |
-| `pflow-metamodel` | Shape B `Model` (stages, schedules, parameters, access) and the one shared firing rule every engine calls; `IndexedModel`/`BitModel` (the same rule over dense and bit markings, for searches) and `game` (exact two-sided game values by alpha-beta) |
+| `pflow-metamodel` | Shape B `Model` (stages, schedules, parameters, access) and the one shared firing rule every engine calls; `IndexedModel`/`BitModel` (the same rule over dense and bit markings, for searches) and `game` (exact two-sided game values by alpha-beta, with a bounded transposition table, `memo`, and sound move filters, `filter`) |
 | `pflow-parser` | Shape A → Shape B converter (`is_pflow_json`, `model_from_json`), held to go-pflow's editor-shape goldens |
 | `pflow-solver` | ODE solvers (Tsitouras 5/4, RK45, etc.), equilibrium detection, vectorized fast path; `ssa` — portable Gillespie SSA (byte-exact with go-pflow/pflow-xyz/pflow-jl); `ssa::sde` — chemical Langevin SDE (intrinsic noise, byte-exact with go-pflow/pflow-xyz) |
 | `pflow-learn` | System identification: forward + adjoint sensitivities, gradient (Adam/backtracking) and derivative-free (Nelder-Mead) fitting, MLP rate functions, tied parameters — ported from go-pflow's `learn`, held to the same Go/JS goldens (`parity/`) |

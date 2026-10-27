@@ -1,8 +1,10 @@
-//! The move-order gate: every exact value and node count of the default
-//! search, on tic-tac-toe (all positions) and a seeded sample of Connect-3
-//! and Connect-4, as they were before ordering became a chain of pieces.
+//! The search gate: every exact value and node count of the default search
+//! (its order chain, its filters, its bounded table), on tic-tac-toe (all
+//! positions) and a seeded sample of Connect-3 and Connect-4. The values are
+//! the ones the search found before its order became a chain of pieces; the
+//! node counts last changed when `must_win` became a default filter.
 //! Regenerate with the `search_gate` example only when the search itself is
-//! meant to change.
+//! meant to change, and never when a value would.
 mod common;
 
 use pflow_metamodel::game::Solver;
@@ -65,6 +67,30 @@ fn any_order_finds_the_same_values() {
                 .map(|x| x.0)
                 .collect();
             assert_eq!(got, want, "{name} by {:?}", chain.pieces());
+        }
+    }
+}
+
+#[test]
+fn filters_find_the_same_values_under_any_order() {
+    use pflow_metamodel::Filter;
+    for name in ["tic-tac-toe", "connect-3"] {
+        let (g, m0) = common::game(name);
+        let mut all = common::positions(name, &g, &m0);
+        all.truncate(400);
+        let want: Vec<f64> = common::fresh(&g, &all).iter().map(|x| x.0).collect();
+        for filters in [
+            vec![Filter::MustWin],
+            vec![Filter::NonLosing],
+            vec![Filter::MustWin, Filter::NonLosing],
+        ] {
+            for chain in chains().iter().step_by(4) {
+                let got: Vec<f64> = common::fresh_filtered(&g, &all, chain, &filters)
+                    .iter()
+                    .map(|x| x.0)
+                    .collect();
+                assert_eq!(got, want, "{name} by {:?} {filters:?}", chain.pieces());
+            }
         }
     }
 }
