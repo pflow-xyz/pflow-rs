@@ -26,7 +26,11 @@
 //! per arc on it rather than a recheck of every transition with an arc
 //! there. `tests::tracked_sets_match_a_full_recheck` compares it with
 //! [`IndexedModel::enabled_set`], counts included, after every firing of
-//! long random walks.
+//! long random walks, and [`IndexedModel::unfire_tracked`] with the state
+//! before it.
+//!
+//! For nets whose markings stay 0/1, [`crate::BitModel`] is the same rule
+//! over bits.
 
 use std::collections::HashMap;
 
@@ -35,15 +39,15 @@ use crate::schema::{ArcType, Model};
 
 /// One transition's arcs, by place index.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-struct Arcs {
-    inputs: Vec<(usize, i64)>,
-    outputs: Vec<(usize, i64)>,
-    reads: Vec<(usize, i64)>,
-    inhibitors: Vec<(usize, i64)>,
+pub(crate) struct Arcs {
+    pub(crate) inputs: Vec<(usize, i64)>,
+    pub(crate) outputs: Vec<(usize, i64)>,
+    pub(crate) reads: Vec<(usize, i64)>,
+    pub(crate) inhibitors: Vec<(usize, i64)>,
     /// (place, net increase, capacity) for each capacity a firing raises.
-    capacities: Vec<(usize, i64, i64)>,
+    pub(crate) capacities: Vec<(usize, i64, i64)>,
     /// A negative weight on any of its arcs: never enabled.
-    invalid: bool,
+    pub(crate) invalid: bool,
 }
 
 /// A [`Model`]'s firing rule over dense markings. See the module docs.
@@ -54,7 +58,7 @@ pub struct IndexedModel {
     pub places: Vec<String>,
     /// Transition ids, in declaration order: what a transition index means.
     pub transitions: Vec<String>,
-    arcs: Vec<Arcs>,
+    pub(crate) arcs: Vec<Arcs>,
     /// Per place: (transition, condition) for every condition on it.
     conds: Vec<Vec<(usize, Cond)>>,
     /// Per transition: the places its firing changes (its arcs' places).
@@ -89,13 +93,13 @@ pub struct TransitionSet {
 }
 
 impl TransitionSet {
-    fn empty(n: usize) -> Self {
+    pub(crate) fn empty(n: usize) -> Self {
         Self {
             words: vec![0; n.div_ceil(64)],
         }
     }
 
-    fn set(&mut self, t: usize, on: bool) {
+    pub(crate) fn set(&mut self, t: usize, on: bool) {
         let (w, b) = (t / 64, 1u64 << (t % 64));
         if on {
             self.words[w] |= b;
@@ -341,16 +345,30 @@ impl IndexedModel {
     /// date, re-evaluating only the conditions on the places `t` changes.
     /// Like [`Model::fire`], it does not check enablement.
     pub fn fire_tracked(&self, t: usize, mk: &mut [i64], en: &mut Enabled) {
+        self.retrack(t, mk, en, |mk| self.fire_in_place(t, mk));
+    }
+
+    /// Undoes [`IndexedModel::fire_tracked`] of `t`, restoring `mk` and
+    /// `en` as they were, so a search can walk back instead of copying.
+    /// Exact unless that firing saturated a count at the `i64` bounds.
+    pub fn unfire_tracked(&self, t: usize, mk: &mut [i64], en: &mut Enabled) {
+        self.retrack(t, mk, en, |mk| self.unfire_in_place(t, mk));
+    }
+
+    /// Applies `change` (which alters only `t`'s places) to `mk`, keeping
+    /// `en` current.
+    fn retrack(&self, t: usize, mk: &mut [i64], en: &mut Enabled, change: impl FnOnce(&mut [i64])) {
         let touched = &self.touched[t];
-        // Take out the conditions' verdicts at the old counts, fire, and put
-        // in those at the new ones. A transition's last update comes after
-        // all of its conditions here are back in, so its bit ends right.
+        // Take out the conditions' verdicts at the old counts, change, and
+        // put in those at the new ones. A transition's last update comes
+        // after all of its conditions here are back in, so its bit ends
+        // right.
         for &p in touched {
             for &(u, c) in &self.conds[p] {
                 en.failing[u] -= !c.holds(mk[p]) as u32;
             }
         }
-        self.fire_in_place(t, mk);
+        change(mk);
         for &p in touched {
             for &(u, c) in &self.conds[p] {
                 en.failing[u] += !c.holds(mk[p]) as u32;
@@ -371,6 +389,18 @@ impl IndexedModel {
         }
     }
 
+    /// Undoes [`IndexedModel::fire_in_place`] of `t`. Exact unless that
+    /// firing saturated a count at the `i64` bounds.
+    pub fn unfire_in_place(&self, t: usize, mk: &mut [i64]) {
+        let a = &self.arcs[t];
+        for &(p, w) in &a.outputs {
+            mk[p] = mk[p].saturating_sub(w);
+        }
+        for &(p, w) in &a.inputs {
+            mk[p] = mk[p].saturating_add(w);
+        }
+    }
+
     /// The marking after `t` fires, leaving `mk` untouched.
     pub fn fire(&self, t: usize, mk: &[i64]) -> Vec<i64> {
         let mut next = mk.to_vec();
@@ -380,14 +410,14 @@ impl IndexedModel {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::schema::{Arc, Place, StateKind, Transition};
 
     /// A tiny deterministic generator, so the test needs no dependency.
-    struct Lcg(u64);
+    pub(crate) struct Lcg(pub(crate) u64);
     impl Lcg {
-        fn below(&mut self, n: u64) -> u64 {
+        pub(crate) fn below(&mut self, n: u64) -> u64 {
             self.0 = self
                 .0
                 .wrapping_mul(6364136223846793005)
@@ -399,7 +429,7 @@ mod tests {
     /// A random net using every feature the rule has: read and inhibitor
     /// arcs, self-loops, repeated arcs, capacities, a data place, a
     /// repeated place id, negative and zero (defaulted) weights.
-    fn random_model(r: &mut Lcg) -> Model {
+    pub(crate) fn random_model(r: &mut Lcg) -> Model {
         let np = 2 + r.below(5) as usize;
         let mut places: Vec<Place> = (0..np)
             .map(|i| Place {
@@ -498,7 +528,7 @@ mod tests {
     }
 
     #[test]
-    fn tracked_sets_match_a_full_recheck() {
+    fn tracked_sets_match_a_full_recheck_and_undo() {
         let mut r = Lcg(11);
         let mut steps = 0;
         for _ in 0..3000 {
@@ -519,8 +549,12 @@ mod tests {
                 } else {
                     r.below(ix.transitions.len() as u64) as usize
                 };
+                let (mk0, en0) = (mk.clone(), en.clone());
                 ix.fire_tracked(t, &mut mk, &mut en);
                 assert_eq!(en, ix.enabled_set(&mk), "after {t} at {mk:?} in {m:?}");
+                let (mut back, mut back_en) = (mk.clone(), en.clone());
+                ix.unfire_tracked(t, &mut back, &mut back_en);
+                assert_eq!((back, back_en), (mk0, en0), "undoing {t} in {m:?}");
                 steps += 1;
             }
         }

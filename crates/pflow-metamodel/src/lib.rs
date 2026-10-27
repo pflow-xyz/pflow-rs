@@ -8,6 +8,7 @@
 //! [`Model::fire`] rather than reimplementing any part of it.
 
 pub mod access;
+pub mod bits;
 pub mod error;
 pub mod firing;
 pub mod indexed;
@@ -17,6 +18,7 @@ pub mod schema;
 pub mod stages;
 
 pub use access::AccessControl;
+pub use bits::BitModel;
 pub use error::{Error, Result};
 pub use firing::{ArcRef, Marking};
 pub use indexed::{Enabled, IndexedModel, TransitionSet};
