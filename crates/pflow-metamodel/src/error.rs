@@ -87,6 +87,12 @@ pub enum Error {
         place: String,
         weight: i64,
     },
+
+    /// A net that breaks [`crate::game`]'s rules: automatic transitions
+    /// that never stop, enabled moves of both sides, a reward outside the
+    /// range its places allow.
+    #[error("{0}")]
+    Game(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

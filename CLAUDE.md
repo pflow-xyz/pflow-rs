@@ -17,7 +17,7 @@ The papers extend this further — showing the incidence matrix enables algebrai
 | Crate | Purpose |
 |-------|---------|
 | `pflow-core` | Core types: `PetriNet`, `Place`, `Transition`, `Arc`, `State`, fluent `Builder`; Shape A JSON and color expansion (`colors.rs`) |
-| `pflow-metamodel` | Shape B `Model` (stages, schedules, parameters, access) and the one shared firing rule every engine calls |
+| `pflow-metamodel` | Shape B `Model` (stages, schedules, parameters, access) and the one shared firing rule every engine calls; `IndexedModel`/`BitModel` (the same rule over dense and bit markings, for searches) and `game` (exact two-sided game values by alpha-beta) |
 | `pflow-parser` | Shape A → Shape B converter (`is_pflow_json`, `model_from_json`), held to go-pflow's editor-shape goldens |
 | `pflow-solver` | ODE solvers (Tsitouras 5/4, RK45, etc.), equilibrium detection, vectorized fast path; `ssa` — portable Gillespie SSA (byte-exact with go-pflow/pflow-xyz/pflow-jl); `ssa::sde` — chemical Langevin SDE (intrinsic noise, byte-exact with go-pflow/pflow-xyz) |
 | `pflow-learn` | System identification: forward + adjoint sensitivities, gradient (Adam/backtracking) and derivative-free (Nelder-Mead) fitting, MLP rate functions, tied parameters — ported from go-pflow's `learn`, held to the same Go/JS goldens (`parity/`) |
@@ -42,6 +42,10 @@ The papers extend this further — showing the incidence matrix enables algebrai
 **Which engine for which question** (ODE vs SSA vs SDE): `docs/engine-selection.md`,
 vendored from go-pflow (`scripts/docs-sync.sh check`/`sync`, same hash-lock
 pattern the shared browser JS uses — see the root `CLAUDE.md`).
+
+## Performance work
+
+Speed-ups for consumers (pflow-native's game search, reachability walks, solvers) go here, in pflow-rs, as generic Petri net tooling that works for any net: `IndexedModel`, `BitModel`, `game`. Consumers call it, never reimplement it. A speed-up that only works by knowing one model (Connect-4's columns, a turn token by name) is not built at all, here or downstream. If an idea cannot be made generic, record why and skip it.
 
 ## Roadmap
 

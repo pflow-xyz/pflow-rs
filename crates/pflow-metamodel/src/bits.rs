@@ -20,7 +20,9 @@
 //! refuses a firing whose result would leave a place outside 0 and 1 (a
 //! second token on a cell, a repeated input arc taking a place below
 //! zero), leaving the marking as it was, so the caller can carry on with
-//! [`IndexedModel`]. `tests::agrees_with_the_indexed_rule` holds it to
+//! [`IndexedModel`]. [`BitModel::fire_tracked`] keeps an enabled set
+//! current as well, for searches that ask for the moves at every node.
+//! `tests::agrees_with_the_indexed_rule` holds it to
 //! [`IndexedModel`] on random nets, at every 0/1 marking a random walk
 //! reaches.
 
@@ -49,10 +51,21 @@ pub struct BitModel {
     masks: Vec<Word>,
     /// Per transition: no 0/1 marking enables it.
     never: Vec<bool>,
+    /// Per transition, packed for [`BitModel::enabled`]: its range in
+    /// `tests`, the (word, care, one) of each word its conditions look at.
+    /// A transition that is never enabled has one test no word passes.
+    test_spans: Vec<(u32, u32)>,
+    tests: Vec<(usize, u64, u64)>,
     /// Per transition: no firing of it leaves a 0/1 marking.
     spoils: Vec<bool>,
     /// Per transition: those it can enable, in index order.
     wakes: Vec<Vec<usize>>,
+    /// Words in a transition bitset.
+    tw: usize,
+    /// Per place: the transitions with a condition on it, as `tw` words.
+    carers: Vec<u64>,
+    /// Per transition: the places it flips.
+    flips: Vec<Vec<usize>>,
 }
 
 impl IndexedModel {
@@ -122,7 +135,9 @@ impl IndexedModel {
             spoils.push(spoil);
         }
         // u can go from disabled to enabled through t only if t sets a bit
-        // u needs set, or clears one u needs clear.
+        // u needs set, or clears one u needs clear (it fixes a condition),
+        // and neither clears a bit u needs set nor sets one u needs clear
+        // (it breaks none).
         let n = spans.len();
         let sets = |t: usize, at: usize| -> (u64, u64) {
             let (a, b) = spans[t];
@@ -136,16 +151,55 @@ impl IndexedModel {
                 (0..n)
                     .filter(|&u| {
                         let (a, b) = spans[u];
-                        !never[u]
-                            && masks[a..b].iter().any(|m| {
-                                let (on, off) = sets(t, m.at);
-                                on & m.one != 0 || off & m.care & !m.one != 0
-                            })
+                        let ms = &masks[a..b];
+                        let fixes = ms.iter().any(|m| {
+                            let (on, off) = sets(t, m.at);
+                            on & m.one != 0 || off & m.care & !m.one != 0
+                        });
+                        let breaks = ms.iter().any(|m| {
+                            let (on, off) = sets(t, m.at);
+                            off & m.one != 0 || on & m.care & !m.one != 0
+                        });
+                        !never[u] && fixes && !breaks
                     })
                     .collect()
             })
             .collect();
+        let tw = n.div_ceil(64);
+        let mut carers = vec![0u64; self.places.len() * tw];
+        let mut flips = vec![vec![]; n];
+        for u in 0..n {
+            let (a, b) = spans[u];
+            for m in &masks[a..b] {
+                for bit in 0..64 {
+                    let p = m.at * 64 + bit;
+                    if m.care >> bit & 1 == 1 {
+                        carers[p * tw + u / 64] |= 1 << (u % 64);
+                    }
+                    if m.flip >> bit & 1 == 1 {
+                        flips[u].push(p);
+                    }
+                }
+            }
+        }
+        let (mut test_spans, mut tests) = (vec![], vec![]);
+        for (u, &(a, b)) in spans.iter().enumerate() {
+            let start = tests.len() as u32;
+            if never[u] {
+                tests.push((0, 0, 1));
+            } else {
+                tests.extend(
+                    masks[a..b]
+                        .iter()
+                        .filter(|m| m.care != 0)
+                        .map(|m| (m.at, m.care, m.one)),
+                );
+            }
+            test_spans.push((start, tests.len() as u32));
+        }
         BitModel {
+            test_spans,
+            tests,
             places: self.places.len(),
             words,
             spans,
@@ -153,6 +207,9 @@ impl IndexedModel {
             never,
             spoils,
             wakes,
+            tw,
+            carers,
+            flips,
         }
     }
 }
@@ -186,7 +243,10 @@ impl BitModel {
 
     /// Whether transition `t` can fire at `mk`.
     pub fn enabled(&self, t: usize, mk: &[u64]) -> bool {
-        !self.never[t] && self.masks(t).iter().all(|m| mk[m.at] & m.care == m.one)
+        let (a, b) = self.test_spans[t];
+        self.tests[a as usize..b as usize]
+            .iter()
+            .all(|&(w, care, one)| mk[w] & care == one)
     }
 
     /// The transitions that can fire at `mk`.
@@ -229,6 +289,46 @@ impl BitModel {
         &self.wakes[t]
     }
 
+    /// The number of `u64` words an enabled set for
+    /// [`BitModel::fire_tracked`] takes: one bit per transition.
+    pub fn set_words(&self) -> usize {
+        self.tw
+    }
+
+    /// Writes the transitions enabled at `mk` into `en` (of
+    /// [`BitModel::set_words`] words, bit `t % 64` of word `t / 64`).
+    pub fn enabled_words(&self, mk: &[u64], en: &mut [u64]) {
+        en.iter_mut().for_each(|w| *w = 0);
+        for t in 0..self.spans.len() {
+            if self.enabled(t, mk) {
+                en[t / 64] |= 1 << (t % 64);
+            }
+        }
+    }
+
+    /// [`BitModel::fire`], keeping `en`, the enabled set at `mk` (as
+    /// [`BitModel::enabled_words`] writes it), current. A firing changes
+    /// only the bits it flips, and flipping a bit an enabled transition
+    /// looks at disables it, so: drop every transition with a condition on
+    /// a flipped place, then recheck only those `t` [`BitModel::wakes`].
+    /// Returns false, changing nothing, where
+    /// `fire` would.
+    pub fn fire_tracked(&self, t: usize, mk: &mut [u64], en: &mut [u64]) -> bool {
+        if !self.fire(t, mk) {
+            return false;
+        }
+        for &p in &self.flips[t] {
+            let c = &self.carers[p * self.tw..(p + 1) * self.tw];
+            en.iter_mut().zip(c).for_each(|(e, c)| *e &= !c);
+        }
+        for &u in &self.wakes[t] {
+            if self.enabled(u, mk) {
+                en[u / 64] |= 1 << (u % 64);
+            }
+        }
+        true
+    }
+
     /// Undoes a [`BitModel::fire`] of `t` that returned true.
     pub fn unfire(&self, t: usize, mk: &mut [u64]) {
         self.masks(t).iter().for_each(|m| mk[m.at] ^= m.flip);
@@ -267,6 +367,15 @@ mod tests {
                     let fits = want.iter().all(|&v| v == 0 || v == 1);
                     let before = bits.clone();
                     assert_eq!(bm.fire(t, &mut bits), fits, "firing {t} at {mk:?} in {m:?}");
+                    let mut en = vec![0; bm.set_words()];
+                    bm.enabled_words(&before, &mut en);
+                    let mut tracked = before.clone();
+                    assert_eq!(bm.fire_tracked(t, &mut tracked, &mut en), fits);
+                    if fits {
+                        let mut full = vec![0; bm.set_words()];
+                        bm.enabled_words(&tracked, &mut full);
+                        assert_eq!(en, full, "tracking {t} at {mk:?} in {m:?}");
+                    }
                     if fits {
                         assert_eq!(bm.counts(&bits), want);
                         for u in ix.enabled_transitions(&want) {

@@ -1,0 +1,788 @@
+//! Exact values of two-sided games played on a net: alpha-beta over the
+//! firing rule, one position at a time, with a node budget.
+//!
+//! A [`Game`] reads a net as a game. `auto` transitions fire as soon as
+//! they are enabled (a win detector, a cleanup step), lowest index first,
+//! until none is: the marking is then settled. Every other transition is a
+//! move, and `sign` says whose: +1 for the side maximizing the reward, -1
+//! for the other. At a settled marking the side to move is the one every
+//! enabled move belongs to, and a marking with no move is final, worth the
+//! reward read from it: `reward` weights per place, each place holding at
+//! most one token at the end. Nothing here knows any particular game.
+//!
+//! [`Solver::value`] searches over one of two engines:
+//!
+//! - [`BitModel`], when the marking's counts are 0 or 1 and the net has at
+//!   most 256 places and 256 transitions: a marking is a few words, and so
+//!   is its enabled set, kept current by [`BitModel::fire_tracked`]. A
+//!   firing that would leave a place outside 0/1 is refused, and the
+//!   position is searched again by counts.
+//! - [`IndexedModel`] with its [`Enabled`] sets otherwise
+//!   ([`IndexedModel::fire_tracked`]).
+//!
+//! Rewards a final marking can have are few in most games (win, draw,
+//! loss), so a value is found as a run of yes/no searches, one per gap
+//! between adjacent rewards ("is it above this one?"), each with a window
+//! that narrow. They share one transposition table, which persists across
+//! calls, and a history heuristic orders moves.
+//!
+//! A value is exact. Past its budget a search returns `None`, never a
+//! guess. `tests` hold it to a plain minimax on tic-tac-toe (bits) and on
+//! Nim (counts), at every reachable position.
+
+use std::collections::HashMap;
+use std::hash::{BuildHasherDefault, Hasher};
+
+use crate::bits::BitModel;
+use crate::error::{Error, Result};
+use crate::indexed::{Enabled, IndexedModel, TransitionSet};
+
+/// A two-sided game on a net, over dense markings in `ix.places` order.
+/// See the module docs.
+#[derive(Debug, Clone)]
+pub struct Game {
+    pub ix: IndexedModel,
+    /// `ix` over 0/1 markings.
+    pub bits: BitModel,
+    /// Per transition (in `ix` order): fires as soon as it is enabled.
+    pub auto: Vec<bool>,
+    /// Per transition: the side that chooses it (+1 maximizes the reward).
+    pub sign: Vec<f64>,
+    /// (dense place index, weight): the reward, read from a final marking.
+    pub reward: Vec<(usize, f64)>,
+    /// The least and greatest reward a final marking can have (each reward
+    /// place holding 0 or 1 tokens).
+    pub bounds: (f64, f64),
+    /// `auto` as a set, and its complement (the moves).
+    pub auto_set: TransitionSet,
+    pub move_set: TransitionSet,
+    /// The same as words, when the bit engine applies.
+    auto_words: [u64; INLINE],
+    move_words: [u64; INLINE],
+    /// Every reward a final marking can have, ascending, when there are
+    /// few: the values a search decides between.
+    values: Vec<f64>,
+}
+
+/// The most words of places, and of transitions, the bit engine keeps
+/// inline (256 of each), so a child is a copy of a few words.
+const INLINE: usize = 4;
+
+/// The most reward places, and distinct rewards, worth searching value by
+/// value; past either, a search takes the whole range at once.
+const VALUES: usize = 16;
+
+/// How long settling may run before the automatic transitions count as
+/// never stopping.
+const SETTLE: usize = 10_000;
+
+fn endless() -> Error {
+    Error::Game("automatic transitions never stop firing".into())
+}
+
+/// The distinct sums of some of `weights`, ascending, or none past
+/// [`VALUES`].
+fn rewards(weights: &[f64]) -> Vec<f64> {
+    if weights.len() > VALUES {
+        return vec![];
+    }
+    let mut sums = vec![0.0];
+    for &w in weights {
+        let more: Vec<f64> = sums.iter().map(|x| x + w).collect();
+        sums.extend(more);
+        sums.sort_by(f64::total_cmp);
+        sums.dedup_by(|a, b| (*a - *b).abs() < 1e-9);
+        if sums.len() > VALUES {
+            return vec![];
+        }
+    }
+    sums
+}
+
+/// A set's words, inline, when it fits.
+fn inline(s: &TransitionSet) -> [u64; INLINE] {
+    let mut w = [0; INLINE];
+    if s.words.len() <= INLINE {
+        w[..s.words.len()].copy_from_slice(&s.words);
+    }
+    w
+}
+
+impl Game {
+    /// A game over `ix`; the arguments as the fields of the same names.
+    pub fn new(
+        ix: IndexedModel,
+        auto: Vec<bool>,
+        sign: Vec<f64>,
+        reward: Vec<(usize, f64)>,
+    ) -> Self {
+        let n = auto.len();
+        let auto_set = ix.set_of((0..n).filter(|&t| auto[t]));
+        let move_set = ix.set_of((0..n).filter(|&t| !auto[t]));
+        let bounds = (
+            reward.iter().map(|x| x.1.min(0.0)).sum(),
+            reward.iter().map(|x| x.1.max(0.0)).sum(),
+        );
+        Self {
+            values: rewards(&reward.iter().map(|x| x.1).collect::<Vec<_>>()),
+            bits: ix.bits(),
+            auto_words: inline(&auto_set),
+            move_words: inline(&move_set),
+            auto_set,
+            move_set,
+            ix,
+            auto,
+            sign,
+            reward,
+            bounds,
+        }
+    }
+
+    /// Fires automatic transitions, lowest index first, until none is
+    /// enabled.
+    pub fn settle(&self, mk: &mut [i64]) -> Result<()> {
+        for _ in 0..SETTLE {
+            let Some(t) = (0..self.auto.len()).find(|&t| self.auto[t] && self.ix.enabled(t, mk))
+            else {
+                return Ok(());
+            };
+            self.ix.fire_in_place(t, mk);
+        }
+        Err(endless())
+    }
+
+    /// The moves at a settled marking.
+    pub fn moves(&self, mk: &[i64]) -> Vec<usize> {
+        self.ix.enabled_transitions(mk)
+    }
+
+    /// The reward of a final marking.
+    pub fn score(&self, mk: &[i64]) -> Result<f64> {
+        self.check(self.reward.iter().map(|&(p, w)| w * mk[p] as f64).sum())
+    }
+
+    /// A reward, refused outside the bounds.
+    fn check(&self, x: f64) -> Result<f64> {
+        if x < self.bounds.0 || x > self.bounds.1 {
+            return Err(Error::Game(format!(
+                "a final marking scores {x}, outside the reward's assumed range {:?} (each reward place ending \
+                 with at most one token)",
+                self.bounds
+            )));
+        }
+        Ok(x)
+    }
+
+    /// The side to move at a settled marking with moves `moves`.
+    pub fn mover(&self, moves: &[usize]) -> Result<f64> {
+        let s = self.sign[moves[0]];
+        if s == 0.0 || moves.iter().any(|&t| self.sign[t] != s) {
+            let names: Vec<&str> = moves
+                .iter()
+                .map(|&t| self.ix.transitions[t].as_str())
+                .collect();
+            return Err(Error::Game(format!(
+                "the enabled moves {names:?} do not all belong to one side"
+            )));
+        }
+        Ok(s)
+    }
+
+    /// The settled marking after move `t`.
+    pub fn play(&self, mk: &[i64], t: usize) -> Result<Vec<i64>> {
+        let mut next = self.ix.fire(t, mk);
+        self.settle(&mut next)?;
+        Ok(next)
+    }
+}
+
+/// A settled marking the search plays moves from.
+trait Walk: Clone {
+    /// The moves here, into `out`.
+    fn moves(&self, g: &Game, out: &mut Vec<usize>);
+    /// Whether no move is enabled.
+    fn over(&self, g: &Game) -> bool;
+    /// Plays move `t` and settles. False when this engine cannot represent
+    /// the result, which leaves `self` meaning nothing.
+    fn play(&mut self, g: &Game, t: usize) -> Result<bool>;
+    fn score(&self, g: &Game) -> Result<f64>;
+    /// A 128-bit hash: the transposition table's key.
+    fn key(&self) -> u128;
+}
+
+/// Mixes words into a 128-bit hash.
+fn key_of(xs: impl Iterator<Item = u64>) -> u128 {
+    let (mut a, mut b) = (0x9E37_79B9_7F4A_7C15u64, 0xC2B2_AE3D_27D4_EB4Fu64);
+    for (i, v) in xs.enumerate() {
+        let x = v.wrapping_add((i as u64) << 40);
+        a = (a ^ x).wrapping_mul(0xFF51_AFD7_ED55_8CCD).rotate_left(29);
+        b = (b ^ x.rotate_left(17))
+            .wrapping_mul(0xC4CE_B9FE_1A85_EC53)
+            .rotate_left(31);
+    }
+    (a as u128) << 64 | b as u128
+}
+
+/// Counts, with the enabled set kept current.
+#[derive(Clone)]
+struct Counts {
+    mk: Vec<i64>,
+    en: Enabled,
+}
+
+impl Walk for Counts {
+    fn moves(&self, _: &Game, out: &mut Vec<usize>) {
+        out.extend(self.en.iter());
+    }
+
+    fn over(&self, _: &Game) -> bool {
+        self.en.is_empty()
+    }
+
+    fn play(&mut self, g: &Game, t: usize) -> Result<bool> {
+        g.ix.fire_tracked(t, &mut self.mk, &mut self.en);
+        for _ in 0..SETTLE {
+            let Some(u) = self.en.first_in(&g.auto_set) else {
+                return Ok(true);
+            };
+            g.ix.fire_tracked(u, &mut self.mk, &mut self.en);
+        }
+        Err(endless())
+    }
+
+    fn score(&self, g: &Game) -> Result<f64> {
+        g.score(&self.mk)
+    }
+
+    fn key(&self) -> u128 {
+        key_of(self.mk.iter().map(|&v| v as u64))
+    }
+}
+
+/// A 0/1 marking as bits, with its enabled set.
+#[derive(Clone, Copy)]
+struct Bits {
+    mk: [u64; INLINE],
+    en: [u64; INLINE],
+}
+
+/// The set bits of `a & b`, in index order.
+fn both(a: [u64; INLINE], b: [u64; INLINE]) -> impl Iterator<Item = usize> {
+    (0..INLINE).flat_map(move |i| {
+        let mut w = a[i] & b[i];
+        std::iter::from_fn(move || {
+            (w != 0).then(|| {
+                let t = w.trailing_zeros() as usize;
+                w &= w - 1;
+                i * 64 + t
+            })
+        })
+    })
+}
+
+impl Walk for Bits {
+    fn moves(&self, g: &Game, out: &mut Vec<usize>) {
+        out.extend(both(self.en, g.move_words));
+    }
+
+    fn over(&self, g: &Game) -> bool {
+        (0..INLINE).all(|i| self.en[i] & g.move_words[i] == 0)
+    }
+
+    fn play(&mut self, g: &Game, t: usize) -> Result<bool> {
+        if !g.bits.fire_tracked(t, &mut self.mk, &mut self.en) {
+            return Ok(false);
+        }
+        for _ in 0..SETTLE {
+            let Some(u) = both(self.en, g.auto_words).next() else {
+                return Ok(true);
+            };
+            if !g.bits.fire_tracked(u, &mut self.mk, &mut self.en) {
+                return Ok(false);
+            }
+        }
+        Err(endless())
+    }
+
+    fn score(&self, g: &Game) -> Result<f64> {
+        let has = |p: usize| self.mk[p / 64] >> (p % 64) & 1 == 1;
+        g.check(
+            g.reward
+                .iter()
+                .map(|&(p, w)| if has(p) { w } else { 0.0 })
+                .sum(),
+        )
+    }
+
+    fn key(&self) -> u128 {
+        // Apart from the counts' keys: a bit marking is the same position
+        // as its counts, but hashes differently. The enabled set follows
+        // from the marking.
+        key_of(self.mk.iter().copied().chain([u64::MAX]))
+    }
+}
+
+/// The table's keys are hashes already: use their low bits as they are.
+#[derive(Default)]
+struct KeyHasher(u64);
+
+impl Hasher for KeyHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+    fn write(&mut self, bytes: &[u8]) {
+        for &b in bytes {
+            self.0 = self.0.rotate_left(8) ^ b as u64;
+        }
+    }
+    fn write_u128(&mut self, k: u128) {
+        self.0 = k as u64;
+    }
+}
+
+/// What a finished search knows about a position: its value lies in
+/// `[lo, hi]` (equal when exact), and the move that did best.
+#[derive(Clone, Copy)]
+struct Entry {
+    lo: f64,
+    hi: f64,
+    best: u32,
+}
+
+const NO_MOVE: u32 = u32::MAX;
+
+/// Alpha-beta with a transposition table that persists across calls (so
+/// solving the positions of one game reuses work) and a history heuristic
+/// for move order. One per thread.
+pub struct Solver<'a> {
+    g: &'a Game,
+    tt: HashMap<u128, Entry, BuildHasherDefault<KeyHasher>>,
+    history: Vec<u32>,
+    nodes: usize,
+    budget: usize,
+    /// The bit engine met a marking it cannot hold.
+    spilled: bool,
+}
+
+impl<'a> Solver<'a> {
+    /// Entries kept before the table is cleared.
+    const TABLE: usize = 2_000_000;
+
+    /// A solver giving up on a value past `budget` nodes.
+    pub fn new(g: &'a Game, budget: usize) -> Self {
+        Self {
+            g,
+            tt: HashMap::default(),
+            history: vec![0; g.ix.transitions.len()],
+            nodes: 0,
+            budget,
+            spilled: false,
+        }
+    }
+
+    /// The nodes the last [`Solver::value`] searched.
+    pub fn nodes(&self) -> usize {
+        self.nodes
+    }
+
+    /// The exact value (+1 side's view) of a settled position with both
+    /// sides playing perfectly, or `None` past `budget` nodes.
+    pub fn value(&mut self, mk: &[i64]) -> Result<Option<f64>> {
+        if self.tt.len() > Self::TABLE {
+            self.tt.clear();
+        }
+        let g = self.g;
+        let fits = g.bits.set_words() <= INLINE;
+        if let Some(b) = g.bits.marking(mk).filter(|b| fits && b.len() <= INLINE) {
+            let mut w = Bits {
+                mk: [0; INLINE],
+                en: [0; INLINE],
+            };
+            w.mk[..b.len()].copy_from_slice(&b);
+            g.bits.enabled_words(&w.mk, &mut w.en[..g.bits.set_words()]);
+            self.nodes = 0;
+            self.spilled = false;
+            let got = self.solve(&w)?;
+            if !self.spilled {
+                return Ok(got);
+            }
+        }
+        self.nodes = 0;
+        let en = g.ix.enabled_set(mk);
+        self.solve(&Counts {
+            mk: mk.to_vec(),
+            en,
+        })
+    }
+
+    /// The value at `w` as a run of yes/no searches, one per gap between
+    /// adjacent rewards, starting from the mover's worst ("does the mover
+    /// avoid it?"; on Connect-4 that took a fifth fewer nodes than starting
+    /// from the best). With too many rewards to step through, one search
+    /// over the whole range.
+    fn solve<W: Walk>(&mut self, w: &W) -> Result<Option<f64>> {
+        let g = self.g;
+        let vals = &g.values;
+        if vals.len() < 3 {
+            return self.search(w, g.bounds.0, g.bounds.1);
+        }
+        let mut moves = vec![];
+        w.moves(g, &mut moves);
+        if moves.is_empty() {
+            return w.score(g).map(Some);
+        }
+        let s = g.mover(&moves)?;
+        // The value is one of vals[i..=j].
+        let (mut i, mut j) = (0, vals.len() - 1);
+        while i < j {
+            let k = if s > 0.0 { i } else { j - 1 };
+            let (a, b) = (vals[k], vals[k + 1]);
+            let Some(v) = self.search(w, a, b)? else {
+                return Ok(None);
+            };
+            if v > (a + b) / 2.0 {
+                i = k + 1;
+            } else {
+                j = k;
+            }
+        }
+        Ok(Some(vals[i]))
+    }
+
+    /// Fail-soft alpha-beta in the +1 side's view. Inside the bounds every
+    /// result is a bound on the true value; with the window the whole
+    /// range, it is the value.
+    fn search<W: Walk>(&mut self, w: &W, mut a: f64, mut b: f64) -> Result<Option<f64>> {
+        self.nodes += 1;
+        if self.nodes > self.budget {
+            return Ok(None);
+        }
+        let g = self.g;
+        let k = w.key();
+        let mut first = NO_MOVE;
+        if let Some(e) = self.tt.get(&k) {
+            if e.lo == e.hi || e.lo >= b {
+                return Ok(Some(e.lo));
+            }
+            if e.hi <= a {
+                return Ok(Some(e.hi));
+            }
+            a = a.max(e.lo);
+            b = b.min(e.hi);
+            first = e.best;
+        }
+        let mut moves = Vec::with_capacity(8);
+        w.moves(g, &mut moves);
+        if moves.is_empty() {
+            let x = w.score(g)?;
+            self.tt.insert(
+                k,
+                Entry {
+                    lo: x,
+                    hi: x,
+                    best: NO_MOVE,
+                },
+            );
+            return Ok(Some(x));
+        }
+        let s = g.mover(&moves)?;
+        // Children, best first: the remembered best move, then moves that
+        // end the game in the mover's favour, then by history.
+        let mut kids = Vec::with_capacity(moves.len());
+        for &t in &moves {
+            let mut next = w.clone();
+            if !next.play(g, t)? {
+                self.spilled = true;
+                return Ok(None);
+            }
+            let rank = if t as u32 == first {
+                u64::MAX
+            } else if next.over(g) && s * next.score(g)? > 0.0 {
+                u64::MAX - 1
+            } else {
+                self.history[t] as u64
+            };
+            kids.push((rank, t, next));
+        }
+        kids.sort_by_key(|x| std::cmp::Reverse(x.0));
+        let (a0, b0) = (a, b);
+        let mut best = (
+            if s > 0.0 {
+                f64::NEG_INFINITY
+            } else {
+                f64::INFINITY
+            },
+            NO_MOVE,
+        );
+        for (_, t, next) in &kids {
+            let Some(v) = self.search(next, a, b)? else {
+                return Ok(None);
+            };
+            if (s > 0.0 && v > best.0) || (s < 0.0 && v < best.0) {
+                best = (v, *t as u32);
+            }
+            if s > 0.0 {
+                a = a.max(v);
+            } else {
+                b = b.min(v);
+            }
+            if a >= b {
+                self.history[*t] += 1;
+                break;
+            }
+        }
+        let v = best.0;
+        let (lo, hi) = if v <= a0 {
+            (g.bounds.0, v)
+        } else if v >= b0 {
+            (v, g.bounds.1)
+        } else {
+            (v, v)
+        };
+        // Merge with what was known before this search narrowed the window.
+        let e = match self.tt.get(&k) {
+            Some(old) => Entry {
+                lo: lo.max(old.lo),
+                hi: hi.min(old.hi),
+                best: best.1,
+            },
+            None => Entry {
+                lo,
+                hi,
+                best: best.1,
+            },
+        };
+        self.tt.insert(k, e);
+        Ok(Some(v))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::schema::{Arc, Model, Place, Transition};
+
+    fn place(id: &str, initial: i64) -> Place {
+        Place {
+            id: id.into(),
+            initial,
+            ..Default::default()
+        }
+    }
+
+    fn arc(from: &str, to: &str) -> Arc {
+        Arc {
+            from: from.into(),
+            to: to.into(),
+            ..Default::default()
+        }
+    }
+
+    /// Tic-tac-toe in the style of the Connect-4 example: a move takes a
+    /// cell and passes the turn; a line's detector reads its three cells,
+    /// takes the turn and the game, and marks the winner.
+    fn tic_tac_toe() -> (Game, Vec<i64>) {
+        let mut places = vec![place("game", 1), place("x_turn", 1), place("o_turn", 0)];
+        places.extend([place("win_x", 0), place("win_o", 0)]);
+        let (mut ts, mut arcs) = (vec![], vec![]);
+        for i in 0..9 {
+            places.push(place(&format!("open{i}"), 1));
+            for s in ["x", "o"] {
+                places.push(place(&format!("{s}{i}"), 0));
+            }
+        }
+        for (s, mine, theirs) in [("x", "x_turn", "o_turn"), ("o", "o_turn", "x_turn")] {
+            for i in 0..9 {
+                let t = format!("{s}_play{i}");
+                arcs.extend([
+                    arc(&format!("open{i}"), &t),
+                    arc(mine, &t),
+                    arc(&t, &format!("{s}{i}")),
+                    arc(&t, theirs),
+                ]);
+                ts.push(t);
+            }
+        }
+        let lines = [
+            [0, 1, 2],
+            [3, 4, 5],
+            [6, 7, 8],
+            [0, 3, 6],
+            [1, 4, 7],
+            [2, 5, 8],
+            [0, 4, 8],
+            [2, 4, 6],
+        ];
+        for (s, after) in [("x", "o_turn"), ("o", "x_turn")] {
+            for (l, cells) in lines.iter().enumerate() {
+                let t = format!("{s}_win{l}");
+                for c in cells {
+                    let p = format!("{s}{c}");
+                    arcs.extend([arc(&p, &t), arc(&t, &p)]);
+                }
+                arcs.extend([
+                    arc(after, &t),
+                    arc("game", &t),
+                    arc(&t, &format!("win_{s}")),
+                ]);
+                ts.push(t);
+            }
+        }
+        let m = Model {
+            places,
+            transitions: ts
+                .iter()
+                .map(|t| Transition {
+                    id: t.clone(),
+                    ..Default::default()
+                })
+                .collect(),
+            arcs,
+            ..Default::default()
+        };
+        game_of(&m)
+    }
+
+    /// Nim on one heap of 7: take one or two; whoever cannot move loses
+    /// (an automatic transition at an empty heap hands the win over). The
+    /// heap's counts run past 1, so it is searched by counts.
+    fn nim() -> (Game, Vec<i64>) {
+        let places = vec![
+            place("heap", 7),
+            place("x_turn", 1),
+            place("o_turn", 0),
+            place("win_x", 0),
+            place("win_o", 0),
+        ];
+        let (mut ts, mut arcs) = (vec![], vec![]);
+        for (s, mine, theirs) in [("x", "x_turn", "o_turn"), ("o", "o_turn", "x_turn")] {
+            for k in [1, 2] {
+                let t = format!("{s}_take{k}");
+                arcs.extend([
+                    Arc {
+                        weight: k,
+                        ..arc("heap", &t)
+                    },
+                    arc(mine, &t),
+                    arc(&t, theirs),
+                ]);
+                ts.push(t);
+            }
+            // The side to move at an empty heap loses.
+            let t = format!("{s}_stuck");
+            let other = if s == "x" { "win_o" } else { "win_x" };
+            arcs.extend([
+                Arc {
+                    typ: crate::schema::ArcType::Inhibitor,
+                    ..arc("heap", &t)
+                },
+                arc(mine, &t),
+                arc(&t, other),
+            ]);
+            ts.push(t);
+        }
+        let m = Model {
+            places,
+            transitions: ts
+                .iter()
+                .map(|t| Transition {
+                    id: t.clone(),
+                    ..Default::default()
+                })
+                .collect(),
+            arcs,
+            ..Default::default()
+        };
+        game_of(&m)
+    }
+
+    /// The game on `m` (moves by their `x_`/`o_` prefix, detectors
+    /// automatic) and its initial marking.
+    fn game_of(m: &Model) -> (Game, Vec<i64>) {
+        let ix = m.indexed();
+        let m0 = ix.dense(&m.initial_marking());
+        let auto: Vec<bool> = ix
+            .transitions
+            .iter()
+            .map(|t| t.contains("win") || t.contains("stuck"))
+            .collect();
+        let sign = ix
+            .transitions
+            .iter()
+            .map(|t| if t.starts_with("x_") { 1.0 } else { -1.0 })
+            .collect();
+        let at = |id: &str| ix.places.iter().position(|p| p == id).unwrap();
+        let reward = vec![(at("win_x"), 1.0), (at("win_o"), -1.0)];
+        (Game::new(ix, auto, sign, reward), m0)
+    }
+
+    /// Plain minimax, memoized: the reference.
+    fn minimax(g: &Game, mk: &[i64], memo: &mut HashMap<Vec<i64>, f64>) -> f64 {
+        if let Some(&v) = memo.get(mk) {
+            return v;
+        }
+        let moves = g.moves(mk);
+        let v = if moves.is_empty() {
+            g.score(mk).unwrap()
+        } else {
+            let s = g.mover(&moves).unwrap();
+            let vs = moves
+                .iter()
+                .map(|&t| minimax(g, &g.play(mk, t).unwrap(), memo));
+            if s > 0.0 {
+                vs.fold(f64::NEG_INFINITY, f64::max)
+            } else {
+                vs.fold(f64::INFINITY, f64::min)
+            }
+        };
+        memo.insert(mk.to_vec(), v);
+        v
+    }
+
+    /// Every settled position reachable from the initial marking.
+    fn positions(g: &Game, m0: Vec<i64>) -> Vec<Vec<i64>> {
+        let mut start = m0;
+        g.settle(&mut start).unwrap();
+        let (mut seen, mut todo) = (std::collections::HashSet::new(), vec![start]);
+        while let Some(mk) = todo.pop() {
+            if seen.insert(mk.clone()) {
+                todo.extend(g.moves(&mk).into_iter().map(|t| g.play(&mk, t).unwrap()));
+            }
+        }
+        seen.into_iter().collect()
+    }
+
+    fn check(g: &Game, m0: Vec<i64>, want_bits: bool) {
+        let mut memo = HashMap::new();
+        let all = positions(g, m0);
+        assert_eq!(
+            all.iter().all(|mk| g.bits.marking(mk).is_some()),
+            want_bits,
+            "the engine this game exercises"
+        );
+        let mut exact = Solver::new(g, usize::MAX);
+        let mut cut = 0;
+        for mk in &all {
+            let want = minimax(g, mk, &mut memo);
+            assert_eq!(exact.value(mk).unwrap(), Some(want), "at {mk:?}");
+            // Fresh, so the table holds nothing from other positions.
+            match Solver::new(g, 3).value(mk).unwrap() {
+                Some(v) => assert_eq!(v, want, "a budgeted value is exact"),
+                None => cut += 1,
+            }
+        }
+        assert!(cut > 0, "the small budget cuts some searches off");
+    }
+
+    #[test]
+    fn tic_tac_toe_matches_minimax_by_bits() {
+        let (g, m0) = tic_tac_toe();
+        check(&g, m0, true);
+    }
+
+    #[test]
+    fn nim_matches_minimax_by_counts() {
+        let (g, m0) = nim();
+        check(&g, m0, false);
+    }
+}

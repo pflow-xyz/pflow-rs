@@ -11,6 +11,7 @@ pub mod access;
 pub mod bits;
 pub mod error;
 pub mod firing;
+pub mod game;
 pub mod indexed;
 pub mod parameters;
 pub mod schedule;

@@ -89,7 +89,7 @@ impl Cond {
 /// A set of transitions, by index, as a bitset.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TransitionSet {
-    words: Vec<u64>,
+    pub(crate) words: Vec<u64>,
 }
 
 impl TransitionSet {
