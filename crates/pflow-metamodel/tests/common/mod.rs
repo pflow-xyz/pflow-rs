@@ -146,3 +146,33 @@ pub fn shared(g: &Game, all: &[Vec<i64>]) -> Vec<(f64, usize)> {
         })
         .collect()
 }
+
+/// A net whose automatic transitions pay nothing: two moves, a reward place
+/// no transition fills. It declares no goal.
+pub fn goalless() -> Game {
+    use pflow_metamodel::{Arc, Model, Place, Transition};
+    let place = |id: &str, initial| Place {
+        id: id.into(),
+        initial,
+        ..Default::default()
+    };
+    let arc = |from: &str, to: &str| Arc {
+        from: from.into(),
+        to: to.into(),
+        ..Default::default()
+    };
+    let m = Model {
+        places: vec![place("a", 1), place("b", 0), place("won", 0)],
+        transitions: ["x_go", "o_go"]
+            .map(|t| Transition {
+                id: t.into(),
+                ..Default::default()
+            })
+            .to_vec(),
+        arcs: vec![arc("a", "x_go"), arc("x_go", "b"), arc("b", "o_go")],
+        ..Default::default()
+    };
+    let ix = m.indexed();
+    let won = ix.places.iter().position(|p| p == "won").unwrap();
+    Game::new(ix, vec![false; 2], vec![1.0, -1.0], vec![(won, 1.0)])
+}

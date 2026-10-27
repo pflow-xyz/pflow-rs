@@ -457,10 +457,16 @@ pub struct Solver<'a> {
     budget: usize,
     /// The bit engine met a marking it cannot hold.
     spilled: bool,
+    /// Entries kept between calls: past this the table is cleared.
+    table: usize,
+    /// Entries the table never grows past, inside one search.
+    cap: usize,
+    /// Whether a value is found by yes/no searches (see `solve`).
+    null_window: bool,
 }
 
 impl<'a> Solver<'a> {
-    /// Entries kept before the table is cleared.
+    /// Entries kept before the table is cleared, by default.
     const TABLE: usize = 2_000_000;
 
     /// A solver giving up on a value past `budget` nodes.
@@ -480,7 +486,36 @@ impl<'a> Solver<'a> {
             nodes: 0,
             budget,
             spilled: false,
+            table: Self::TABLE,
+            cap: usize::MAX,
+            null_window: true,
         })
+    }
+
+    /// Keeps the table to at most `entries`: cleared between calls past
+    /// that, and never grown past it inside one search (a position met
+    /// when it is full is searched again if met again). By default the
+    /// table is cleared past two million entries between calls but one
+    /// search may grow it without limit, so a hard position can outgrow memory
+    /// long before its node budget.
+    pub fn with_memo(mut self, entries: usize) -> Self {
+        self.table = entries;
+        self.cap = entries;
+        self
+    }
+
+    /// Finds a value by one search over the whole reward range, not a run
+    /// of yes/no searches, when `on` is false.
+    pub fn with_null_window(mut self, on: bool) -> Self {
+        self.null_window = on;
+        self
+    }
+
+    /// Remembers what a search of `k` found, space allowing.
+    fn store(&mut self, k: u128, e: Entry) {
+        if self.tt.len() < self.cap || self.tt.contains_key(&k) {
+            self.tt.insert(k, e);
+        }
     }
 
     /// The nodes the last [`Solver::value`] searched.
@@ -491,7 +526,7 @@ impl<'a> Solver<'a> {
     /// The exact value (+1 side's view) of a settled position with both
     /// sides playing perfectly, or `None` past `budget` nodes.
     pub fn value(&mut self, mk: &[i64]) -> Result<Option<f64>> {
-        if self.tt.len() > Self::TABLE {
+        if self.tt.len() > self.table {
             self.tt.clear();
         }
         let g = self.g;
@@ -526,7 +561,7 @@ impl<'a> Solver<'a> {
     fn solve<W: Walk>(&mut self, w: &W) -> Result<Option<f64>> {
         let g = self.g;
         let vals = &g.values;
-        if vals.len() < 3 {
+        if vals.len() < 3 || !self.null_window {
             return self.search(w, g.bounds.0, g.bounds.1);
         }
         let mut moves = vec![];
@@ -578,7 +613,7 @@ impl<'a> Solver<'a> {
         w.moves(g, &mut moves);
         if moves.is_empty() {
             let x = w.score(g)?;
-            self.tt.insert(
+            self.store(
                 k,
                 Entry {
                     lo: x,
@@ -653,7 +688,7 @@ impl<'a> Solver<'a> {
                 best: best.1,
             },
         };
-        self.tt.insert(k, e);
+        self.store(k, e);
         Ok(Some(v))
     }
 }
@@ -941,6 +976,22 @@ mod tests {
         // cell is still free.
         assert_eq!(key("x_play5"), 0);
         assert_eq!(key("x_play6"), 1);
+    }
+
+    /// A memo keeps the table to its entries inside one search, and values
+    /// stay exact.
+    #[test]
+    fn a_memo_bounds_the_table() {
+        let (g, m0) = tic_tac_toe();
+        let mut start = m0.clone();
+        g.settle(&mut start).unwrap();
+        let mut s = Solver::new(&g, usize::MAX).with_memo(50);
+        assert_eq!(s.value(&start).unwrap(), Some(0.0));
+        assert!(s.tt.len() <= 50, "{} entries", s.tt.len());
+        let mut full = Solver::new(&g, usize::MAX);
+        full.value(&start).unwrap();
+        assert!(full.tt.len() > 50, "the unbounded table is larger");
+        assert!(s.nodes() > full.nodes(), "and remembering less costs nodes");
     }
 
     #[test]

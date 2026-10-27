@@ -15,6 +15,7 @@ pub mod game;
 pub mod indexed;
 pub mod order;
 pub mod parameters;
+pub mod plan;
 pub mod schedule;
 pub mod schema;
 pub mod stages;
@@ -25,6 +26,7 @@ pub use error::{Error, Result};
 pub use firing::{ArcRef, Marking};
 pub use indexed::{Enabled, IndexedModel, TransitionSet};
 pub use order::{Chain, Piece};
+pub use plan::SearchPlan;
 pub use schedule::RateSegment;
 pub use schema::{
     AccessRule, Arc, ArcType, AssertedClass, Binding, Constraint, ControlGroup, Disruption, Event,

@@ -90,7 +90,8 @@ pub enum Error {
 
     /// A net that breaks [`crate::game`]'s rules: automatic transitions
     /// that never stop, enabled moves of both sides, a reward outside the
-    /// range its places allow.
+    /// range its places allow; or a [`crate::plan::SearchPlan`] the search
+    /// cannot run.
     #[error("{0}")]
     Game(String),
 }

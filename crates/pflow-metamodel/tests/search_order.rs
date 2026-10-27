@@ -5,6 +5,7 @@
 //! meant to change.
 mod common;
 
+use pflow_metamodel::game::Solver;
 use pflow_metamodel::order::{Chain, Piece};
 
 #[test]
@@ -98,41 +99,16 @@ fn goals_are_the_automatic_transitions_paying_a_reward() {
 
 #[test]
 fn centrality_and_threats_are_refused_without_goals() {
-    // Nim-like: a net whose automatic transitions pay nothing.
-    use pflow_metamodel::{Arc, Model, Place, Transition};
-    let place = |id: &str, initial| Place {
-        id: id.into(),
-        initial,
-        ..Default::default()
-    };
-    let arc = |from: &str, to: &str| Arc {
-        from: from.into(),
-        to: to.into(),
-        ..Default::default()
-    };
-    let m = Model {
-        places: vec![place("a", 1), place("b", 0), place("won", 0)],
-        transitions: ["x_go", "o_go"]
-            .map(|t| Transition {
-                id: t.into(),
-                ..Default::default()
-            })
-            .to_vec(),
-        arcs: vec![arc("a", "x_go"), arc("x_go", "b"), arc("b", "o_go")],
-        ..Default::default()
-    };
-    let ix = m.indexed();
-    let won = ix.places.iter().position(|p| p == "won").unwrap();
-    let g = pflow_metamodel::game::Game::new(ix, vec![false; 2], vec![1.0, -1.0], vec![(won, 1.0)]);
+    let g = common::goalless();
     assert!(g.goals.is_empty());
     for name in ["centrality", "threats"] {
         let chain = Chain::new(&[Piece::parse(name).unwrap()]).unwrap();
-        let e = pflow_metamodel::game::Solver::with_chain(&g, 100, chain)
+        let e = Solver::with_chain(&g, 100, chain)
             .err()
             .expect("refused")
             .to_string();
         assert!(e.contains(name) && e.contains("goals"), "{e}");
     }
     // The default chain needs none.
-    assert!(pflow_metamodel::game::Solver::with_chain(&g, 100, Chain::default()).is_ok());
+    assert!(Solver::with_chain(&g, 100, Chain::default()).is_ok());
 }
