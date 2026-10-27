@@ -313,6 +313,12 @@ The `pflow` umbrella with default features (`pflow-core`, `pflow-solver`,
 `pflow-solver` itself has no external runtime dependencies. The ZK and MCP
 crates bring in more (arkworks; `rmcp`, `tokio`, `schemars`).
 
+## Contributing
+
+We don't merge outside code, so pull requests won't be merged as-is.
+Feature requests and bug reports are welcome: please open an
+[issue](https://github.com/pflow-xyz/pflow-rs/issues).
+
 ## License
 
 MIT
