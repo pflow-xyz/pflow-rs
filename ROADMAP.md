@@ -47,7 +47,7 @@ variations it unlocks, so "how far is Rust" has a one-line answer at any time.
 | `visualization`, `plotter` | `pflow-visualization` | net SVG (`render.go`/`svg.go`, direct from `pflow_core::PetriNet` — skips the JSON-LD round trip go-pflow's own `RenderSVG` does, since `pflow_core::PetriNet` already is that shape), plotter line-plot SVG (`plotter/svg.go`, ported whole); the state machine and workflow SVG renderers (`statemachine_svg.go`, `workflow_svg.go`) were **removed 2026-10-21** with the crates they drew (last version at `98bfd83`) | unit tests — **no reference SVGs exist to hold this to a byte-identical golden**: neither `visualization/testdata` nor `plotter/testdata` exists in go-pflow (confirmed by reading both packages directly, 2026-09-10), and go-pflow's own tests for both packages assert structure (`strings.Contains`), not full-document equality, because node draw order follows Go's own unordered `map` iteration — not reproducible even between two runs on the Go side. Two of `colors_test.go`'s own tests (`TestSVGFullnessUsesTheWholeCapacityVector`'s `placeIsDrawnFull` helper) exist specifically to warn against the bare-substring-vs-full-class-attribute mistake this port's own first draft made and fixed before landing |
 | `eventsource` SQLite store, `graphql`, `cache`, `compat` | — | not planned (the in-memory `eventsource` half was ported, then removed 2026-10-21 — see the row above) | — |
 | `metamodel/metapetri` (model→net bridge for `verify`, with `Diagnostics` such as `GUARD_DROPPED`) | — | **gap, not ported**. `pflow-verify` reads `Model` directly, so it has no conversion step and no diagnostics; the consequence is the unflagged guard blind spot recorded in the `verify` row above | — |
-| `saga` (compensable steps as a net; added in go-pflow `4a827f4`, 2026-10-20, after the `go-pflow.lock` pin) | — | **gap, not ported** | — |
+| `saga` (compensable steps as a net; added in go-pflow `4a827f4`, 2026-10-20, after the `go-pflow.lock` pin) | `pflow-compose` (`src/saga.rs`, re-exported at the crate root) | **ported from go-pflow `c802f34`**: `Saga`/`Step`/`Move`/`Account`, the fluent builder (`SagaBuilder`/`StepBuilder`; `Move` is `move_tokens`, `move` being a Rust keyword), validation with go-pflow's error wording, the naming helpers (`next_place`, `unwind_place`, `do_transition`, `account_port`, ...), `control_places`, `to_meta_model` and `to_meta_subnet`. The subnet is built directly, like `new_resource_pool`, and is `ResourceNet`; places, transitions, arcs (with netted weights), constraints (`saga_control`, `saga_step_<s>`, `saga_conservation` only for an all-unshared saga), exported places, ports and description strings match go-pflow in content and order. Not ported: `saga/analyze.go`'s `Stranded` (a reachability-graph query, not part of the net); `tests/saga.rs` carries the same backward search as a test helper | no golden: go-pflow has no saga testdata, so, as with `pflow-mining`'s `conformance_gates_tests.rs`, `crates/pflow-compose/tests/saga.rs` ports every case of `saga/metasubnet_test.go` and the structure/validation cases of `saga/saga_test.go` (`TestNetDeltaNetsOutPassThrough` as a unit test in `src/saga.rs`) with the same sagas and numbers, citing file:line @ `c802f34`; go-pflow's `metapetri`+`reachability`+`verify` are replaced by `Bundle::flatten_with_map`, `pflow-reachability` and `pflow-verify`. Plus one Rust-only case composing a saga with `new_queue` and `new_resource_pool` through EventLinks. Nothing added to `go-pflow.lock` |
 | `tokenmodel/dataflow` (Beam/Dataflow-style streaming execution, plus its `transport` wire layer) | — | **gap, not ported**. `pflow-mining::dataflow_discovery` has minimal local `PipelineSpec`/`WindowSpec`/`TriggerSpec` types for discovery output only | — |
 | `tokenmodel/windowing` | — | **gap, not ported** | — |
 | `tokenmodel/subnet` (subnet composition for `tokenmodel/petri`) | — | **gap, not ported**. `pflow-compose`'s `Bundle`/`Subnet` port the `metamodel` compose layer, not this one | — |
@@ -623,7 +623,7 @@ columns as Go.
 
 Things go-pflow has that pflow-rs does not, recorded so they are not
 mistaken for parity. Packages with no Rust counterpart at all are rows in
-the Status table above (`metamodel/metapetri`, `saga`, `tokenmodel/dataflow`,
+the Status table above (`metamodel/metapetri`, `tokenmodel/dataflow`,
 `tokenmodel/windowing`, `tokenmodel/subnet`, `tokenmodel/petri`,
 `codegen/solidity`).
 
@@ -656,7 +656,9 @@ the Status table above (`metamodel/metapetri`, `saga`, `tokenmodel/dataflow`,
   limit cuts a run short) and SDE results populating `Depleted` (`f09a0bd`,
   v0.31.0). `pflow_solver::stochastic::SimResult` has no `truncated` field
   and `ssa::sde::SdeResult` has no `depleted` field.
-- `saga` (`4a827f4`, 2026-10-20).
+- `saga/analyze.go`'s `Stranded` (`4a827f4`, 2026-10-20). The rest of
+  `saga` is ported from `c802f34` with its tests (there is no golden); see
+  its Status row.
 
 Changes after the pin that pflow-rs already matches: `84ae2a9` (mining
 conformance honours inhibitor and read arcs; ported in `a0a2eb1`) and
