@@ -27,7 +27,9 @@
 //! bounded and persisting across calls, and a chain of [`crate::order`]
 //! pieces (by default the table's best move, a winning one, then history)
 //! orders moves. [`crate::filter`] pieces (by default, settling a position
-//! at a winning move) drop moves that cannot change the value.
+//! at a winning move) drop moves that cannot change the value, and
+//! [`crate::root`] pieces, off by default, run once at the position given:
+//! an estimate that orders its moves and aims the run of yes/no searches.
 //!
 //! A value is exact. Past its budget a search returns `None`, never a
 //! guess. `tests` hold it to a plain minimax on tic-tac-toe (bits) and on
@@ -39,6 +41,7 @@ use crate::filter::{Filter, Filters};
 use crate::indexed::{Enabled, IndexedModel, TransitionSet};
 use crate::memo::{self, Entry, Table};
 use crate::order::{Chain, Ctx};
+use crate::root::{Estimate, Ranked, Root};
 
 /// A two-sided game on a net, over dense markings in `ix.places` order.
 /// See the module docs.
@@ -360,7 +363,7 @@ fn key_of(xs: impl Iterator<Item = u64>) -> u128 {
 
 /// Counts, with the enabled set kept current.
 #[derive(Clone)]
-struct Counts {
+pub(crate) struct Counts {
     mk: Vec<i64>,
     en: Enabled,
 }
@@ -497,6 +500,9 @@ pub struct Solver<'a> {
     spilled: bool,
     /// Whether a value is found by yes/no searches (see `solve`).
     null_window: bool,
+    root: Root<'a>,
+    /// What `root` makes of the position [`Solver::value`] is searching.
+    ranked: Option<Ranked>,
 }
 
 impl<'a> Solver<'a> {
@@ -535,6 +541,8 @@ impl<'a> Solver<'a> {
             budget,
             spilled: false,
             null_window: true,
+            root: Root::default(),
+            ranked: None,
         })
     }
 
@@ -571,6 +579,85 @@ impl<'a> Solver<'a> {
         self
     }
 
+    /// Breaks the order chain's ties among the root's moves by `estimate`,
+    /// best guess first (see [`crate::root`]).
+    pub fn with_estimate(mut self, estimate: Box<dyn Estimate + 'a>) -> Self {
+        self.root.estimate = Some(estimate);
+        self
+    }
+
+    /// Drops the root's moves that leave the other side a win at once
+    /// (`non_losing`, at the root only), when `on`.
+    pub fn with_root_non_losing(mut self, on: bool) -> Self {
+        self.root.non_losing = on;
+        self
+    }
+
+    /// Starts from the estimate when `on` (it needs one, see
+    /// [`Solver::with_estimate`]): the yes/no search first run is the one
+    /// whose threshold is nearest the best guess at the root, and the run
+    /// goes on from there; with a single search over the range, a window
+    /// an eighth of the range wide around the guess, and the whole range if
+    /// the value falls outside it.
+    pub fn with_aspiration(mut self, on: bool) -> Self {
+        self.root.aspiration = on;
+        self
+    }
+
+    /// The moves at settled position `mk` that the root's pieces keep, best
+    /// first (all of them in the net's order, when none runs). An estimate
+    /// is solved once per move.
+    pub fn root_order(&mut self, mk: &[i64]) -> Result<Vec<usize>> {
+        Ok(match self.rank(mk)? {
+            Some(r) => r.order,
+            None => self.g.moves(mk),
+        })
+    }
+
+    /// The root's pieces at `mk`, or `None` when none runs or there is no
+    /// move.
+    fn rank(&mut self, mk: &[i64]) -> Result<Option<Ranked>> {
+        let g = self.g;
+        let moves = g.moves(mk);
+        if !self.root.any() || moves.is_empty() {
+            return Ok(None);
+        }
+        let s = g.mover(&moves)?;
+        let mut kept: Vec<(f64, usize)> = vec![];
+        for &t in &moves {
+            let next = g.play(mk, t)?;
+            if self.root.non_losing {
+                let w = Counts {
+                    en: g.ix.enabled_set(&next),
+                    mk: next.clone(),
+                };
+                if self.filters.lost(g, s, &w)? == Some(true) {
+                    continue;
+                }
+            }
+            let guess = match &mut self.root.estimate {
+                Some(_) if g.moves(&next).is_empty() => g.score(&next)?,
+                Some(e) => e.estimate(g, &next)?.clamp(g.bounds.0, g.bounds.1),
+                None => 0.0,
+            };
+            kept.push((s * guess, t));
+        }
+        // Stable: ties keep the net's order.
+        kept.sort_by(|x, y| y.0.total_cmp(&x.0));
+        let mut rank = vec![0; g.ix.transitions.len()];
+        for (i, &(_, t)) in kept.iter().enumerate() {
+            rank[t] = (kept.len() - i) as u64;
+        }
+        Ok(Some(Ranked {
+            guess: kept
+                .first()
+                .filter(|_| self.root.estimate.is_some())
+                .map(|x| s * x.0),
+            order: kept.iter().map(|x| x.1).collect(),
+            rank,
+        }))
+    }
+
     /// The nodes the last [`Solver::value`] searched.
     pub fn nodes(&self) -> usize {
         self.nodes
@@ -581,6 +668,19 @@ impl<'a> Solver<'a> {
     pub fn value(&mut self, mk: &[i64]) -> Result<Option<f64>> {
         self.tt.age();
         let g = self.g;
+        self.ranked = self.rank(mk)?;
+        if self.ranked.as_ref().is_some_and(|r| r.order.is_empty()) {
+            // `non_losing` dropped every move: each leaves the other side a
+            // win.
+            self.nodes = 1;
+            let s = g.mover(&g.moves(mk))?;
+            return Ok(Some(self.filters.bound(g, -s)));
+        }
+        let guess = self
+            .ranked
+            .as_ref()
+            .and_then(|r| r.guess)
+            .filter(|_| self.root.aspiration);
         let fits = g.bits.set_words() <= INLINE;
         if let Some(b) = g.bits.marking(mk).filter(|b| fits && b.len() <= INLINE) {
             let mut w = Bits {
@@ -591,29 +691,44 @@ impl<'a> Solver<'a> {
             g.bits.enabled_words(&w.mk, &mut w.en[..g.bits.set_words()]);
             self.nodes = 0;
             self.spilled = false;
-            let got = self.solve(&w)?;
+            let got = self.solve(&w, guess)?;
             if !self.spilled {
                 return Ok(got);
             }
         }
         self.nodes = 0;
         let en = g.ix.enabled_set(mk);
-        self.solve(&Counts {
-            mk: mk.to_vec(),
-            en,
-        })
+        self.solve(
+            &Counts {
+                mk: mk.to_vec(),
+                en,
+            },
+            guess,
+        )
     }
 
     /// The value at `w` as a run of yes/no searches, one per gap between
     /// adjacent rewards, starting from the mover's worst ("does the mover
     /// avoid it?"; on Connect-4 that took a fifth fewer nodes than starting
-    /// from the best). With too many rewards to step through, one search
-    /// over the whole range.
-    fn solve<W: Walk>(&mut self, w: &W) -> Result<Option<f64>> {
+    /// from the best), or from the gap nearest `guess`, and going on the
+    /// way the answers point. With too many rewards to step through, one
+    /// search over the whole range, or first over a window around `guess`.
+    fn solve<W: Walk>(&mut self, w: &W, guess: Option<f64>) -> Result<Option<f64>> {
         let g = self.g;
         let vals = &g.values;
+        let (lo, hi) = g.bounds;
         if vals.len() < 3 || !self.null_window {
-            return self.search(w, g.bounds.0, g.bounds.1);
+            if let Some(e) = guess {
+                let d = (hi - lo) / 8.0;
+                let (a, b) = ((e - d).max(lo), (e + d).min(hi));
+                let Some(v) = self.search(w, a, b, true)? else {
+                    return Ok(None);
+                };
+                if a < v && v < b {
+                    return Ok(Some(v));
+                }
+            }
+            return self.search(w, lo, hi, true);
         }
         let mut moves = vec![];
         w.moves(g, &mut moves);
@@ -621,27 +736,46 @@ impl<'a> Solver<'a> {
             return w.score(g).map(Some);
         }
         let s = g.mover(&moves)?;
+        let gaps = vals.len() - 1;
+        let mid = |k: usize| (vals[k] + vals[k + 1]) / 2.0;
+        let mut k = match guess {
+            Some(e) => (0..gaps)
+                .min_by(|&x, &y| (mid(x) - e).abs().total_cmp(&(mid(y) - e).abs()))
+                .unwrap(),
+            None if s > 0.0 => 0,
+            None => gaps - 1,
+        };
         // The value is one of vals[i..=j].
-        let (mut i, mut j) = (0, vals.len() - 1);
-        while i < j {
-            let k = if s > 0.0 { i } else { j - 1 };
+        let (mut i, mut j) = (0, gaps);
+        loop {
             let (a, b) = (vals[k], vals[k + 1]);
-            let Some(v) = self.search(w, a, b)? else {
+            let Some(v) = self.search(w, a, b, true)? else {
                 return Ok(None);
             };
-            if v > (a + b) / 2.0 {
+            let up = v > (a + b) / 2.0;
+            if up {
                 i = k + 1;
             } else {
                 j = k;
             }
+            if i >= j {
+                return Ok(Some(vals[i]));
+            }
+            k = if up { i } else { j - 1 };
         }
-        Ok(Some(vals[i]))
     }
 
     /// Fail-soft alpha-beta in the +1 side's view. Inside the bounds every
     /// result is a bound on the true value; with the window the whole
-    /// range, it is the value.
-    fn search<W: Walk>(&mut self, w: &W, mut a: f64, mut b: f64) -> Result<Option<f64>> {
+    /// range, it is the value. `root` when `w` is the position
+    /// [`Solver::value`] was given, where the root's pieces run.
+    fn search<W: Walk>(
+        &mut self,
+        w: &W,
+        mut a: f64,
+        mut b: f64,
+        root: bool,
+    ) -> Result<Option<f64>> {
         self.nodes += 1;
         if self.nodes > self.budget {
             return Ok(None);
@@ -712,7 +846,17 @@ impl<'a> Solver<'a> {
             }
             kids = keep;
         }
-        kids.sort_by(|x, y| self.chain.before(&x.0, &y.0));
+        match self.ranked.as_ref().filter(|_| root) {
+            Some(r) => {
+                kids.retain(|x| r.rank[x.1] > 0);
+                kids.sort_by(|x, y| {
+                    self.chain
+                        .before(&x.0, &y.0)
+                        .then(r.rank[y.1].cmp(&r.rank[x.1]))
+                });
+            }
+            None => kids.sort_by(|x, y| self.chain.before(&x.0, &y.0)),
+        }
         let (a0, b0) = (a, b);
         let mut best = (
             if s > 0.0 {
@@ -723,7 +867,7 @@ impl<'a> Solver<'a> {
             NO_MOVE,
         );
         for (_, t, next) in &kids {
-            let Some(v) = self.search(next, a, b)? else {
+            let Some(v) = self.search(next, a, b, false)? else {
                 return Ok(None);
             };
             if (s > 0.0 && v > best.0) || (s < 0.0 && v < best.0) {
@@ -1091,6 +1235,54 @@ mod tests {
         }
     }
 
+    /// A guess that ignores the position, or reads noise from it.
+    struct Guess(Option<f64>);
+
+    impl Estimate for Guess {
+        fn name(&self) -> &'static str {
+            "guess"
+        }
+
+        fn estimate(&mut self, _: &Game, mk: &[i64]) -> Result<f64> {
+            Ok(self.0.unwrap_or_else(|| {
+                let h = key_of(mk.iter().map(|&v| v as u64));
+                (h % 1000) as f64 / 250.0 - 2.0
+            }))
+        }
+    }
+
+    /// The root's pieces, with guesses wrong on purpose (outside the
+    /// bounds, fixed, noise), change no value, by yes/no searches or by one
+    /// over the range.
+    #[test]
+    fn root_pieces_keep_every_value() {
+        for (g, m0) in [tic_tac_toe(), nim()] {
+            let mut memo = HashMap::new();
+            let all = positions(&g, m0);
+            for guess in [Some(-7.0), Some(0.37), Some(g.bounds.1), None] {
+                for (null_window, non_losing) in [(true, false), (true, true), (false, true)] {
+                    let mut s = Solver::new(&g, usize::MAX)
+                        .with_null_window(null_window)
+                        .with_estimate(Box::new(Guess(guess)))
+                        .with_root_non_losing(non_losing)
+                        .with_aspiration(true);
+                    for mk in &all {
+                        let want = minimax(&g, mk, &mut memo);
+                        let got = s.value(mk).unwrap();
+                        assert_eq!(got, Some(want), "{guess:?} {null_window} at {mk:?}");
+                        let order = s.root_order(mk).unwrap();
+                        let mut moves = g.moves(mk);
+                        if !non_losing {
+                            assert_eq!(order.len(), moves.len());
+                        }
+                        moves.retain(|t| order.contains(t));
+                        assert_eq!(moves.len(), order.len(), "{order:?} not among the moves");
+                    }
+                }
+            }
+        }
+    }
+
     /// A position where every move lets the other side win at once is
     /// worth the loss, found without searching a reply.
     #[test]
@@ -1113,6 +1305,11 @@ mod tests {
             s.nodes(),
             plain.nodes()
         );
+        // At the root alone, too: no move is kept, and no search runs.
+        let mut root = Solver::new(&g, usize::MAX).with_root_non_losing(true);
+        assert!(root.root_order(&mk).unwrap().is_empty());
+        assert_eq!(root.value(&mk).unwrap(), Some(1.0));
+        assert_eq!(root.nodes(), 1);
     }
 
     #[test]

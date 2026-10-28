@@ -18,6 +18,7 @@ mod memo;
 pub mod order;
 pub mod parameters;
 pub mod plan;
+pub mod root;
 pub mod schedule;
 pub mod schema;
 pub mod stages;
@@ -30,6 +31,7 @@ pub use firing::{ArcRef, Marking};
 pub use indexed::{Enabled, IndexedModel, TransitionSet};
 pub use order::{Chain, Piece};
 pub use plan::SearchPlan;
+pub use root::Estimate;
 pub use schedule::RateSegment;
 pub use schema::{
     AccessRule, Arc, ArcType, AssertedClass, Binding, Constraint, ControlGroup, Disruption, Event,

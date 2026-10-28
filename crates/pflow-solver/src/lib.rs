@@ -1,6 +1,7 @@
 //! ODE solvers for Petri net simulation using mass-action kinetics.
 
 pub mod equilibrium;
+pub mod game;
 pub mod implicit;
 pub mod methods;
 pub mod ode;
