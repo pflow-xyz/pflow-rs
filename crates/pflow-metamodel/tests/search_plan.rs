@@ -2,7 +2,8 @@
 //! one is refused by the name of the piece at fault.
 mod common;
 
-use pflow_metamodel::SearchPlan;
+use pflow_metamodel::game::Game;
+use pflow_metamodel::{Estimate, Result, SearchPlan};
 
 fn plan(json: &str) -> SearchPlan {
     SearchPlan::from_json(json).unwrap()
@@ -37,6 +38,8 @@ fn legal_plans_find_the_default_values() {
         r#"{"filters": ["must_win"]}"#,
         r#"{"filters": ["non_losing"], "mode": "exact"}"#,
         r#"{"filters": ["non_losing", "must_win"], "order": ["threats"], "memo": {"entries": 64}}"#,
+        r#"{"root": {"order": ["non_losing"]}}"#,
+        r#"{"root": {"order": []}, "drivers": []}"#,
     ];
     for name in ["tic-tac-toe", "connect-3"] {
         let (g, all, want) = defaults(name);
@@ -58,6 +61,83 @@ fn a_memo_bounds_the_table_not_the_value() {
     let (g, all, want) = defaults("connect-3");
     let p = plan(r#"{"memo": {"entries": 1}}"#);
     assert_eq!(values(&p, &g, &all), want);
+}
+
+/// An estimate called `name` that reads noise off the marking.
+struct Noise(&'static str);
+
+impl Estimate for Noise {
+    fn name(&self) -> &'static str {
+        self.0
+    }
+
+    fn estimate(&mut self, _: &Game, mk: &[i64]) -> Result<f64> {
+        let h = mk
+            .iter()
+            .fold(7u64, |h, &v| h.wrapping_mul(31).wrapping_add(v as u64));
+        Ok((h % 201) as f64 / 100.0 - 1.0)
+    }
+}
+
+#[test]
+fn root_estimates_and_aspiration_find_the_default_values() {
+    let plans = [
+        r#"{"root": {"order": ["ode"]}}"#,
+        r#"{"root": {"order": ["ode", "non_losing"]}, "drivers": ["null_window", "aspiration"]}"#,
+        r#"{"root": {"order": ["non_losing", "ode"]}, "drivers": ["aspiration"]}"#,
+    ];
+    for name in ["tic-tac-toe", "connect-3"] {
+        let (g, all, want) = defaults(name);
+        for json in plans {
+            let p = plan(json);
+            assert_eq!(p.estimate().unwrap(), Some("ode"));
+            let got: Vec<f64> = all
+                .iter()
+                .map(|mk| {
+                    let mut s = p.solver_with(&g, Some(Box::new(Noise("ode")))).unwrap();
+                    s.value(mk).unwrap().unwrap()
+                })
+                .collect();
+            assert_eq!(got, want, "{name} by {json}");
+        }
+    }
+}
+
+#[test]
+fn root_pieces_are_refused_by_name() {
+    let e = refused(r#"{"root": {"order": ["ode"]}}"#);
+    assert!(e.contains("ode") && e.contains("not built"), "{e}");
+    let e = refused(r#"{"root": {"order": ["zigzag"]}}"#);
+    assert!(
+        e.contains("zigzag") && e.contains("unknown root piece"),
+        "{e}"
+    );
+    let e = refused(r#"{"root": {"order": ["history"]}}"#);
+    assert!(
+        e.contains("history") && e.contains("not a root piece"),
+        "{e}"
+    );
+    let e = refused(r#"{"root": {"order": ["must_win"]}}"#);
+    assert!(
+        e.contains("must_win") && e.contains("not a root piece"),
+        "{e}"
+    );
+    let e = refused(r#"{"root": {"order": ["non_losing", "non_losing"]}}"#);
+    assert!(e.contains("non_losing") && e.contains("twice"), "{e}");
+    let e = refused(r#"{"root": {"ordr": []}}"#);
+    assert!(e.contains("ordr"), "{e}");
+    let e = refused(r#"{"drivers": ["aspiration"]}"#);
+    assert!(e.contains("aspiration") && e.contains("estimate"), "{e}");
+    let e = refused(r#"{"order": ["ode"]}"#);
+    assert!(e.contains("ode") && e.contains("estimate"), "{e}");
+    // An estimate by another name is not the one the plan names.
+    let (g, _) = common::game("connect-3");
+    let p = plan(r#"{"root": {"order": ["ode"]}}"#);
+    let e = p
+        .solver_with(&g, Some(Box::new(Noise("cache"))))
+        .err()
+        .unwrap();
+    assert!(e.to_string().contains("cache"), "{e}");
 }
 
 fn refused(json: &str) -> String {

@@ -17,7 +17,11 @@ pub const NETS: [&str; 3] = ["tic-tac-toe", "connect-3", "connect-4"];
 
 /// The game on a fixture net, and its settled initial marking.
 pub fn game(name: &str) -> (Game, Vec<i64>) {
-    let path = format!("{}/tests/fixtures/{name}.json", env!("CARGO_MANIFEST_DIR"));
+    // By the crate's sibling path, so pflow-solver's tests read it too.
+    let path = format!(
+        "{}/../pflow-metamodel/tests/fixtures/{name}.json",
+        env!("CARGO_MANIFEST_DIR")
+    );
     let (model, _) = pflow_parser::model_from_json(&std::fs::read(path).unwrap()).unwrap();
     let ix = model.indexed();
     let m0 = ix.dense(&model.initial_marking());

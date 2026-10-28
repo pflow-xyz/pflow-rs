@@ -24,3 +24,6 @@ pflow-tropical = { path = "../pflow-tropical", version = "0.3.0", default-featur
 # prove it by round-trip.
 serde_json = { version = "1", features = ["float_roundtrip"] }
 sha2 = "0.10"
+# Dev-only: loads pflow-metamodel's fixture nets for the game tests and the
+# search_ode example (no version, so cargo drops it on publish).
+pflow-parser = { path = "../pflow-parser" }

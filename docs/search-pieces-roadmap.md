@@ -31,6 +31,28 @@ Slice 2 results (branch search-pieces-slice2):
 - root.order in SearchPlan, with non_losing after the ODE as the refiner (the tic-tac-toe heat map missed must-blocks; prior art: petri-pilot zk-ode/evaluate.go and experiments/ode-minimax, pflow-native OdePlayer). Exact mode: reorder only.
 - Aspiration driver centred on the ODE estimate, falling back to the full window. Values identical.
 
+Slice 3 results (branch search-pieces-slice3):
+- root.rs: pieces that run once at the position searched. An Estimate (a trait; this crate has none) breaks the order chain's ties among the root's moves; non_losing at the root drops moves that leave a win at once; the aspiration driver starts the run of yes/no searches at the gap nearest the best guess (a window an eighth of the range wide, with the full range as fallback, when the rewards are too many to step through). SearchPlan: root: {"order": ["ode", "non_losing"]} and the "aspiration" driver (refused without an estimate in root.order); SearchPlan::solver_with takes the estimate, and pflow_solver::game::solver supplies ode. Values held to minimax on tic-tac-toe and Nim with estimates wrong on purpose, and to the default search on tic-tac-toe and Connect-3 with the real ODE.
+- pflow_solver::game::OdeEstimate: the mass-action ODE of the game's net (every transition at rate 1, read arcs gate, inhibitors left out), horizon 3, tsit5, pflow-native's options (dtmax = horizon/50, 52 steps). Compiled once per game it gives the same state as a pflow-core net built per solve (1e-9, same steps). A solve on Connect-4: 0.99 ms built per solve, 0.41 ms compiled once (2.4x); ranking a 7-move root: 8.4 ms to 2.5 ms. The ~6 ms above was measured in pflow-native, whose solve also converts its document to JSON and then to a net; that part is not measured here.
+- Tic-tac-toe, 4,520 positions with a move: the first move is a best one in the net's order 58.7%, by the ODE 96.1%, by the ODE then non_losing 96.8%. The ODE alone leaves a win to block in some positions; with non_losing after it, in none (test).
+- Connect-4 nodes (default chain and filters, a fresh solver per position; times include the ODE):
+
+  | plan | 50-position sample | 200-position wide sample |
+  | --- | --- | --- |
+  | default | 1,119,152, 0.53 s | 4,875,155, 2.37 s |
+  | root non_losing | -0.0% | -0.0% |
+  | root ode | +21.8%, 0.75 s | -41.3%, 1.82 s |
+  | root ode, non_losing | +21.8%, 0.69 s | -41.3%, 1.61 s |
+  | ode, non_losing + aspiration | +44.1%, 0.81 s | -41.5%, 1.60 s |
+  | centrality | -6.1%, 0.47 s | -62.0%, 0.83 s |
+  | centrality + ode, non_losing | -6.6%, 0.52 s | -62.9%, 1.07 s |
+  | centrality + ode, non_losing + aspiration | +23.3%, 0.67 s | -65.7%, 1.00 s |
+
+  The 50-position sample is dominated by its ten hard positions (plies 16-17), where the net's own order happens to be cheap to prove: a perfect root order (exact values as the estimate) took 1,119,137 nodes there, no better than the default, so the root is not a lever on that sample and the ODE's different order costs. On the wide sample it is: -41%.
+- Aspiration: the ODE's guess is an expected reward near 0 (about ±0.1 on Connect-4), not a calibrated value, so on the hard sample it points at the expensive "is it a win?" search first. With an exact guess the driver saves 4.1% (1,073,550 nodes on the 50-position sample). Off by default; worth it with a calibrated estimate (slice 4's cache seeds exact values).
+- Placement: the ODE leading the chain instead of breaking its ties was within a few percent overall (with centrality: -70.2% on the wide sample, but +25% on the 50); ties it is, so the guess never overrides the chain.
+- Nothing is on by default, so the golden gate is unchanged.
+
 ## Slice 4: reuse and play
 - Seed the memo from the label cache as a generic opening book (exact entries only, keyed like the TT).
 - mode: play, which returns a best move under a node or time budget. Unsound pieces are allowed only here.

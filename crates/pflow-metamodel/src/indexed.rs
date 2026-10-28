@@ -430,6 +430,21 @@ impl IndexedModel {
         self.fire_in_place(t, &mut next);
         next
     }
+
+    /// `t`'s consuming arcs, as (place index, weight).
+    pub fn inputs(&self, t: usize) -> &[(usize, i64)] {
+        &self.arcs[t].inputs
+    }
+
+    /// `t`'s output arcs, as (place index, weight).
+    pub fn outputs(&self, t: usize) -> &[(usize, i64)] {
+        &self.arcs[t].outputs
+    }
+
+    /// `t`'s read arcs, as (place index, weight).
+    pub fn reads(&self, t: usize) -> &[(usize, i64)] {
+        &self.arcs[t].reads
+    }
 }
 
 #[cfg(test)]

@@ -3,8 +3,8 @@
 //! `cargo run --release -p pflow-metamodel --example search_bench`. With
 //! `wide`, a sample of 200 (150 late positions, 50 from plies 16 to 18)
 //! and the places `threats` can take in a chain instead.
-//! Run it under a memory cap (`ulimit -v`): a search that outgrows its node
-//! budget is cut off, but the table behind it is not bounded by it.
+//! Run it under a memory cap all the same: the table is bounded (by default
+//! 2^23 entries, about 400 MiB at most), the process around it is not.
 #[path = "../tests/common/mod.rs"]
 mod common;
 
