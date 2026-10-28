@@ -626,8 +626,8 @@ impl<'a> Solver<'a> {
     /// [`Solver::with_estimate`]): the yes/no search first run is the one
     /// whose threshold is nearest the best guess at the root, and the run
     /// goes on from there; with a single search over the range, a window
-    /// an eighth of the range wide around the guess, and the whole range if
-    /// the value falls outside it.
+    /// a quarter of the range wide (an eighth either side of the guess),
+    /// and the whole range if the value falls outside it.
     pub fn with_aspiration(mut self, on: bool) -> Self {
         self.root.aspiration = on;
         self

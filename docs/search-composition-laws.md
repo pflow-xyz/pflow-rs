@@ -17,6 +17,8 @@ Slice 6 of the composable search pieces ([search-pieces-roadmap.md](search-piece
   - `ct:` = `…/contract/`
   - `wt:` = `…/wiretype/`
   - `piece:` = `…/piece/`
+  - `ns:` = `https://ontology.pflow.xyz/ns#`
+  - `plan:` = `…/plan/`
 
   The release served at ontology.pflow.xyz, 0.2.0, does not yet include the search or diagram modules, so none of these IRIs resolves there yet.
 - **chyp-rs.** The equational theories are in chyp-rs `laws/*.chyp` (commit `8af1423`). chyp-rs is a local repository with no remote, so only the file and the law are named here. A chyp proof checks consequences of the file's own rules, taken as axioms. It does not check pflow-rs: the tests here are the check against the code.
@@ -59,7 +61,7 @@ What the drawing shows, law by law:
 
 Limits of the view:
 - **No nesting.** A driver is drawn as a `Value⊥ → Value⊥` box, read as wrapping everything above it, rather than as a functor box around the core (`op:wrap` and `op:fill` draw nesting; this view cannot).
-- **Aspiration** is drawn as its own driver after `null_window`. In the code it is not a separate wrapper (game.rs:885-912). With `null_window` on, it picks which yes/no search `null_window` runs first. With `null_window` off, it is a window an eighth of the range wide around the guess, with the full range as fallback.
+- **Aspiration** is drawn as its own driver after `null_window`. In the code it is not a separate wrapper (game.rs:885-912). With `null_window` on and at least three rewards to step through, it picks which yes/no search `null_window` runs first. Otherwise (`null_window` off, or fewer than three rewards, or too many to list), the first search is over a window a quarter of the range wide, an eighth either side of the guess, with the full range as fallback.
 - **Long wires** (`Table`, `Value`) cross boxes, because the view does not route around them.
 - **Book.** It is not drawn. A book is attached with `Solver::with_book` after the solver is built and is not part of a plan's JSON.
 
@@ -129,6 +131,8 @@ The JSON is written as text in a fixed key order, so pflow-rs (serde_json withou
 | P1 | Equal normal forms are one plan | holds | `p1_plans_with_one_normal_form_are_one_plan` |
 | C1 | `choose` is deterministic | holds | `c1_choose_is_deterministic` |
 
+That is 23 statements (F1 and F2 share a row) in 21 tests: 18 hold (O1 and B1 in part), one holds with caveats (D2), and 4 do not (O5, the semilattice reading of filters, D1 and D3).
+
 Node counts below are totals over each net's positions (400 on tic-tac-toe, 40 on Connect-3), each position solved by a fresh solver. Numbers come from `cargo test -p pflow-metamodel --test search_laws -- --nocapture`.
 
 ### Orderers (`sk:order`, `op:chain`)
@@ -139,7 +143,7 @@ Node counts below are totals over each net's positions (400 on tic-tac-toe, 40 o
 - `Chain` takes a repeat; only a plan refuses one.
 - Ontology: `op:chain` ("A monoid: the empty chain is the identity and chaining is associative"; "A partial one in code").
 - chyp-rs `laws/orderers.chyp`: axioms `chain_assoc`, `chain_unitL`, `chain_unitR`; proofs `chain4_bracketing`, `connect4_chain`, `nil_middle`, `nil_padding`.
-- Its header says repeats are refused by "order.rs MAX_PIECES, plan.rs". Only plan.rs refuses them; MAX_PIECES limits the length.
+- Its header says chains over 8 pieces and repeated pieces are refused "(order.rs MAX_PIECES, plan.rs)". Read respectively, that is right: MAX_PIECES limits the length and plan.rs refuses repeats. Read as both sources for both clauses, it is not: `Chain` itself takes a repeat.
 
 **O2. The default chain is not the unit. Holds.**
 - Leaving `order` out gives `[tt_best, immediate_win, history]`; `"order": []` is the unit. Both give the same values.
@@ -165,6 +169,7 @@ Node counts below are totals over each net's positions (400 on tic-tac-toe, 40 o
 | `[immediate_win, centrality]` / reversed | 13,096 / 13,096 | 3,592 / 3,592 |
 
 The last pair is the same both ways because of O6: under `must_win`, `immediate_win` never gives a nonzero key.
+- Ontology: `op:chain` (operands "highest priority first"). It states no law that chains commute or do not.
 - chyp-rs `orderers.chyp`: `chain_not_comm` and `chain_not_comm_concrete`, rejected `by refl`.
 
 **O5. The composite chain is lexicographic. Does not hold.** What does hold is that keys are cut at a decisive piece.
@@ -201,9 +206,12 @@ The last pair is the same both ways because of O6: under `must_win`, `immediate_
 **F3. No filters is the unit; the default is `must_win`. Holds.**
 - `"filters": []` and the default give the same values.
 - With the default: tic-tac-toe 18,690 nodes against 26,133 (-28.5%); Connect-3 4,293 against 6,029 (-28.8%).
+- Ontology: `sk:filter`, `op:seq` with no operands. The ontology gives no default filters: `piece:must_win` is "designed" there and has no `ns:inDefault`.
 - chyp-rs `filters.chyp`: `all`, `meet_unitL`, `meet_unitR`.
 
 **F4. Every set of filters, in either order, finds the default values. Holds.**
+- Ontology: `ct:sound-pruning`, the contract of `piece:must_win` and `piece:non_losing` (whose caveat still says no piece keeps it, as of `c396d46`).
+- chyp-rs: none. `filters.chyp` is about move sets and states no law about values.
 
 **Filters are a meet-semilattice of move sets. Does not hold.**
 - **`must_win` filters no moves.** It settles the node at the first move, in the net's order, that ends the game at the mover's best bound. It skips the order chain and records the cutoff in history (game.rs:990-997). Read as a filter, it keeps "the winning moves, else all moves".
@@ -212,12 +220,16 @@ The last pair is the same both ways because of O6: under `must_win`, `immediate_
 - **Ontology drift.** The ontology's `op:seq` comment and `piece:must_win` / `piece:non_losing` say "an empty result falls back to all moves". So does ontology-pflow-xyz ROADMAP Phase 6. They should say the position is settled at the worst bound.
 - chyp-rs: `filters.chyp`'s header gives a counterexample to associativity under that fallback. It cannot occur in pflow-rs today, because `non_losing` is the only filter that drops moves.
 
-**F5. `non_losing` at the root drops only lost moves. Holds.** Across both nets it dropped 914 moves. After each one, a fresh search finds the mover's worst bound, and every kept move is one of the position's moves. Ontology: `ct:sound-pruning`.
+**F5. `non_losing` at the root drops only lost moves. Holds.** Across both nets it dropped 914 moves. After each one, a fresh search finds the mover's worst bound, and every kept move is one of the position's moves.
+- Ontology: `ct:sound-pruning`, `piece:non_losing`.
+- chyp-rs: none.
 
 **F6. Root `non_losing` with the `non_losing` filter is the filter alone. Holds.**
 - Values and nodes are identical. Both use the same predicate (`Filters::lost`).
 - Without an estimate, the root's ranking keeps the net's order, so the sort is unchanged.
 - When every move is dropped, both paths count one node.
+- Ontology: `piece:non_losing`. The ontology has it only as a filter, with no root slot.
+- chyp-rs: none.
 
 ### Bounds (`sk:bound`, `sk:memo` with side wire `wt:table`)
 
@@ -235,6 +247,8 @@ The last pair is the same both ways because of O6: under `must_win`, `immediate_
 **B2. A pin absorbs stores. Holds.**
 - A book's pinned entry met with a later store is unchanged and stays pinned. A pin after a store is the meet, and pinned.
 - A store outside a pin's value, which is what a wrong book entry does, leaves an empty interval. The search then returns one end of it (game.rs:957-962), unnoticed. book.rs says it directly: "a wrong value in it is a wrong value out".
+- Ontology: `sk:memo` and its side wire `wt:table`. The ontology has no book concept.
+- chyp-rs: none.
 
 ### Drivers (`sk:driver`, `op:wrap`)
 
@@ -253,10 +267,12 @@ The last pair is the same both ways because of O6: under `must_win`, `immediate_
   - The root's ODE solves and `non_losing`'s replies are not counted.
   - `ms` reads the clock every 1,024 nodes, so a time budget is not deterministic.
 - Ontology: `piece:budget`, `ct:partial`.
+- chyp-rs: none. `drivers.chyp` has no truncation law.
 
 **D3. `budget ∘ budget = budget`. Cannot be stated.**
 - Before this slice, a second budget replaced the first (`d.budget = b.nodes; d.ms = b.ms`). So `[{"budget":{"ms":5}}, {"budget":{"nodes":5}}]` silently lost its time budget, and two budgets came to neither their minimum nor any other meet.
 - Now a plan refuses any driver listed twice, as it already refused a repeated order piece, filter or root piece. The tests are `d3_two_budgets_are_refused` and `search_plan::drivers_listed_twice_are_refused`.
+- Ontology: `piece:budget`, `op:wrap`. Neither states a law for two budgets.
 - chyp-rs `drivers.chyp`'s `budget_idem` (axiom) and `budget_rewrap` (theorem) therefore have nothing in a plan to check against.
 
 **D4. No drivers is the identity. Holds.**
@@ -265,9 +281,13 @@ The last pair is the same both ways because of O6: under `must_win`, `immediate_
   - Connect-3: 3,890 against 4,293.
 - On these small nets the single search is the cheaper one.
 - `["null_window", "null_window"]` is now refused.
+- Ontology: `op:wrap` ("With no operands it is the identity").
 - chyp-rs `drivers.chyp`: `plain_id`, `plain_dropped`.
 
-**D5. With fewer than three rewards, `null_window` is the identity. Holds.** A game whose rewards take two values has no gap to step through (game.rs:885). The test uses a net with no goals.
+**D5. With fewer than three rewards, `null_window` is the identity. Holds.**
+- A game whose rewards take two values has no gap to step through (game.rs:885). The test uses a net with no goals.
+- Ontology: `piece:null_window` ("With fewer than three possible rewards ... it is one search over the whole range").
+- chyp-rs: none. `drivers.chyp`'s `null_window` is a bare generator.
 
 ### Root pieces (no ontology kind yet)
 
@@ -285,11 +305,14 @@ The last pair is the same both ways because of O6: under `must_win`, `immediate_
 - It is idempotent.
 - Three groups of plans that differ only in list order or stated defaults give the same normal form, identical nets, and identical values and nodes.
 - Ontology: `op:fill`. The ontology's canonical `ns:planJson` keeps list order and has no `root` key, so it is a different normal form from this one.
+- chyp-rs: none.
 
 **C1. `choose` is deterministic. Holds.**
 - Two fresh solvers of one plan choose the same move, value, exactness and node count at every position.
 - The plans tested include play mode under a 20-node budget with the ODE root.
-- No time budget is used, and the search has no hashed iteration order (`HashMap` appears only in tests).
+- No time budget is used, and the search has no hashed iteration order: game.rs uses no `HashMap` outside its tests, and `IndexedModel` (indexed.rs) only looks keys up in its maps.
+- Ontology: none. No contract states determinism (`ct:partial` says what a budget returns, not that it repeats).
+- chyp-rs: none.
 
 ### Other findings
 
@@ -300,6 +323,7 @@ The last pair is the same both ways because of O6: under `must_win`, `immediate_
   - `op:seq` says no filter is built;
   - there is no `aspiration`, `ode`, root slot or `ms`.
 
-  plan.rs's module-doc example now fills every slot, so it is no longer `plan:connect4-exact`, which the ontology's drift test compares it with. The drift test's pattern for the default drivers predates slice 3's `aspiration` and `ms` fields.
+  plan.rs's module-doc example now fills every slot, so it is no longer `plan:connect4-exact`, which the ontology's drift test compares it with. The drift test (`scripts/search.py drift`) already fails on main, and in two places. It fails first at its `KIND_OF` string, which is `kind_of` as it read at `c396d46`, before slices 2 and 3 added the `Filter` and `Estimate` kinds. Past that, its pattern for the default drivers predates slice 3's `aspiration` and `ms` fields. The ontology fix needs both strings updated.
 
   This slice kept byte-identical the source text that test reads: the default-drivers block, `kind_of`, `enum Kind`, the `DRIVERS`/`ESTIMATES`/`UNSOUND` lines, `Piece::NAMES`, `Piece::parse`, `Chain::default` and `needs_goals`.
+- **Repeated drivers downstream.** pflow-native's views branch (`cceab0b`, not merged) has a receipt, `crates/core/tests/fixtures/views/plancheck.json`, taken at pflow-rs `c396d46` over the plans its `js/model/plan.js` makes. Four of its cases list a driver twice and are recorded `"ok": true`: `page/drop/exact/null_window@drivers`, `page/drop/exact/budget@drivers`, `page/drop/play/null_window@drivers` and `page/drop/play/budget@drivers` (for example `["null_window", {"budget": {"nodes": 1000000}}, "null_window"]`). A plan now refuses these with "listed twice", so the receipt and `plan.js` need re-checking when pflow-native moves its pflow-rs pin past this slice.

@@ -16,8 +16,10 @@ golden=$root/crates/pflow-metamodel/tests/golden
 draw() {
   cargo run -q --manifest-path "$root/Cargo.toml" -p pflow-metamodel --example plan_net -- "$2" \
     > "$golden/$1.json"
+  # The SVG's path goes into the batch JSON as a string: escape \ and ".
+  svg=$(printf '%s' "$here/$1.svg" | sed 's/\\/\\\\/g; s/"/\\"/g')
   printf '[{"command": "view.string_diagram", "args": {}}, {"command": "export.artifact", "args": {"format": "svg", "path": "%s"}}]' \
-    "$here/$1.svg" | "$cli" -i "$golden/$1.json" batch - > /dev/null
+    "$svg" | "$cli" -i "$golden/$1.json" batch - > /dev/null
   echo "$1"
 }
 
