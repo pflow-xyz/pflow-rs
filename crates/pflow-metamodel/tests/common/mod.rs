@@ -193,3 +193,65 @@ pub fn goalless() -> Game {
     let won = ix.places.iter().position(|p| p == "won").unwrap();
     Game::new(ix, vec![false; 2], vec![1.0, -1.0], vec![(won, 1.0)])
 }
+
+/// A net with many distinct rewards: `weights.len()` prizes, taken in turn
+/// (x first), each worth its weight to whoever takes it, so the final
+/// reward is the difference of what the sides took. The game ends when no
+/// prize is left; the rewards are the sums of some of `weights` and of
+/// their negatives.
+pub fn prizes(weights: &[i64]) -> (Game, Vec<i64>) {
+    use pflow_metamodel::{Arc, Model, Place, Transition};
+    let place = |id: &str, initial| Place {
+        id: id.into(),
+        initial,
+        ..Default::default()
+    };
+    let arc = |from: &str, to: &str| Arc {
+        from: from.into(),
+        to: to.into(),
+        ..Default::default()
+    };
+    let mut places = vec![place("x_turn", 1), place("o_turn", 0)];
+    let (mut ts, mut arcs) = (vec![], vec![]);
+    for (i, _) in weights.iter().enumerate() {
+        places.push(place(&format!("prize_{i}"), 1));
+        for (s, mine, theirs) in [("x", "x_turn", "o_turn"), ("o", "o_turn", "x_turn")] {
+            let (t, got) = (format!("{s}_take_{i}"), format!("{s}_got_{i}"));
+            places.push(place(&got, 0));
+            arcs.extend([
+                arc(&format!("prize_{i}"), &t),
+                arc(mine, &t),
+                arc(&t, theirs),
+                arc(&t, &got),
+            ]);
+            ts.push(t);
+        }
+    }
+    let m = Model {
+        places,
+        transitions: ts
+            .iter()
+            .map(|t| Transition {
+                id: t.clone(),
+                ..Default::default()
+            })
+            .collect(),
+        arcs,
+        ..Default::default()
+    };
+    let ix = m.indexed();
+    let m0 = ix.dense(&m.initial_marking());
+    let at = |id: &str| ix.places.iter().position(|p| p == id).unwrap();
+    let mut reward = vec![];
+    for (i, &w) in weights.iter().enumerate() {
+        reward.push((at(&format!("x_got_{i}")), w as f64));
+        reward.push((at(&format!("o_got_{i}")), -(w as f64)));
+    }
+    let sign = ix
+        .transitions
+        .iter()
+        .map(|t| if t.starts_with("x_") { 1.0 } else { -1.0 })
+        .collect();
+    let g = Game::new(ix, vec![false; ts.len()], sign, reward);
+    (g, m0)
+}

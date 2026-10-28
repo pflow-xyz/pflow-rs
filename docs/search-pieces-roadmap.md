@@ -100,6 +100,27 @@ Slice 6 results (branch search-pieces-slice6): [search-composition-laws.md](sear
 - Held with caveats: a budget truncates (exactly on these nets, but it is not a hard cap: see below).
 - Not held, and what holds instead: a chain then another is not the lexicographic composite of the two (keys stop at a decisive piece: the test finds two wins [immediate_win] then [centrality] ties although their centrality differs); filters are flags applied in a fixed order, not an intersection of move sets (must_win settles a node rather than filtering, non_losing settles at the worst bound rather than falling back to all moves); a table entry's best move is the last writer's, not a meet; a plan's driver order is ignored (always budget(null_window(core))); budget ∘ budget cannot be stated; a budget is not a hard cap (a spill restarts the count, root work is uncounted, ms is a clock).
 
+## Built from the sketch and the ontology's candidate table
+
+Pieces from the candidate table in the ontology's ROADMAP (Phase 5, approved 2026-10-27), built in pflow-rs alone. Each keeps the golden gate's values and node counts: none is on by default.
+
+### mtd_f (driver)
+- `{"drivers": ["mtd_f"]}`, `Solver::with_mtd_f`. It replaces `null_window`'s way of choosing the next yes/no test (one or the other: listing both is refused). Each test is still a null-window search between two adjacent rewards, sharing the table with every other search. What changes is the next test: `null_window` steps a gap at a time from the mover's worst; `mtd_f` reads the bound a fail-soft test proved (which can pass several rewards) and tests next at that bound, as MTD(f) does. It starts from the root's best guess when `aspiration` and an estimate give one, else bisects the gaps left, and the table's bounds at the root narrow it before the first test. Like `null_window` it is the same single search over the range when the net has fewer than three distinct rewards, or more than 16.
+- Gate: values identical to the default on every tic-tac-toe position, Connect-3 and the Connect-4 sample, and on prize games with 3 to 13 distinct rewards, with guesses wrong on purpose, a table of 16 entries, and one solver across all positions twice (tests/search_mtdf.rs). The golden gate is untouched.
+- Nodes against `null_window` (`cargo run --release -p pflow-metamodel --example search_mtdf`, a fresh solver per position, default chain and filters):
+
+  | net | positions | null_window | mtd_f |
+  | --- | --- | --- | --- |
+  | tic-tac-toe (all) | 5,478 | 61,667 | 58,772 (-4.7%) |
+  | Connect-3 sample | 40 | 4,293 | 4,261 (-0.7%) |
+  | Connect-4 sample | 50 | 1,119,152 | 1,148,087 (+2.6%) |
+  | prizes 1,2,3 (6 rewards) | 13 | 142 | 71 (-50.0%) |
+  | prizes 1,1,2,3 | 35 | 528 | 306 (-42.0%) |
+  | prizes 1,1,1,1,2 | 96 | 1,643 | 1,103 (-32.9%) |
+  | prizes 1 x 7 | 750 | 18,500 | 14,181 (-23.3%) |
+
+  As the candidate table said, it pays off when a net has many distinct rewards, and costs a little on the ±1 games (three rewards, two gaps), where Connect-4 pays 2.6% for its different first test. The prize games are a test net (`common::prizes`): prizes taken in turn, each worth its weight to its taker.
+
 ## Sketch: more pieces to mix in (not committed)
 
 | Piece | Kind | Needs from the net | Exact? |

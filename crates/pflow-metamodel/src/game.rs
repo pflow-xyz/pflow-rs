@@ -518,6 +518,8 @@ pub struct Solver<'a> {
     spilled: bool,
     /// Whether a value is found by yes/no searches (see `solve`).
     null_window: bool,
+    /// Whether those yes/no searches are `mtd_f`'s (see `solve`).
+    mtd_f: bool,
     root: Root<'a>,
     /// What `root` makes of the position [`Solver::value`] is searching.
     ranked: Option<Ranked>,
@@ -566,6 +568,7 @@ impl<'a> Solver<'a> {
             budget,
             spilled: false,
             null_window: true,
+            mtd_f: false,
             root: Root::default(),
             ranked: None,
             time: None,
@@ -605,6 +608,22 @@ impl<'a> Solver<'a> {
     /// of yes/no searches, when `on` is false.
     pub fn with_null_window(mut self, on: bool) -> Self {
         self.null_window = on;
+        self
+    }
+
+    /// Finds a value by `mtd_f`'s yes/no searches when `on`: each test is
+    /// a null-window search between two adjacent rewards, as with
+    /// [`Solver::with_null_window`], but the next test follows the bounds
+    /// the last one proved, however far past its window they lie, instead
+    /// of stepping a gap at a time from the mover's worst. It starts at the
+    /// root's best guess ([`Solver::with_aspiration`]) and then goes where
+    /// MTD(f) does, to the bound just found; with no guess it bisects the
+    /// gaps left. It shares the table with every other search, and the
+    /// table's bounds at the root narrow it before the first test. Like
+    /// `null_window`, it finds the value by one search over the whole range
+    /// when the net has fewer than three distinct rewards, or too many to list.
+    pub fn with_mtd_f(mut self, on: bool) -> Self {
+        self.mtd_f = on;
         self
     }
 
@@ -882,7 +901,7 @@ impl<'a> Solver<'a> {
         let g = self.g;
         let vals = &g.values;
         let (lo, hi) = g.bounds;
-        if vals.len() < 3 || !self.null_window {
+        if vals.len() < 3 || !(self.null_window || self.mtd_f) {
             if let Some(e) = guess {
                 let d = (hi - lo) / 8.0;
                 let (a, b) = ((e - d).max(lo), (e + d).min(hi));
@@ -902,6 +921,9 @@ impl<'a> Solver<'a> {
         }
         let s = g.mover(&moves)?;
         let gaps = vals.len() - 1;
+        if self.mtd_f {
+            return self.mtd_f_run(w, guess);
+        }
         let mid = |k: usize| (vals[k] + vals[k + 1]) / 2.0;
         let mut k = match guess {
             Some(e) => (0..gaps)
@@ -928,6 +950,54 @@ impl<'a> Solver<'a> {
             }
             k = if up { i } else { j - 1 };
         }
+    }
+
+    /// The value at `w` by MTD(f) over the gaps between adjacent rewards
+    /// (see [`Solver::with_mtd_f`]). The value is one of `vals[i..=j]`; a
+    /// test between `vals[k]` and `vals[k + 1]` fails high or low, and
+    /// fail-soft says by how much, so the bound it proves can pass several
+    /// rewards at once.
+    fn mtd_f_run<W: Walk>(&mut self, w: &W, guess: Option<f64>) -> Result<Option<f64>> {
+        const EPS: f64 = 1e-9;
+        let g = self.g;
+        let vals = &g.values;
+        let gaps = vals.len() - 1;
+        let (mut i, mut j) = (0, gaps);
+        if let Some(e) = self.tt.get(&w.key(), W::COUNTS) {
+            i = vals.partition_point(|&x| x < e.lo - EPS).min(gaps);
+            j = vals
+                .partition_point(|&x| x <= e.hi + EPS)
+                .clamp(1, gaps + 1)
+                - 1;
+        }
+        // f: the reward the next test is about, as in MTD(f).
+        let mut f = guess.map(|e| {
+            (0..=gaps)
+                .min_by(|&x, &y| (vals[x] - e).abs().total_cmp(&(vals[y] - e).abs()))
+                .unwrap()
+                .clamp(i, j.max(i))
+        });
+        while i < j {
+            let k = match f {
+                Some(f) if f <= i => i,
+                Some(f) => (f - 1).min(j - 1),
+                None => i + (j - i - 1) / 2,
+            };
+            let (a, b) = (vals[k], vals[k + 1]);
+            let Some(v) = self.search(w, a, b, true)? else {
+                return Ok(None);
+            };
+            if v >= b {
+                i = i.max(vals.partition_point(|&x| x < v - EPS).min(j));
+                f = f.map(|_| i);
+            } else {
+                j = j
+                    .min(vals.partition_point(|&x| x <= v + EPS).max(1) - 1)
+                    .max(i);
+                f = f.map(|_| j);
+            }
+        }
+        Ok(Some(vals[i]))
     }
 
     /// Fail-soft alpha-beta in the +1 side's view. Inside the bounds every

@@ -27,12 +27,15 @@
 //!   this crate: [`SearchPlan::solver_with`] takes one, and
 //!   `pflow_solver::game::solver` supplies `ode`.
 //! - `drivers`: `"null_window"` finds a value by yes/no searches (on by
-//!   default, and off when `drivers` is given without it); `"aspiration"`
+//!   default, and off when `drivers` is given without it); `"mtd_f"` finds
+//!   it by the same searches, choosing each next one from the bound the last
+//!   proved ([`Solver::with_mtd_f`]; not together with `null_window`);
+//!   `"aspiration"`
 //!   starts from the root's estimate, which `root.order` must name
 //!   ([`Solver::with_aspiration`]); `{"budget": {"nodes": N, "ms": T}}`
 //!   gives a value up past N nodes or T milliseconds (either or both; see
 //!   [`Solver::with_time`] for the clock). Each at most once: the search
-//!   runs them in one order, budget(null_window(core)), whatever the list's.
+//!   runs them in one order, budget(null_window(core)) (or mtd_f for null_window), whatever the list's.
 //! - `memo`: `{"entries": N}` keeps the transposition table to N entries
 //!   (by default [`Solver::MEMO`]).
 //! - `filters`: [`Filter`] names, which drop moves only where the value is
@@ -93,7 +96,7 @@ impl Kind {
 }
 
 /// The drivers there are.
-const DRIVERS: [&str; 3] = ["null_window", "aspiration", "budget"];
+const DRIVERS: [&str; 4] = ["null_window", "mtd_f", "aspiration", "budget"];
 
 /// The estimates there are, none of them built here: a solver is given one
 /// ([`SearchPlan::solver_with`]).
@@ -181,6 +184,7 @@ pub struct SearchPlan {
 /// What a plan's drivers come to.
 struct Drivers {
     null_window: bool,
+    mtd_f: bool,
     aspiration: bool,
     budget: Option<usize>,
     ms: Option<u64>,
@@ -202,6 +206,7 @@ impl SearchPlan {
         let Some(list) = &self.drivers else {
             return Ok(Drivers {
                 null_window: true,
+                mtd_f: false,
                 aspiration: false,
                 budget: None,
                 ms: None,
@@ -209,6 +214,7 @@ impl SearchPlan {
         };
         let mut d = Drivers {
             null_window: false,
+            mtd_f: false,
             aspiration: false,
             budget: None,
             ms: None,
@@ -221,8 +227,10 @@ impl SearchPlan {
                     expect(name, Kind::Driver)?;
                     match name.as_str() {
                         "null_window" if d.null_window => return Err(twice(name)),
+                        "mtd_f" if d.mtd_f => return Err(twice(name)),
                         "aspiration" if d.aspiration => return Err(twice(name)),
                         "null_window" => d.null_window = true,
+                        "mtd_f" => d.mtd_f = true,
                         "aspiration" => d.aspiration = true,
                         _ => {
                             return Err(plan_error(format!(
@@ -262,6 +270,12 @@ impl SearchPlan {
                     )))
                 }
             }
+        }
+        if d.null_window && d.mtd_f {
+            return Err(plan_error(
+                "drivers \"null_window\" and \"mtd_f\" both find the value by yes/no searches: name one"
+                    .into(),
+            ));
         }
         Ok(d)
     }
@@ -400,6 +414,7 @@ impl SearchPlan {
         let r = self.roots()?;
         let mut s = Solver::with_chain(g, d.budget.unwrap_or(usize::MAX), self.chain()?)?
             .with_null_window(d.null_window)
+            .with_mtd_f(d.mtd_f)
             .with_filters(&self.filters()?)
             .with_root_non_losing(r.non_losing)
             .with_aspiration(d.aspiration)
@@ -440,6 +455,9 @@ impl SearchPlan {
         let mut drivers: Vec<Value> = vec![];
         if d.null_window {
             drivers.push("null_window".into());
+        }
+        if d.mtd_f {
+            drivers.push("mtd_f".into());
         }
         if d.aspiration {
             drivers.push("aspiration".into());
@@ -565,6 +583,9 @@ impl SearchPlan {
         let mut drivers: Vec<(String, Option<&String>)> = vec![];
         if d.null_window {
             drivers.push(("driver.null_window".into(), None));
+        }
+        if d.mtd_f {
+            drivers.push(("driver.mtd_f".into(), None));
         }
         if d.aspiration {
             drivers.push(("driver.aspiration".into(), guess.as_ref()));
