@@ -235,3 +235,134 @@ fn goal_orders_are_refused_on_a_net_without_goals() {
     }
     plan("{}").solver(&g).unwrap();
 }
+
+#[test]
+fn drivers_listed_twice_are_refused() {
+    for (json, name) in [
+        (
+            r#"{"drivers": ["null_window", "null_window"]}"#,
+            "null_window",
+        ),
+        (
+            r#"{"root": {"order": ["ode"]}, "drivers": ["aspiration", "null_window", "aspiration"]}"#,
+            "aspiration",
+        ),
+        (
+            r#"{"drivers": [{"budget": {"nodes": 3}}, {"budget": {"nodes": 3000000}}]}"#,
+            "budget",
+        ),
+        // A later budget no longer erases an earlier time.
+        (
+            r#"{"drivers": [{"budget": {"ms": 50}}, {"budget": {"nodes": 5}}]}"#,
+            "budget",
+        ),
+    ] {
+        let e = plan(json).check().expect_err(json).to_string();
+        assert!(e.contains(&format!("{name:?} is listed twice")), "{e}");
+        let e = refused(json);
+        assert!(e.contains("listed twice"), "{e}");
+    }
+}
+
+/// The plans whose nets are committed in tests/golden (and drawn in
+/// docs/search-composition-laws.md).
+const DRAWN: [(&str, &str); 4] = [
+    ("plan-default", "{}"),
+    (
+        "plan-connect4-exact",
+        r#"{"mode":"exact","order":["tt_best","immediate_win","centrality","history"],"drivers":["null_window",{"budget":{"nodes":1000000}}],"memo":{"entries":500000}}"#,
+    ),
+    (
+        "plan-root-ode",
+        r#"{"root": {"order": ["ode", "non_losing"]}, "drivers": ["null_window", "aspiration"]}"#,
+    ),
+    (
+        "plan-doc-example",
+        r#"{"mode": "exact",
+            "order": ["tt_best", "immediate_win", "centrality", "history"],
+            "filters": ["must_win", "non_losing"],
+            "root": {"order": ["ode", "non_losing"]},
+            "drivers": ["null_window", "aspiration", {"budget": {"nodes": 1000000}}],
+            "memo": {"entries": 500000}}"#,
+    ),
+];
+
+fn net(json: &str) -> String {
+    plan(json).net().unwrap()
+}
+
+#[test]
+fn a_plan_draws_as_a_net_the_parser_reads() {
+    let golden = format!("{}/tests/golden", env!("CARGO_MANIFEST_DIR"));
+    for (file, json) in DRAWN {
+        let text = net(json);
+        let want = std::fs::read_to_string(format!("{golden}/{file}.json")).unwrap();
+        assert_eq!(text, want, "{file}: regenerate with the plan_net example");
+        let (m, _) = pflow_parser::model_from_json(text.as_bytes()).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(m.places.len(), v["places"].as_object().unwrap().len());
+        assert_eq!(
+            m.transitions.len(),
+            v["transitions"].as_object().unwrap().len()
+        );
+        assert_eq!(m.arcs.len(), v["arcs"].as_array().unwrap().len());
+        // One way in, one way out: the composite is Position → Value⊥.
+        let into = |p: &str| m.arcs.iter().filter(|a| a.to == p).count();
+        let from = |p: &str| m.arcs.iter().filter(|a| a.from == p).count();
+        for p in &m.places {
+            let ends = (into(&p.id), from(&p.id));
+            match p.id.as_str() {
+                "Position" => assert_eq!(ends, (0, 1)),
+                "Value⊥" => assert_eq!(ends, (1, 0)),
+                _ => assert!(ends.0 == 1 && ends.1 >= 1, "{file}: {} {ends:?}", p.id),
+            }
+        }
+    }
+}
+
+#[test]
+fn a_net_draws_the_order_the_search_runs_not_the_order_listed() {
+    // Sets listed in any order draw one net.
+    let a = net(
+        r#"{"filters": ["must_win", "non_losing"], "root": {"order": ["ode", "non_losing"]},
+            "drivers": ["null_window", "aspiration", {"budget": {"nodes": 9, "ms": 70}}]}"#,
+    );
+    let b = net(
+        r#"{"drivers": [{"budget": {"ms": 70, "nodes": 9}}, "aspiration", "null_window"],
+            "root": {"order": ["non_losing", "ode"]}, "filters": ["non_losing", "must_win"]}"#,
+    );
+    assert_eq!(a, b);
+    assert!(a.contains(r#""source": "driver.budget(nodes=9,ms=70)", "target": "Value⊥""#));
+    // A chain's order is its meaning: swapped, another net.
+    assert_ne!(
+        net(r#"{"order": ["tt_best", "history"]}"#),
+        net(r#"{"order": ["history", "tt_best"]}"#)
+    );
+    // The unit chain is a chain box given the list alone.
+    let unit = net(r#"{"order": []}"#);
+    assert!(!unit.contains("\"order."), "{unit}");
+    assert!(unit.contains(r#""source": "MoveList·1", "target": "chain""#));
+    assert!(!unit.contains(r#""source": "Key·1""#));
+    // Defaults drawn: a plan that states them draws the same.
+    let d = net("{}");
+    for id in [
+        "order.tt_best*",
+        "order.immediate_win*",
+        "order.history\"",
+        "filter.must_win",
+        "driver.null_window",
+        "memo(entries=8388608)",
+        "core(mode=exact)",
+    ] {
+        assert!(d.contains(id), "{id} in {d}");
+    }
+    assert_eq!(
+        d,
+        net(
+            r#"{"order": ["tt_best", "immediate_win", "history"], "filters": ["must_win"],
+                "drivers": ["null_window"], "root": {"order": []}, "memo": {"entries": 8388608}}"#
+        )
+    );
+    // An illegal plan draws nothing.
+    assert!(plan(r#"{"drivers": ["aspiration"]}"#).net().is_err());
+}

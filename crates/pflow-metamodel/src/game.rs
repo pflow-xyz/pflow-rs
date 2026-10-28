@@ -1558,6 +1558,110 @@ mod tests {
         assert_eq!(root.nodes(), 1);
     }
 
+    /// Law O5 (docs/search-composition-laws.md): a chain then another keys
+    /// each move by the first's keys, then the second's unless a decisive
+    /// piece of the first has a nonzero key (it stopped there). So a move
+    /// the first orders strictly stays so ordered, but a tie the first
+    /// settled decisively is not broken by the second, as a lexicographic
+    /// composite of the two chains' comparisons would break it.
+    #[test]
+    fn chains_compose_as_keys_cut_at_a_decisive_piece() {
+        use crate::order::{Key, Piece};
+        use std::cmp::Ordering::{Equal, Less};
+        let (g, m0) = tic_tac_toe();
+        let c = |names: &[&str]| {
+            let pieces: Vec<Piece> = names.iter().map(|n| Piece::parse(n).unwrap()).collect();
+            Chain::new(&pieces).unwrap()
+        };
+        let mut chains = vec![c(&[])];
+        chains.extend(Piece::NAMES.map(|n| c(&[n])));
+        for pair in [
+            ["tt_best", "immediate_win"],
+            ["immediate_win", "tt_best"],
+            ["history", "tt_best"],
+            ["immediate_win", "centrality"],
+            ["centrality", "immediate_win"],
+            ["threats", "history"],
+        ] {
+            chains.push(c(&pair));
+        }
+        // A history that tells moves apart, and a remembered move.
+        let history: Vec<u32> = (0..g.ix.transitions.len())
+            .map(|t| (t * 7 % 5) as u32)
+            .collect();
+        let (win, cen) = (c(&["immediate_win"]), c(&["centrality"]));
+        let (mut tie, mut win_tie) = (false, false);
+        let mut all = positions(&g, m0);
+        all.sort();
+        for mk in all.iter().step_by(3) {
+            let moves = g.moves(mk);
+            if moves.is_empty() {
+                continue;
+            }
+            let cx = Ctx {
+                g: &g,
+                mover: g.mover(&moves).unwrap(),
+                first: moves[moves.len() / 2] as u32,
+                history: &history,
+            };
+            let kids: Vec<(usize, Counts)> = moves
+                .iter()
+                .map(|&t| {
+                    let mut w = Counts {
+                        mk: mk.clone(),
+                        en: g.ix.enabled_set(mk),
+                    };
+                    assert!(w.play(&g, t).unwrap());
+                    (t, w)
+                })
+                .collect();
+            for a in &chains {
+                for b in &chains {
+                    let ab = a.then(b).unwrap();
+                    let (na, nb) = (a.pieces().len(), b.pieces().len());
+                    let ks: Vec<(Key, Key, Key)> = kids
+                        .iter()
+                        .map(|(t, w)| {
+                            let key = |x: &Chain| x.key(&cx, *t, w).unwrap();
+                            (key(a), key(b), key(&ab))
+                        })
+                        .collect();
+                    for (ka, kb, kab) in &ks {
+                        let stopped = a
+                            .pieces()
+                            .iter()
+                            .zip(ka)
+                            .any(|(p, k)| p.decisive() && *k != 0);
+                        let mut want = Key::default();
+                        want[..na].copy_from_slice(&ka[..na]);
+                        if !stopped {
+                            want[na..na + nb].copy_from_slice(&kb[..nb]);
+                        }
+                        assert_eq!(*kab, want, "{:?} then {:?}", a.pieces(), b.pieces());
+                    }
+                    for x in &ks {
+                        for y in &ks {
+                            let first = a.before(&x.0, &y.0);
+                            let both = ab.before(&x.2, &y.2);
+                            if first == Less {
+                                assert_eq!(both, Less, "refines {:?}", a.pieces());
+                            }
+                            let lex = first.then(b.before(&x.1, &y.1));
+                            if both == Equal && lex != Equal {
+                                tie = true;
+                                win_tie |= *a == win && *b == cen;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            tie && win_tie,
+            "a decisive tie the second chain would break"
+        );
+    }
+
     #[test]
     fn tic_tac_toe_matches_minimax_by_bits() {
         let (g, m0) = tic_tac_toe();

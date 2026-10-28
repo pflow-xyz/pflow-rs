@@ -180,7 +180,7 @@ impl Orderer for Piece {
 
 impl Piece {
     /// [`Orderer::DECISIVE`] of the piece inside.
-    fn decisive(&self) -> bool {
+    pub(crate) fn decisive(&self) -> bool {
         match self {
             Self::TtBest(_) => TtBest::DECISIVE,
             Self::ImmediateWin(_) => ImmediateWin::DECISIVE,
@@ -231,6 +231,16 @@ impl Chain {
 
     pub fn pieces(&self) -> &[Piece] {
         &self.pieces
+    }
+
+    /// `self`'s pieces, then `other`'s: the monoid operation on chains. It
+    /// is associative, and its unit is `Chain::new(&[])`, which ties every
+    /// move (not [`Chain::default`], which is three pieces). Refused past
+    /// the most pieces a chain holds, as [`Chain::new`] is. A move `self`
+    /// orders strictly stays so ordered; `other` only breaks `self`'s ties,
+    /// and none that a decisive piece of `self` has settled.
+    pub fn then(&self, other: &Chain) -> Result<Chain> {
+        Chain::new(&[&self.pieces[..], &other.pieces[..]].concat())
     }
 
     /// Refuses a chain that `g` cannot run: a piece that reads goals, when

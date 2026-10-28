@@ -1,0 +1,51 @@
+{
+  "@context": "https://pflow.xyz/schema",
+  "@type": "PetriNet",
+  "@version": "1.1",
+  "places": {
+    "Position": {"@type": "Place"},
+    "MoveList": {"@type": "Place"},
+    "MoveList·1": {"@type": "Place"},
+    "Key·1": {"@type": "Place"},
+    "Key·2": {"@type": "Place"},
+    "Key·3": {"@type": "Place"},
+    "MoveList·2": {"@type": "Place"},
+    "Table": {"@type": "Place"},
+    "Value⊥·1": {"@type": "Place"},
+    "Value⊥": {"@type": "Place"}
+  },
+  "transitions": {
+    "moves": {"@type": "Transition"},
+    "filter.must_win": {"@type": "Transition"},
+    "order.tt_best*": {"@type": "Transition"},
+    "order.immediate_win*": {"@type": "Transition"},
+    "order.history": {"@type": "Transition"},
+    "chain": {"@type": "Transition"},
+    "memo(entries=8388608)": {"@type": "Transition"},
+    "core(mode=exact)": {"@type": "Transition"},
+    "driver.null_window": {"@type": "Transition"}
+  },
+  "arcs": [
+    {"@type": "Arrow", "source": "Position", "target": "moves", "weight": [1]},
+    {"@type": "Arrow", "source": "moves", "target": "MoveList", "weight": [1]},
+    {"@type": "Arrow", "source": "MoveList", "target": "filter.must_win", "weight": [1]},
+    {"@type": "Arrow", "source": "filter.must_win", "target": "MoveList·1", "weight": [1]},
+    {"@type": "Arrow", "source": "MoveList·1", "target": "order.tt_best*", "weight": [1]},
+    {"@type": "Arrow", "source": "order.tt_best*", "target": "Key·1", "weight": [1]},
+    {"@type": "Arrow", "source": "MoveList·1", "target": "order.immediate_win*", "weight": [1]},
+    {"@type": "Arrow", "source": "order.immediate_win*", "target": "Key·2", "weight": [1]},
+    {"@type": "Arrow", "source": "MoveList·1", "target": "order.history", "weight": [1]},
+    {"@type": "Arrow", "source": "order.history", "target": "Key·3", "weight": [1]},
+    {"@type": "Arrow", "source": "MoveList·1", "target": "chain", "weight": [1]},
+    {"@type": "Arrow", "source": "Key·1", "target": "chain", "weight": [1]},
+    {"@type": "Arrow", "source": "Key·2", "target": "chain", "weight": [1]},
+    {"@type": "Arrow", "source": "Key·3", "target": "chain", "weight": [1]},
+    {"@type": "Arrow", "source": "chain", "target": "MoveList·2", "weight": [1]},
+    {"@type": "Arrow", "source": "memo(entries=8388608)", "target": "Table", "weight": [1]},
+    {"@type": "Arrow", "source": "MoveList·2", "target": "core(mode=exact)", "weight": [1]},
+    {"@type": "Arrow", "source": "Table", "target": "core(mode=exact)", "weight": [1]},
+    {"@type": "Arrow", "source": "core(mode=exact)", "target": "Value⊥·1", "weight": [1]},
+    {"@type": "Arrow", "source": "Value⊥·1", "target": "driver.null_window", "weight": [1]},
+    {"@type": "Arrow", "source": "driver.null_window", "target": "Value⊥", "weight": [1]}
+  ]
+}

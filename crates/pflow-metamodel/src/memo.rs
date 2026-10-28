@@ -485,6 +485,86 @@ mod tests {
         assert!((0..4).all(|i| t.get(&key(i), false).is_some()));
     }
 
+    /// Law B1 (docs/search-composition-laws.md): storing on a key held is
+    /// the meet of intervals in lo and hi: commutative, associative,
+    /// idempotent, the whole range its unit, an empty interval absorbing.
+    /// The best move is not met: the last store's wins.
+    #[test]
+    fn stores_meet_in_lo_and_hi_and_the_last_best_wins() {
+        let vals = [-1.0, 0.0, 1.0];
+        let mut all = vec![];
+        for lo in vals {
+            for hi in vals {
+                all.push((lo, hi));
+            }
+        }
+        let ivs: Vec<(f64, f64)> = all.iter().copied().filter(|x| x.0 <= x.1).collect();
+        // The entry after storing `xs`, in turn, on one key.
+        let meet = |xs: &[(f64, f64, u32)]| {
+            let mut t = Table::new(16, 1, true);
+            for &(lo, hi, best) in xs {
+                t.store(&[1, 0, 0, 0], false, Entry { lo, hi, best }, 1);
+            }
+            t.get(&[1, 0, 0, 0], false).unwrap()
+        };
+        let iv = |e: Entry| (e.lo, e.hi);
+        for &a in &ivs {
+            assert_eq!(iv(meet(&[(a.0, a.1, 1), (a.0, a.1, 1)])), a, "idempotent");
+            let top = meet(&[(a.0, a.1, 1), (-1.0, 1.0, 2)]);
+            assert_eq!(iv(top), a, "the whole range is the unit");
+            assert_eq!(top.best, 2, "but its best move is kept");
+            for e in [
+                meet(&[(1.0, -1.0, 1), (a.0, a.1, 2)]),
+                meet(&[(a.0, a.1, 2), (1.0, -1.0, 1)]),
+            ] {
+                assert!(e.lo > e.hi, "an empty interval stays empty");
+            }
+            for &b in &ivs {
+                let ab = meet(&[(a.0, a.1, 1), (b.0, b.1, 2)]);
+                let ba = meet(&[(b.0, b.1, 2), (a.0, a.1, 1)]);
+                assert_eq!(iv(ab), (a.0.max(b.0), a.1.min(b.1)));
+                assert_eq!(iv(ab), iv(ba), "commutative");
+                assert_eq!((ab.best, ba.best), (2, 1), "the last best wins");
+                for &c in &ivs {
+                    let bc = meet(&[(b.0, b.1, 2), (c.0, c.1, 3)]);
+                    let left = meet(&[(a.0, a.1, 1), (b.0, b.1, 2), (c.0, c.1, 3)]);
+                    let right = meet(&[(a.0, a.1, 1), (bc.lo, bc.hi, 3)]);
+                    assert_eq!(iv(left), iv(right), "associative");
+                }
+            }
+        }
+    }
+
+    /// Law B2: a pin absorbs a later store, and meets an earlier one; it
+    /// stays pinned either way. A store outside a pin's value (a wrong
+    /// book) leaves an empty interval, unnoticed.
+    #[test]
+    fn a_pin_absorbs_stores_and_stays_pinned() {
+        let k = [5, 0, 0, 0];
+        let pinned = |t: &Table| {
+            let i = t.locate(&k, false, false).unwrap();
+            t.meta(i) >> GEN_SHIFT & GEN_MASK == PINNED
+        };
+        let at = |lo, hi| Entry { lo, hi, best: 3 };
+        let mut t = Table::new(16, 1, true);
+        t.pin(&k, false, 0.0, 1);
+        t.store(&k, false, at(-1.0, 1.0), 1);
+        let e = t.get(&k, false).unwrap();
+        assert_eq!((e.lo, e.hi), (0.0, 0.0));
+        assert!(pinned(&t));
+        let mut t = Table::new(16, 1, true);
+        t.store(&k, false, at(-1.0, 0.0), 1);
+        t.pin(&k, false, 0.0, 1);
+        let e = t.get(&k, false).unwrap();
+        assert_eq!((e.lo, e.hi, e.best), (0.0, 0.0, 1));
+        assert!(pinned(&t));
+        let mut t = Table::new(16, 1, true);
+        t.pin(&k, false, 1.0, 1);
+        t.store(&k, false, at(-1.0, 0.0), 1);
+        let e = t.get(&k, false).unwrap();
+        assert!(e.lo > e.hi, "{e:?}");
+    }
+
     #[test]
     fn bounds_keep_their_bits() {
         let mut t = Table::new(8, 1, true);

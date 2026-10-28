@@ -31,7 +31,8 @@
 //!   starts from the root's estimate, which `root.order` must name
 //!   ([`Solver::with_aspiration`]); `{"budget": {"nodes": N, "ms": T}}`
 //!   gives a value up past N nodes or T milliseconds (either or both; see
-//!   [`Solver::with_time`] for the clock).
+//!   [`Solver::with_time`] for the clock). Each at most once: the search
+//!   runs them in one order, budget(null_window(core)), whatever the list's.
 //! - `memo`: `{"entries": N}` keeps the transposition table to N entries
 //!   (by default [`Solver::MEMO`]).
 //! - `filters`: [`Filter`] names, which drop moves only where the value is
@@ -45,12 +46,15 @@
 //! [`SearchPlan::check`] is the legality check, run before a solver is
 //! built; [`SearchPlan::solver`] builds it, and refuses what the net cannot
 //! support (`centrality`, `threats` on a net declaring no goals).
+//! [`SearchPlan::normalized`] states a plan's defaults and lists its sets in
+//! the order the search runs them, and [`SearchPlan::net`] draws it as a
+//! Petri net whose string diagram is the plan as one composite.
 
 use serde::Deserialize;
 use serde_json::Value;
 
 use crate::error::{Error, Result};
-use crate::filter::Filter;
+use crate::filter::{Filter, Filters};
 use crate::game::{Game, Solver};
 use crate::order::{Chain, Piece};
 use crate::root::Estimate;
@@ -209,11 +213,15 @@ impl SearchPlan {
             budget: None,
             ms: None,
         };
+        let twice = |name: &str| plan_error(format!("driver {name:?} is listed twice"));
+        let mut budgeted = false;
         for v in list {
             match v {
                 Value::String(name) => {
                     expect(name, Kind::Driver)?;
                     match name.as_str() {
+                        "null_window" if d.null_window => return Err(twice(name)),
+                        "aspiration" if d.aspiration => return Err(twice(name)),
                         "null_window" => d.null_window = true,
                         "aspiration" => d.aspiration = true,
                         _ => {
@@ -229,6 +237,10 @@ impl SearchPlan {
                     if name != "budget" {
                         return Err(plan_error(format!("driver {name:?} takes no arguments")));
                     }
+                    if budgeted {
+                        return Err(twice(name));
+                    }
+                    budgeted = true;
                     let b: Budget = serde_json::from_value(args.clone())
                         .map_err(|e| plan_error(format!("driver \"budget\": {e}")))?;
                     if b.nodes.is_none() && b.ms.is_none() {
@@ -410,5 +422,238 @@ impl SearchPlan {
                  (pflow_solver::game::solver supplies \"ode\")"
             ))),
         }
+    }
+
+    /// The plan with its defaults stated (the default chain, filters,
+    /// drivers and memo, an empty root) and its sets in the order the
+    /// search runs them, not the order listed: filters `must_win` then
+    /// `non_losing`; the root's `non_losing` then its estimate (moves are
+    /// dropped before the rest are ranked); drivers `null_window`,
+    /// `aspiration`, then the budget. The order chain is kept as listed,
+    /// since its order is its meaning. Two plans with the same normal form
+    /// build the same solver. Refused when the plan is not legal.
+    pub fn normalized(&self) -> Result<SearchPlan> {
+        self.check()?;
+        let d = self.drivers()?;
+        let r = self.roots()?;
+        let f = Filters::of(&self.filters()?);
+        let mut drivers: Vec<Value> = vec![];
+        if d.null_window {
+            drivers.push("null_window".into());
+        }
+        if d.aspiration {
+            drivers.push("aspiration".into());
+        }
+        if d.budget.is_some() || d.ms.is_some() {
+            let mut b = serde_json::Map::new();
+            if let Some(n) = d.budget {
+                b.insert("nodes".into(), n.into());
+            }
+            if let Some(ms) = d.ms {
+                b.insert("ms".into(), ms.into());
+            }
+            drivers.push(serde_json::json!({ "budget": b }));
+        }
+        let mut filters: Vec<String> = vec![];
+        if f.must_win {
+            filters.push(Filter::MustWin.name().into());
+        }
+        if f.non_losing {
+            filters.push(Filter::NonLosing.name().into());
+        }
+        let mut root: Vec<String> = vec![];
+        if r.non_losing {
+            root.push("non_losing".into());
+        }
+        root.extend(r.estimate.map(String::from));
+        Ok(SearchPlan {
+            mode: self.mode,
+            order: Some(
+                self.chain()?
+                    .pieces()
+                    .iter()
+                    .map(|p| p.name().into())
+                    .collect(),
+            ),
+            drivers: Some(drivers),
+            filters: Some(filters),
+            root: Some(RootPlan { order: root }),
+            heuristics: self.heuristics.clone(),
+            memo: Some(self.memo.unwrap_or(Memo {
+                entries: Solver::MEMO,
+            })),
+        })
+    }
+
+    /// The plan as a Petri net in pflow.xyz's editor shape (Shape A JSON),
+    /// for a string diagram ([pflow-native]'s `view.string_diagram`, a port
+    /// of pflow.xyz's): each transition is a box labeled by its id, each
+    /// place a typed wire (`Position`, `MoveList`, `Key`, `Value`, `Table`,
+    /// `Value⊥`, numbered where a type repeats). It draws the
+    /// [`SearchPlan::normalized`] plan as one composite, top to bottom in
+    /// the order the search composes it:
+    ///
+    /// - `moves`: a position's moves, then the filters (`filter.*`) and the
+    ///   root's `root.non_losing`, each `MoveList → MoveList`;
+    /// - the order chain: a box per piece (`order.*`, `*` marking a
+    ///   decisive one), each giving its `Key`, and a `chain` box taking the
+    ///   list and the keys in priority order, the root's estimate
+    ///   (`root.ode`) last; with aspiration, the estimate's `Value` goes to
+    ///   the aspiration driver too;
+    /// - `core`, given the ordered list and the transposition table
+    ///   (`memo`, a side input), with the mode in its id;
+    /// - the drivers, innermost first: `null_window`, `aspiration`, and the
+    ///   budget, outermost, with its arguments in its id.
+    ///
+    /// The JSON is written as text in a fixed order, so it is the same
+    /// bytes whichever way serde_json orders a map. Equal normal forms give
+    /// equal nets; refused when the plan is not legal.
+    ///
+    /// [pflow-native]: https://github.com/pflow-xyz/pflow-native
+    pub fn net(&self) -> Result<String> {
+        let p = self.normalized()?;
+        let d = p.drivers()?;
+        let r = p.roots()?;
+        let f = Filters::of(&p.filters()?);
+        let mut n = Net::default();
+        let position = n.place("Position".into());
+        let mut list = n.place("MoveList".into());
+        let mut stage = 0;
+        n.add("moves".into(), &[&position], &[&list]);
+        for (on, id) in [
+            (f.must_win, "filter.must_win"),
+            (f.non_losing, "filter.non_losing"),
+            (r.non_losing, "root.non_losing"),
+        ] {
+            if on {
+                stage += 1;
+                let next = n.place(format!("MoveList·{stage}"));
+                n.add(id.into(), &[&list], &[&next]);
+                list = next;
+            }
+        }
+        let mut keys = vec![];
+        for piece in p.chain()?.pieces() {
+            let key = n.place(format!("Key·{}", keys.len() + 1));
+            let mark = if piece.decisive() { "*" } else { "" };
+            n.add(format!("order.{}{mark}", piece.name()), &[&list], &[&key]);
+            keys.push(key);
+        }
+        let mut guess = None;
+        if let Some(e) = r.estimate {
+            let key = n.place(format!("Key·{}", keys.len() + 1));
+            let mut out = vec![key.clone()];
+            if d.aspiration {
+                let v = n.place("Value".into());
+                out.push(v.clone());
+                guess = Some(v);
+            }
+            n.add(
+                format!("root.{e}"),
+                &[&list],
+                &out.iter().collect::<Vec<_>>(),
+            );
+            keys.push(key);
+        }
+        stage += 1;
+        let ordered = n.place(format!("MoveList·{stage}"));
+        let chain_in: Vec<&String> = std::iter::once(&list).chain(&keys).collect();
+        n.add("chain".into(), &chain_in, &[&ordered]);
+        let table = n.place("Table".into());
+        let entries = p.memo.map_or(Solver::MEMO, |m| m.entries);
+        n.add(format!("memo(entries={entries})"), &[], &[&table]);
+        let mut drivers: Vec<(String, Option<&String>)> = vec![];
+        if d.null_window {
+            drivers.push(("driver.null_window".into(), None));
+        }
+        if d.aspiration {
+            drivers.push(("driver.aspiration".into(), guess.as_ref()));
+        }
+        if d.budget.is_some() || d.ms.is_some() {
+            let args: Vec<String> = [("nodes", d.budget.map(|x| x as u64)), ("ms", d.ms)]
+                .iter()
+                .filter_map(|(k, v)| v.map(|v| format!("{k}={v}")))
+                .collect();
+            drivers.push((format!("driver.budget({})", args.join(",")), None));
+        }
+        let last = drivers.len();
+        // The outermost result is the plan's; the ones inside are numbered.
+        let value = |i: usize| {
+            if i == last {
+                "Value⊥".to_string()
+            } else {
+                format!("Value⊥·{}", i + 1)
+            }
+        };
+        let mode = match p.mode {
+            Mode::Exact => "exact",
+            Mode::Play => "play",
+        };
+        let mut v = n.place(value(0));
+        n.add(format!("core(mode={mode})"), &[&ordered, &table], &[&v]);
+        for (i, (id, side)) in drivers.into_iter().enumerate() {
+            let next = n.place(value(i + 1));
+            let inputs: Vec<&String> = std::iter::once(&v).chain(side).collect();
+            n.add(id, &inputs, &[&next]);
+            v = next;
+        }
+        Ok(n.json())
+    }
+}
+
+/// A Petri net built for [`SearchPlan::net`]: places and transitions by id,
+/// in the order added, and arcs box by box (inputs, then outputs).
+#[derive(Default)]
+struct Net {
+    places: Vec<String>,
+    transitions: Vec<String>,
+    arcs: Vec<(String, String)>,
+}
+
+impl Net {
+    fn place(&mut self, id: String) -> String {
+        self.places.push(id.clone());
+        id
+    }
+
+    /// Box `id`, its ports in the order given.
+    fn add(&mut self, id: String, inputs: &[&String], outputs: &[&String]) {
+        for p in inputs {
+            self.arcs.push(((*p).clone(), id.clone()));
+        }
+        for p in outputs {
+            self.arcs.push((id.clone(), (*p).clone()));
+        }
+        self.transitions.push(id);
+    }
+
+    /// The editor-shape JSON, one element per line.
+    fn json(&self) -> String {
+        let q = |s: &str| serde_json::to_string(s).expect("a string");
+        let nodes = |ids: &[String], ty: &str| {
+            ids.iter()
+                .map(|id| format!("    {}: {{\"@type\": \"{ty}\"}}", q(id)))
+                .collect::<Vec<_>>()
+                .join(",\n")
+        };
+        let arcs = self
+            .arcs
+            .iter()
+            .map(|(a, b)| {
+                format!(
+                    "    {{\"@type\": \"Arrow\", \"source\": {}, \"target\": {}, \"weight\": [1]}}",
+                    q(a),
+                    q(b)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",\n");
+        format!(
+            "{{\n  \"@context\": \"https://pflow.xyz/schema\",\n  \"@type\": \"PetriNet\",\n  \
+             \"@version\": \"1.1\",\n  \"places\": {{\n{}\n  }},\n  \"transitions\": {{\n{}\n  }},\n  \
+             \"arcs\": [\n{arcs}\n  ]\n}}\n",
+            nodes(&self.places, "Place"),
+            nodes(&self.transitions, "Transition"),
+        )
     }
 }
