@@ -35,6 +35,12 @@
 //! assert_eq!(flat.places.len(), 1);
 //! ```
 //!
+//! # Saga
+//!
+//! [`Saga`] (go-pflow's `saga` package) models an ordered list of
+//! compensable steps as a `ResourceNet` subnet: [`Saga::to_meta_subnet`]
+//! exposes its accounts for `TokenLink`s and its steps for `EventLink`s.
+//!
 //! # Templates and derive
 //!
 //! [`templates`] generates parameterized `pflow_core::PetriNet` patterns
@@ -62,6 +68,7 @@ mod guard;
 mod matrix;
 mod queue;
 mod resource_pool;
+mod saga;
 pub mod templates;
 mod unionfind;
 mod validate;
@@ -81,3 +88,9 @@ pub use guard::{and_guards, guard_conjunct, parse_condition, resolve_lowering, L
 pub use matrix::link_legal;
 pub use queue::{is_unbounded_queue, new_queue, QueueSpec, QUEUE_DEQUEUE, QUEUE_ENQUEUE, QUEUE_ITEMS, QUEUE_SLOTS};
 pub use resource_pool::{new_resource_pool, POOL_ACQUIRE, POOL_AVAILABLE, POOL_IN_USE, POOL_RELEASE};
+pub use saga::{
+    account_port, compensated_place, do_transition, done_place, fail_transition, failed_place,
+    next_place, pending_place, undo_transition, unwind_place, Account, Move, Saga, SagaBuilder,
+    Step, StepBuilder, SAGA_COMMIT, SAGA_COMMITTING, SAGA_COMPLETED, SAGA_FAIL_COMMIT,
+    SAGA_ROLLED_BACK,
+};

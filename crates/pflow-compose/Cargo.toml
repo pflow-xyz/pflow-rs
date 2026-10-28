@@ -18,3 +18,5 @@ regex = "1"
 
 [dev-dependencies]
 serde_json = "1"
+pflow-reachability = { path = "../pflow-reachability" }
+pflow-verify = { path = "../pflow-verify" }
