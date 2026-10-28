@@ -1,4 +1,4 @@
-//! `lmr` in play mode on the 200-position Connect-4 sample,
+//! `lmr` and `futility` in play mode on the 200-position Connect-4 sample,
 //! release build: `cargo run --release -p pflow-solver --example search_lossy`.
 //!
 //! For each plan and node budget (the whole `choose` call's): how many
@@ -22,7 +22,7 @@ fn main() {
         .iter()
         .map(|mk| exact.value(mk).unwrap().unwrap())
         .collect();
-    let plans: [(&str, &str); 5] = [
+    let plans: [(&str, &str); 7] = [
         ("default", ""),
         ("lmr after 3, 64 nodes", r#", "heuristics": ["lmr"]"#),
         (
@@ -34,6 +34,15 @@ fn main() {
             r#", "heuristics": ["lmr"], "tuning": {"lmr": {"after": 4, "nodes": 1000}}"#,
         ),
         ("root ode", r#", "root": {"order": ["ode"]}"#),
+        (
+            "ode, futility 1/8",
+            r#", "filters": ["must_win", "futility"], "root": {"order": ["ode"]}"#,
+        ),
+        (
+            "ode, futility 0.5",
+            r#", "filters": ["must_win", "futility"], "root": {"order": ["ode"]},
+               "tuning": {"futility": {"margin": 0.5}}"#,
+        ),
     ];
     println!(
         "{:<26} {:>8} {:>6} {:>6} {:>6} {:>11} {:>8}",

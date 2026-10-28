@@ -2,6 +2,8 @@
 
 Status, Oct 28 2026: slices 1 to 4 are merged (PRs #7 to #10), and slice 6 is on main (dfb9067, e9c65fc, ebe9097), under mtd_f and incremental_hash from the sketch below (35be807). Slice 5 is merged in pflow-native (0fe18e0, af18f91) and waits, as a local branch, in pflow.xyz (below). Slices 2 to 6 ran on the Mac (workbit), and Matt says yes before every push. Generic pflow-rs library work only: a piece reads what the net declares (sides, reward places, auto transitions, arcs) and nothing else.
 
+Oct 28, later: the four pieces left in the candidate table are built (below, after `incremental_hash`): `partial_key`, `forced_moves`, `lmr` and `futility`, none on by default and the golden gate unchanged. `partial_key` meets its gate and saves memory (-24% an entry on Connect-4, about +12% time); `forced_moves` meets its gate and saves no time; `lmr` and `futility` are play-mode only and not value-preserving, `lmr` pays in play, `futility` with the `ode` estimate does not.
+
 Design doc: https://claude.ai/artifact/DJGTswKTg29cpKuUVPyvHW
 
 ## Done: slice 1
@@ -164,6 +166,11 @@ Pieces from the candidate table in the ontology's ROADMAP (Phase 5, approved 202
   | lmr after 4, 1000 nodes | 100,000 | 192 | 188 | 194 | 1,818,259 | 0.91 s |
 
   With a tight allowance it values every position in a twentieth of the nodes, and 191 of 200 values are exact (9 are not); a loose one is the default's search with a few cuts. With the budget at 1,000 nodes the gain is small (161 valued by default, 189 for 2/16). It trades exactness for reach, which is the point of play mode; the table above is the price. Whether the extra best moves beat `root ode` (197 best at 1,000 nodes, 200 at 100,000, all exact) is not settled: `lmr` is cheaper, `ode` more accurate, and they have not been combined here.
+
+### futility (filter, not value-preserving)
+- `{"mode": "play", "filters": ["futility"], "root": {"order": ["ode"]}, "tuning": {"futility": {"margin": 0.25}}}`, `Solver::with_futility(margin)`. **Not value-preserving.** At a node (not the root) that has searched a move already, a move whose child the root's estimate puts `margin` or more on the wrong side of the window (`estimate + margin <= alpha` for the maximizer, `estimate - margin >= beta` for the minimizer) is not searched, and is taken to be worth the window's edge. Needs an estimate in `root.order` (the legality check says so otherwise); the margin defaults to an eighth of the reward range. A node that cut a move stores nothing, as for `lmr`; `Solver::lossy()` and `Choice::exact` say so.
+- Gate (tests/search_lossy.rs): refused in exact mode, admitted in play mode only, refused without an estimate or with a negative margin or tuning for a piece the plan does not name; in no default plan; with an exact estimate (the minimax value) and margin 0 it cut moves on tic-tac-toe and changed no value; with a wrong estimate (always +1) values changed, and every changed one was flagged `lossy`.
+- Effect (the same table as `lmr`, `ode` estimate): **no use found.** Each node asks the ODE about each move tried, about 0.4 ms a solve, so 200 positions at a 100,000-node budget take 324 s against 1 s. Nodes do not fall (2,023,210 against 1,963,616 for the default at 100,000), because the ODE's value is an expected reward near 0 (about +-0.1), not a calibrated value, so it rarely clears a window edge at +-1 or 0 by the margin; and fewer positions are valued within the budget (184 against 189) while the picks are no better than `root ode` alone (197 best at 1,000 nodes, as without futility). Margin 0.5 is the same (187 valued, 198 best at 100,000). It is kept because the roadmap's gate for it (play mode only, refused in exact, estimate required) is met and it works with an estimate that is cheap and calibrated (the tests use exact values); with the ODE it is not worth running.
 
 ## Sketch: more pieces to mix in (not committed)
 

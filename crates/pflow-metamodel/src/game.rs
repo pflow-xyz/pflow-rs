@@ -427,6 +427,8 @@ pub(crate) trait Walk: Clone {
     /// How many tokens (or, over bits, conditions) transition `t` is short
     /// of enabled here: [`IndexedModel::deficit`], [`BitModel::deficit`].
     fn deficit(&self, g: &Game, t: usize) -> u64;
+    /// The marking as dense counts.
+    fn dense(&self, g: &Game) -> Vec<i64>;
     /// [`Walk::deficit`] counting only conditions on the places in `among`
     /// (bits only; the counts engine says 0).
     fn deficit_among(&self, g: &Game, t: usize, among: &[u64; INLINE]) -> u64;
@@ -527,6 +529,10 @@ impl Walk for Counts {
         g.ix.deficit(t, &self.mk)
     }
 
+    fn dense(&self, _: &Game) -> Vec<i64> {
+        self.mk.clone()
+    }
+
     fn deficit_among(&self, _: &Game, _: usize, _: &[u64; INLINE]) -> u64 {
         0
     }
@@ -604,6 +610,10 @@ impl Walk for Bits {
         }
     }
 
+    fn dense(&self, g: &Game) -> Vec<i64> {
+        g.bits.counts(&self.mk[..g.bits.words()])
+    }
+
     fn deficit_among(&self, g: &Game, t: usize, among: &[u64; INLINE]) -> u64 {
         match g.bits.deficit_among(t, &self.mk, &among[..g.bits.words()]) {
             u32::MAX => u64::MAX,
@@ -668,6 +678,8 @@ pub struct Solver<'a> {
     /// Late move reductions: after this many moves tried, a move gets this
     /// many nodes (see [`Solver::with_lmr`]).
     lmr: Option<(usize, usize)>,
+    /// Futility pruning's margin (see [`Solver::with_futility`]).
+    futility: Option<f64>,
     /// How many times a lossy piece cut a move short, in all; and whether
     /// one did in the call running.
     cuts: usize,
@@ -767,6 +779,7 @@ impl<'a> Solver<'a> {
             entries: Self::MEMO,
             partial_key: false,
             lmr: None,
+            futility: None,
             cuts: 0,
             lossy: false,
         })
@@ -808,9 +821,24 @@ impl<'a> Solver<'a> {
         self
     }
 
+    /// Futility pruning, a piece that can change the value (play mode;
+    /// it needs the root's estimate, [`Solver::with_estimate`]): at a node
+    /// that has searched a move already, a move whose child the estimate
+    /// puts `margin` or more at the wrong side of the window (so that even
+    /// `margin` more could not bring it inside) is not searched, and is
+    /// taken to be worth the window's edge. Stores are skipped as for
+    /// [`Solver::with_lmr`]. With an exact estimate and margin 0 it
+    /// changes nothing; with any other it may. It is not applied at the
+    /// root, and the estimate is asked once per move tried, which for the
+    /// ODE is a solve each.
+    pub fn with_futility(mut self, margin: f64) -> Self {
+        self.futility = Some(margin);
+        self
+    }
+
     /// Whether the last [`Solver::value`] or [`Solver::choose`] cut a move
-    /// short by a piece that can change the value ([`Solver::with_lmr`]): if
-    /// so, its value is a guess.
+    /// short by a piece that can change the value ([`Solver::with_lmr`],
+    /// [`Solver::with_futility`]): if so, its value is a guess.
     pub fn lossy(&self) -> bool {
         self.lossy
     }
@@ -1325,14 +1353,16 @@ impl<'a> Solver<'a> {
             },
             NO_MOVE,
         );
-        let lossy = !root && self.lmr.is_some();
+        let lossy = !root && (self.lmr.is_some() || self.futility.is_some());
         for (idx, (_, t, next)) in kids.iter().enumerate() {
             // `Some(edge)`: the move was cut short and is taken to be worth
             // the window's edge for the mover.
             let edge = if s > 0.0 { a } else { b };
             let mut cut = false;
             let mut v = edge;
-            if let Some((_, nodes)) = self.lmr.filter(|l| lossy && idx >= l.0) {
+            if lossy && idx > 0 && self.futility_cuts(s, a, b, next)? {
+                cut = true;
+            } else if let Some((_, nodes)) = self.lmr.filter(|l| lossy && idx >= l.0) {
                 let limit = self.budget;
                 self.budget = limit.min(self.nodes.saturating_add(nodes));
                 let got = self.search(next, a, b, false);
@@ -1385,6 +1415,23 @@ impl<'a> Solver<'a> {
             self.store::<W>(&k, lo, hi, best.1, self.nodes - n0);
         }
         Ok(Some(v))
+    }
+
+    /// Whether futility pruning leaves out the child `next` of a node of
+    /// side `s` with window `(a, b)`: see [`Solver::with_futility`].
+    fn futility_cuts<W: Walk>(&mut self, s: f64, a: f64, b: f64, next: &W) -> Result<bool> {
+        let g = self.g;
+        let Some(margin) = self.futility else {
+            return Ok(false);
+        };
+        let Some(e) = self.root.estimate.as_mut() else {
+            return Ok(false);
+        };
+        if next.over(g) {
+            return Ok(false);
+        }
+        let guess = e.estimate(g, &next.dense(g))?.clamp(g.bounds.0, g.bounds.1);
+        Ok((s > 0.0 && guess + margin <= a) || (s < 0.0 && guess - margin >= b))
     }
 
     /// Remembers that the value at `k` lies in `[lo, hi]` (and in what the

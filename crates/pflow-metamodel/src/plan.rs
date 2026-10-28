@@ -47,9 +47,11 @@
 //!   [`Filter::DEFAULT`]; `[]` runs none.
 //! - Pieces that can change the value, a filter or a `heuristics` name,
 //!   in `"mode": "play"` only (exact mode refuses them by name): `lmr`
-//!   (late move reductions, a heuristic), tuned in `tuning`:
-//!   `{"lmr": {"after": 3, "nodes": 64}}` ([`Solver::with_lmr`]). It is in
-//!   no default, and a search that used it says so ([`Solver::lossy`]).
+//!   (late move reductions, a heuristic) and `futility` (a filter, which
+//!   needs an estimate in `root.order`), tuned in `tuning`:
+//!   `{"lmr": {"after": 3, "nodes": 64}, "futility": {"margin": 0.25}}`
+//!   ([`Solver::with_lmr`], [`Solver::with_futility`]). Neither is in any
+//!   default, and a search that used either says so ([`Solver::lossy`]).
 //!   The registry also reserves two it has not built (`beam`, a filter, and
 //!   `static_eval`) only to refuse them, by name, in either mode.
 //!
@@ -114,7 +116,7 @@ const UNSOUND: [(&str, Kind); 2] = [("beam", Kind::Filter), ("static_eval", Kind
 
 /// Pieces that can change a value, built: `play` mode only, and tuned in
 /// `tuning`.
-const LOSSY: [(&str, Kind); 1] = [("lmr", Kind::Heuristic)];
+const LOSSY: [(&str, Kind); 2] = [("lmr", Kind::Heuristic), ("futility", Kind::Filter)];
 
 /// What `lmr` does without `tuning`: after the first moves, this many nodes
 /// each.
@@ -190,13 +192,14 @@ pub struct RootPlan {
     pub order: Vec<String>,
 }
 
-/// `{"lmr": {"after": N, "nodes": M}}`: the arguments of the lossy pieces
-/// named in the plan. Each takes its default
+/// `{"lmr": {"after": N, "nodes": M}, "futility": {"margin": X}}`: the
+/// arguments of the lossy pieces named in the plan. Each takes its default
 /// when not given, and is refused when its piece is not named.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct Tuning {
     pub lmr: Option<Lmr>,
+    pub futility: Option<Futility>,
 }
 
 /// `lmr`: the moves after the first `after` get `nodes` nodes each.
@@ -205,6 +208,14 @@ pub struct Tuning {
 pub struct Lmr {
     pub after: usize,
     pub nodes: usize,
+}
+
+/// `futility`: the guess must miss the window by `margin` (by default an
+/// eighth of the reward range).
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Futility {
+    pub margin: f64,
 }
 
 /// `{"nodes": N, "ms": T}`, either or both.
@@ -242,6 +253,7 @@ struct Drivers {
 /// Which lossy pieces a plan names.
 struct LossyOn {
     lmr: bool,
+    futility: bool,
 }
 
 /// What a plan's root comes to.
@@ -415,6 +427,10 @@ impl SearchPlan {
     fn lossy(&self) -> LossyOn {
         LossyOn {
             lmr: self.heuristics.iter().any(|n| n == "lmr"),
+            futility: self
+                .filters
+                .as_ref()
+                .is_some_and(|f| f.iter().any(|n| n == "futility")),
         }
     }
 
@@ -461,18 +477,39 @@ impl SearchPlan {
                 }
             }
         }
-        if self.heuristics.iter().filter(|x| *x == "lmr").count() > 1 {
-            return Err(plan_error("\"lmr\" is listed twice".into()));
+        for (names, n) in [
+            (self.filters.as_ref().unwrap_or(&vec![]), "futility"),
+            (&self.heuristics, "lmr"),
+        ] {
+            if names.iter().filter(|x| *x == n).count() > 1 {
+                return Err(plan_error(format!("{n:?} is listed twice")));
+            }
         }
         let lossy = self.lossy();
+        if lossy.futility && r.estimate.is_none() {
+            return Err(plan_error(
+                "filter \"futility\" asks the estimate about each move: name one in root.order"
+                    .into(),
+            ));
+        }
         if let Some(t) = &self.tuning {
             if t.lmr.is_some() && !lossy.lmr {
                 return Err(plan_error(
                     "tuning for \"lmr\", which the plan does not name".into(),
                 ));
             }
+            if t.futility.is_some() && !lossy.futility {
+                return Err(plan_error(
+                    "tuning for \"futility\", which the plan does not name".into(),
+                ));
+            }
             if t.lmr.is_some_and(|l| l.after == 0 || l.nodes == 0) {
                 return Err(plan_error("lmr: after and nodes must be at least 1".into()));
+            }
+            if t.futility
+                .is_some_and(|f| !(f.margin >= 0.0 && f.margin.is_finite()))
+            {
+                return Err(plan_error("futility: margin must be 0 or more".into()));
             }
         }
         Ok(())
@@ -520,6 +557,12 @@ impl SearchPlan {
                 nodes: LMR_NODES,
             });
             s = s.with_lmr(l.after, l.nodes);
+        }
+        if lossy.futility {
+            let margin = t
+                .futility
+                .map_or((g.bounds.1 - g.bounds.0) / 8.0, |f| f.margin);
+            s = s.with_futility(margin);
         }
         match (r.estimate, estimate) {
             (None, _) => Ok(s),
@@ -579,6 +622,9 @@ impl SearchPlan {
             filters.push(Filter::ForcedMoves.name().into());
         }
         let lossy = self.lossy();
+        if lossy.futility {
+            filters.push("futility".into());
+        }
         let mut root: Vec<String> = vec![];
         if r.non_losing {
             root.push("non_losing".into());
@@ -601,7 +647,7 @@ impl SearchPlan {
                 entries: Solver::MEMO,
                 partial_key: false,
             })),
-            tuning: lossy.lmr.then(|| {
+            tuning: (lossy.lmr || lossy.futility).then(|| {
                 let t = self.tuning.unwrap_or_default();
                 Tuning {
                     lmr: lossy.lmr.then(|| {
@@ -610,6 +656,7 @@ impl SearchPlan {
                             nodes: LMR_NODES,
                         })
                     }),
+                    futility: lossy.futility.then_some(t.futility).flatten(),
                 }
             }),
         })
@@ -670,10 +717,13 @@ impl SearchPlan {
             after: LMR_AFTER,
             nodes: LMR_NODES,
         });
-        let cuts = [(
-            on.lmr,
-            format!("heuristic.lmr(after={},nodes={})", lmr.after, lmr.nodes),
-        )];
+        let cuts = [
+            (on.futility, "filter.futility".to_string()),
+            (
+                on.lmr,
+                format!("heuristic.lmr(after={},nodes={})", lmr.after, lmr.nodes),
+            ),
+        ];
         for (is_on, id) in cuts {
             if is_on {
                 stage += 1;
