@@ -22,6 +22,11 @@
 //! entries it was given, and never grows past them: a search that outruns
 //! it forgets, and searches again, but its memory stays put. Forgetting
 //! never changes a value, only what it costs.
+//!
+//! A pinned entry ([`Table::pin`], an opening book's) is exact and ranks
+//! above every other, so a new key takes its slot only when all the slots
+//! it could take are pinned. Pinned entries carry generation 0, which
+//! [`Table::age`] never reaches.
 
 /// Slots per bucket.
 pub(crate) const WAYS: usize = 4;
@@ -41,6 +46,8 @@ const HI_SHIFT: u32 = 40;
 const WORK_SHIFT: u32 = 48;
 const GEN_SHIFT: u32 = 56;
 const GEN_MASK: u64 = 0x7F;
+/// The generation of a pinned entry.
+const PINNED: u64 = 0;
 const COUNTS: u64 = 1 << 63;
 
 /// What a table holds for one position: the value lies in `[lo, hi]` (equal
@@ -208,8 +215,11 @@ impl Table {
         }
         let rank = |i: usize| {
             let m = self.meta(i);
-            let current = (m >> GEN_SHIFT & GEN_MASK == self.generation) as u64;
-            current << 8 | (m >> WORK_SHIFT & 0xFF)
+            let gen = m >> GEN_SHIFT & GEN_MASK;
+            if gen == PINNED {
+                return u64::MAX;
+            }
+            ((gen == self.generation) as u64) << 8 | (m >> WORK_SHIFT & 0xFF)
         };
         let ways = self.ways;
         let all = p.buckets.into_iter().flat_map(|b| b..b + ways);
@@ -256,18 +266,40 @@ impl Table {
     /// Remembers `e` for `k`, found by `nodes` nodes of search, narrowed by
     /// what the table knew of `k` before.
     pub fn store(&mut self, k: &Key, counts: bool, e: Entry, nodes: usize) {
+        let work = (usize::BITS - nodes.leading_zeros()) as u64;
+        self.keep(k, counts, e, work, self.generation);
+    }
+
+    /// Remembers that `k` is worth exactly `value`, `best` doing best (or
+    /// [`u32::MAX`] for none known), pinned: see the module docs.
+    pub fn pin(&mut self, k: &Key, counts: bool, value: f64, best: u32) {
+        let e = Entry {
+            lo: value,
+            hi: value,
+            best,
+        };
+        self.keep(k, counts, e, 0xFF, PINNED);
+    }
+
+    /// [`Table::store`], with the work and generation given; a pinned entry
+    /// stays pinned.
+    fn keep(&mut self, k: &Key, counts: bool, e: Entry, work: u64, gen: u64) {
         let mut at = self.locate(k, counts, true);
-        let (mut e, mut work) = (e, (usize::BITS - nodes.leading_zeros()) as u64);
+        let (mut e, mut work, mut gen) = (e, work, gen);
         if let Ok(i) = at {
             let old = self.read(i);
             e.lo = e.lo.max(old.lo);
             e.hi = e.hi.min(old.hi);
-            work = work.max(self.meta(i) >> WORK_SHIFT & 0xFF);
+            if gen == PINNED && e.best == BEST as u32 {
+                e.best = old.best;
+            }
+            let m = self.meta(i);
+            work = work.max(m >> WORK_SHIFT & 0xFF);
+            if m >> GEN_SHIFT & GEN_MASK == PINNED {
+                gen = PINNED;
+            }
         }
-        let mut meta = e.best as u64
-            | work << WORK_SHIFT
-            | self.generation << GEN_SHIFT
-            | Self::engine(counts);
+        let mut meta = e.best as u64 | work << WORK_SHIFT | gen << GEN_SHIFT | Self::engine(counts);
         let mut wide = [0u64; 2];
         if self.compact {
             let (Some(lo), Some(hi)) = (self.index(e.lo), self.index(e.hi)) else {
@@ -423,6 +455,34 @@ mod tests {
         t.store(&[13, 0, 0, 0], false, entry(13), 1);
         assert!(t.get(&[0, 0, 0, 0], false).is_none(), "old goes first");
         assert!((10..14).all(|i| t.get(&[i, 0, 0, 0], false).is_some()));
+    }
+
+    #[test]
+    fn pinned_entries_outlast_everything_else() {
+        // Two buckets of four, whatever the keys.
+        let mut t = Table::new(8, 2, true);
+        for i in 0..4 {
+            t.pin(&key(i), false, 1.0, i as u32);
+        }
+        for round in 0..50 {
+            t.age();
+            for i in 100 + round * 20..120 + round * 20 {
+                t.store(&key(i), false, entry(i), 1 << 30);
+            }
+        }
+        for i in 0..4 {
+            let e = t.get(&key(i), false).expect("pinned");
+            assert_eq!((e.lo, e.hi, e.best), (1.0, 1.0, i as u32));
+        }
+        // A search's store on a pinned key leaves it pinned, and a pin with
+        // no best move keeps the one known.
+        t.store(&key(0), false, entry(0), 1);
+        t.pin(&key(1), false, 1.0, BEST as u32);
+        assert_eq!(t.get(&key(1), false).unwrap().best, 1);
+        for i in 0..400 {
+            t.store(&key(1000 + i), false, entry(i), 1 << 30);
+        }
+        assert!((0..4).all(|i| t.get(&key(i), false).is_some()));
     }
 
     #[test]

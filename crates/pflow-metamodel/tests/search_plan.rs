@@ -40,6 +40,8 @@ fn legal_plans_find_the_default_values() {
         r#"{"filters": ["non_losing", "must_win"], "order": ["threats"], "memo": {"entries": 64}}"#,
         r#"{"root": {"order": ["non_losing"]}}"#,
         r#"{"root": {"order": []}, "drivers": []}"#,
+        r#"{"drivers": ["null_window", {"budget": {"ms": 600000}}]}"#,
+        r#"{"mode": "play", "drivers": [{"budget": {"nodes": 3000000, "ms": 600000}}]}"#,
     ];
     for name in ["tic-tac-toe", "connect-3"] {
         let (g, all, want) = defaults(name);
@@ -54,6 +56,22 @@ fn a_budget_driver_gives_a_value_up() {
     let (g, m0) = common::game("connect-3");
     let p = plan(r#"{"drivers": ["null_window", {"budget": {"nodes": 3}}]}"#);
     assert_eq!(p.solver(&g).unwrap().value(&m0).unwrap(), None);
+}
+
+#[test]
+fn play_mode_guesses_past_the_budget_and_exact_mode_does_not() {
+    let (g, m0) = common::game("connect-3");
+    let budget = r#""drivers": ["null_window", {"budget": {"nodes": 50}}]"#;
+    let exact = plan(&format!("{{{budget}}}"));
+    assert_eq!(exact.solver(&g).unwrap().choose(&m0).unwrap(), None);
+    let play = plan(&format!(r#"{{"mode": "play", {budget}}}"#));
+    let c = play.solver(&g).unwrap().choose(&m0).unwrap().unwrap();
+    assert!(!c.exact && g.moves(&m0).contains(&c.t), "{c:?}");
+    // With room, play mode's move is a proven one.
+    let roomy = plan(r#"{"mode": "play"}"#);
+    let mk = &common::positions("connect-3", &g, &m0)[20];
+    let c = roomy.solver(&g).unwrap().choose(mk).unwrap().unwrap();
+    assert!(c.exact, "{c:?}");
 }
 
 #[test]
@@ -174,6 +192,12 @@ fn pieces_in_the_wrong_place_are_refused() {
     assert!(e.contains("budget"), "{e}");
     let e = refused(r#"{"drivers": [{"budget": {"nodes": 0}}]}"#);
     assert!(e.contains("budget"), "{e}");
+    let e = refused(r#"{"drivers": [{"budget": {}}]}"#);
+    assert!(e.contains("budget") && e.contains("ms"), "{e}");
+    let e = refused(r#"{"drivers": [{"budget": {"ms": 0}}]}"#);
+    assert!(e.contains("budget"), "{e}");
+    let e = refused(r#"{"drivers": [{"budget": {"seconds": 1}}]}"#);
+    assert!(e.contains("seconds"), "{e}");
     let e = refused(r#"{"filters": ["must_win", "must_win"]}"#);
     assert!(e.contains("must_win") && e.contains("twice"), "{e}");
     let e = refused(r#"{"order": ["non_losing"]}"#);
