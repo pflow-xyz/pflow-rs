@@ -57,6 +57,26 @@ Slice 3 results (branch search-pieces-slice3):
 - Seed the memo from the label cache as a generic opening book (exact entries only, keyed like the TT).
 - mode: play, which returns a best move under a node or time budget. Unsound pieces are allowed only here.
 
+Slice 4 results (branch search-pieces-slice4):
+- book.rs: Book, exact values of positions, and Book::from_labels, which reads pflow-native's label cache (rnn.imitate/rnn.verify labels) after checking its header's places, transitions, auto, sign and reward against the game; each exact line gives the position's value and best move and the value after each move; null lines and a cut-off last line are skipped. Solver::with_book pins the entries in the table: keyed as the search keys a position, generation 0 (which aging never reaches), ranked above every other entry so a search never pushes one out.
+- pflow-native's docs/connect4-search/referee-labels.jsonl matches the fixture Connect-4 net: 1,942 positions, 1,835 exact, 13,619 entries (11,982 distinct), read in 12 ms, seeded in 3 ms. Labelling 200 of its positions again (each move's value, what rnn.verify does): 14,164,811 nodes and 7.2 s without the book, 2,041 nodes and 5 ms with it. On the 200-position sample, which it does not cover, it changes nothing (values identical, one node apart).
+- Solver::choose: a best move and the value, found within the budget for the whole call: the value first, then the table's best move, then the moves in the root's order, each valued with the table the first search filled. Past the budget it returns None in exact mode; in play mode (SearchPlan mode "play", Solver::with_play) it guesses: the table's best move at the position, else the root's first. A time budget joins the node budget: {"budget": {"nodes": N, "ms": T}}, the clock read every 1,024 nodes and only when a time is given.
+- Play mode on the 200-position sample, the move checked against the exact value afterwards (times are the choices only):
+
+  | plan | budget (nodes) | best move | proved | time |
+  | --- | --- | --- | --- | --- |
+  | default | 100 | 183 | 159 | 0.00 s |
+  | default | 10,000 | 188 | 172 | 0.17 s |
+  | default | 100,000 | 196 | 189 | 1.00 s |
+  | root ode | 100 | 197 | 163 | 0.51 s |
+  | root ode | 100,000 | 200 | 193 | 1.18 s |
+  | root ode, non_losing | 100 | 197 | 163 | 0.27 s |
+  | root ode, non_losing | 100,000 | 200 | 193 | 0.92 s |
+
+  The ODE is the fallback a budget wants: 197 of 200 best moves at 100 nodes, against 183 by the net's order. non_losing first makes it cheaper, since the ODE then ranks fewer moves.
+- Unsound pieces: play mode lets them in, but none is built. beam and static_eval stay reserved names: the one thing play mode needed past exact search was a move when the budget runs out, and the ODE root gives a best one 197 times in 200 at 100 nodes, which leaves a beam little to add. Worth building if a net turns up where it does not.
+- Defaults are unchanged, so the golden gate is unchanged.
+
 ## Slice 5: outside pflow-rs (ask Matt first)
 - game.move / game.value from a SearchPlan as pflow-native commands, then as pflow.xyz registry and MCP tools, so the Assistant and goals.json can call a plan as one deterministic tool.
 

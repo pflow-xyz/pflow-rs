@@ -31,11 +31,17 @@
 //! [`crate::root`] pieces, off by default, run once at the position given:
 //! an estimate that orders its moves and aims the run of yes/no searches.
 //!
-//! A value is exact. Past its budget a search returns `None`, never a
-//! guess. `tests` hold it to a plain minimax on tic-tac-toe (bits) and on
+//! A [`crate::book`] seeds the table with exact values ahead of any search,
+//! and [`Solver::choose`] gives a best move as well as the value.
+//!
+//! A value is exact. Past its budget (nodes, and time if given) a search
+//! returns `None`, never a guess; only `choose` in play mode guesses. `tests` hold it to a plain minimax on tic-tac-toe (bits) and on
 //! Nim (counts), at every reachable position.
 
+use std::time::{Duration, Instant};
+
 use crate::bits::BitModel;
+use crate::book::Book;
 use crate::error::{Error, Result};
 use crate::filter::{Filter, Filters};
 use crate::indexed::{Enabled, IndexedModel, TransitionSet};
@@ -485,6 +491,18 @@ impl Walk for Bits {
 
 const NO_MOVE: u32 = u32::MAX;
 
+/// The move [`Solver::choose`] picks.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Choice {
+    /// The move.
+    pub t: usize,
+    /// The position's exact value (+1 side's view), when the search found
+    /// it.
+    pub value: Option<f64>,
+    /// Whether `t` is a best move: always, outside play mode.
+    pub exact: bool,
+}
+
 /// Alpha-beta with a transposition table that persists across calls (so
 /// solving the positions of one game reuses work) and a [`Chain`] of pieces
 /// for move order. One per thread.
@@ -503,6 +521,13 @@ pub struct Solver<'a> {
     root: Root<'a>,
     /// What `root` makes of the position [`Solver::value`] is searching.
     ranked: Option<Ranked>,
+    /// A search's time, and when the one running stops.
+    time: Option<Duration>,
+    deadline: Option<Instant>,
+    /// The clock ran out: every search returns `None` until the next call.
+    stop: bool,
+    /// Whether [`Solver::choose`] guesses when the budget runs out.
+    play: bool,
 }
 
 impl<'a> Solver<'a> {
@@ -543,6 +568,10 @@ impl<'a> Solver<'a> {
             null_window: true,
             root: Root::default(),
             ranked: None,
+            time: None,
+            deadline: None,
+            stop: false,
+            play: false,
         })
     }
 
@@ -604,6 +633,51 @@ impl<'a> Solver<'a> {
         self
     }
 
+    /// Gives a value up past `time` as well as past the node budget, each
+    /// call to [`Solver::value`] or [`Solver::choose`] timed on its own. The
+    /// clock is read every 1,024 nodes, so a search can run over by that
+    /// much. It needs `std::time::Instant` (not on `wasm32-unknown-unknown`).
+    pub fn with_time(mut self, time: Duration) -> Self {
+        self.time = Some(time);
+        self
+    }
+
+    /// Lets [`Solver::choose`] return a move it has not proven best when
+    /// the budget runs out, when `on` (play mode).
+    pub fn with_play(mut self, on: bool) -> Self {
+        self.play = on;
+        self
+    }
+
+    /// Pins `book`'s positions in the table, exact (see [`crate::book`]).
+    /// A book larger than the table keeps what fits.
+    pub fn with_book(mut self, book: &Book) -> Self {
+        for (mk, v, best) in &book.entries {
+            let (k, counts) = self.key_at(mk);
+            let best = best.map_or(NO_MOVE, |t| t as u32);
+            self.tt.pin(&k, counts, *v, best);
+        }
+        self
+    }
+
+    /// The table's key for settled marking `mk`, and whether it is a
+    /// counts key: as the search keys it, by bits when it fits.
+    fn key_at(&self, mk: &[i64]) -> (memo::Key, bool) {
+        let g = self.g;
+        let fits = g.bits.set_words() <= INLINE;
+        match g.bits.marking(mk).filter(|b| fits && b.len() <= INLINE) {
+            Some(b) => {
+                let mut k = [0; INLINE];
+                k[..b.len()].copy_from_slice(&b);
+                (k, false)
+            }
+            None => {
+                let h = key_of(mk.iter().map(|&v| v as u64));
+                ([(h >> 64) as u64, h as u64, 0, 0], true)
+            }
+        }
+    }
+
     /// The moves at settled position `mk` that the root's pieces keep, best
     /// first (all of them in the net's order, when none runs). An estimate
     /// is solved once per move.
@@ -658,7 +732,7 @@ impl<'a> Solver<'a> {
         }))
     }
 
-    /// The nodes the last [`Solver::value`] searched.
+    /// The nodes the last [`Solver::value`] or [`Solver::choose`] searched.
     pub fn nodes(&self) -> usize {
         self.nodes
     }
@@ -666,9 +740,100 @@ impl<'a> Solver<'a> {
     /// The exact value (+1 side's view) of a settled position with both
     /// sides playing perfectly, or `None` past `budget` nodes.
     pub fn value(&mut self, mk: &[i64]) -> Result<Option<f64>> {
-        self.tt.age();
+        self.start();
+        let ranked = self.rank(mk)?;
+        self.run(mk, ranked)
+    }
+
+    /// A move at settled position `mk`: a best one and the position's
+    /// value, found within the budget (nodes and time, for the whole
+    /// call), or `None` when there is no move or the budget runs out first.
+    /// In play mode ([`Solver::with_play`]) a budget that runs out gives a
+    /// guess instead: the table's best move at `mk` if it has one, else the
+    /// first the root's pieces rank ([`Solver::root_order`]).
+    ///
+    /// The value is found first, then a move worth it: the table's best,
+    /// then the moves in the root's order, each valued with the table the
+    /// first search filled.
+    pub fn choose(&mut self, mk: &[i64]) -> Result<Option<Choice>> {
         let g = self.g;
-        self.ranked = self.rank(mk)?;
+        self.start();
+        let moves = g.moves(mk);
+        if moves.is_empty() {
+            self.nodes = 0;
+            return Ok(None);
+        }
+        let s = g.mover(&moves)?;
+        let ranked = self.rank(mk)?;
+        let order = ranked.as_ref().map_or(moves.clone(), |r| r.order.clone());
+        if order.is_empty() {
+            // Every move leaves the other side a win: any is as good.
+            self.nodes = 1;
+            return Ok(Some(Choice {
+                t: moves[0],
+                value: Some(self.filters.bound(g, -s)),
+                exact: true,
+            }));
+        }
+        let limit = self.budget;
+        let v = self.run(mk, ranked)?;
+        let mut total = self.nodes;
+        let (k, counts) = self.key_at(mk);
+        let known = self
+            .tt
+            .get(&k, counts)
+            .map(|e| e.best as usize)
+            .filter(|t| order.contains(t));
+        let mut found = None;
+        if let Some(v) = v {
+            for t in known.into_iter().chain(order.iter().copied()) {
+                let next = g.play(mk, t)?;
+                let x = if g.moves(&next).is_empty() {
+                    Some(g.score(&next)?)
+                } else {
+                    self.budget = limit.saturating_sub(total);
+                    let x = self.run(&next, None)?;
+                    total += self.nodes;
+                    x
+                };
+                match x {
+                    Some(x) if x == v => {
+                        found = Some(t);
+                        break;
+                    }
+                    Some(_) => {}
+                    None => break,
+                }
+            }
+        }
+        self.budget = limit;
+        self.nodes = total;
+        Ok(match found {
+            Some(t) => Some(Choice {
+                t,
+                value: v,
+                exact: true,
+            }),
+            None if self.play => Some(Choice {
+                t: known.unwrap_or(order[0]),
+                value: v,
+                exact: false,
+            }),
+            None => None,
+        })
+    }
+
+    /// A call's start: the table ages, the clock starts.
+    fn start(&mut self) {
+        self.tt.age();
+        self.stop = false;
+        self.deadline = self.time.map(|d| Instant::now() + d);
+    }
+
+    /// The value at `mk`, with `ranked` the root's pieces there (or none).
+    fn run(&mut self, mk: &[i64], ranked: Option<Ranked>) -> Result<Option<f64>> {
+        let g = self.g;
+        self.ranked = ranked;
         if self.ranked.as_ref().is_some_and(|r| r.order.is_empty()) {
             // `non_losing` dropped every move: each leaves the other side a
             // win.
@@ -777,7 +942,11 @@ impl<'a> Solver<'a> {
         root: bool,
     ) -> Result<Option<f64>> {
         self.nodes += 1;
-        if self.nodes > self.budget {
+        if self.nodes > self.budget || self.stop {
+            return Ok(None);
+        }
+        if self.nodes & 1023 == 0 && self.deadline.is_some_and(|d| Instant::now() >= d) {
+            self.stop = true;
             return Ok(None);
         }
         let g = self.g;
@@ -1281,6 +1450,83 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// `choose` gives a best move and the value at every position, with
+    /// the root's pieces or without.
+    #[test]
+    fn choose_finds_a_best_move() {
+        for (g, m0) in [tic_tac_toe(), nim()] {
+            let mut memo = HashMap::new();
+            for non_losing in [false, true] {
+                let mut s = Solver::new(&g, usize::MAX).with_root_non_losing(non_losing);
+                for mk in positions(&g, m0.clone()) {
+                    let want = minimax(&g, &mk, &mut memo);
+                    let Some(c) = s.choose(&mk).unwrap() else {
+                        assert!(g.moves(&mk).is_empty(), "no move chosen at {mk:?}");
+                        continue;
+                    };
+                    assert!(c.exact && c.value == Some(want), "{c:?} at {mk:?}");
+                    let next = g.play(&mk, c.t).unwrap();
+                    assert_eq!(minimax(&g, &next, &mut memo), want, "{c:?} at {mk:?}");
+                }
+            }
+        }
+    }
+
+    /// Past its budget, `choose` gives up in exact mode and guesses in play
+    /// mode; the clock stops a search as the node count does.
+    #[test]
+    fn a_budget_that_runs_out_gives_a_guess_only_in_play_mode() {
+        let (g, m0) = tic_tac_toe();
+        let mut exact = Solver::new(&g, 20);
+        assert_eq!(exact.choose(&m0).unwrap(), None);
+        let mut play = Solver::new(&g, 20).with_play(true);
+        let c = play.choose(&m0).unwrap().expect("a guess");
+        assert!(!c.exact && g.moves(&m0).contains(&c.t), "{c:?}");
+        let mut all = Solver::new(&g, usize::MAX);
+        all.value(&m0).unwrap();
+        assert!(all.nodes() > 1024, "the start takes {} nodes", all.nodes());
+        let mut timed = Solver::new(&g, usize::MAX).with_time(Duration::ZERO);
+        assert_eq!(timed.value(&m0).unwrap(), None);
+        assert_eq!(timed.nodes(), 1024);
+        let mut timed = timed.with_play(true);
+        assert!(!timed.choose(&m0).unwrap().unwrap().exact);
+    }
+
+    /// A book of exact values changes no value and saves the search what
+    /// it holds, even when the table is too small to keep anything else.
+    #[test]
+    fn a_book_keeps_every_value() {
+        let (g, m0) = tic_tac_toe();
+        let mut memo = HashMap::new();
+        let all = positions(&g, m0.clone());
+        let mut book = Book::new();
+        for mk in all.iter().step_by(3) {
+            book.add(mk.clone(), minimax(&g, mk, &mut memo), None);
+        }
+        let (mut plain, mut booked) = (0, 0);
+        for memo_entries in [Solver::MEMO, 64] {
+            let mut s = Solver::new(&g, usize::MAX)
+                .with_memo(memo_entries)
+                .with_book(&book);
+            for mk in &all {
+                let want = minimax(&g, mk, &mut memo);
+                assert_eq!(s.value(mk).unwrap(), Some(want), "at {mk:?}");
+                let c = s.choose(mk).unwrap();
+                assert_eq!(c.and_then(|c| c.value), g.moves(mk).first().map(|_| want));
+            }
+            let mut p = Solver::new(&g, usize::MAX);
+            p.value(&m0).unwrap();
+            plain += p.nodes();
+            let mut b = Solver::new(&g, usize::MAX).with_book(&book);
+            b.value(&m0).unwrap();
+            booked += b.nodes();
+        }
+        assert!(
+            booked < plain,
+            "{booked} nodes with the book, {plain} without"
+        );
     }
 
     /// A position where every move lets the other side win at once is

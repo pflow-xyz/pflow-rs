@@ -13,7 +13,10 @@
 //! ```
 //!
 //! - `mode`: `"exact"` (the default) holds every piece to returning the
-//!   value; `"play"` would allow pieces that trade it for speed.
+//!   value, and [`Solver::choose`] to a move proven best (or none, past the
+//!   budget); `"play"` lets `choose` guess when the budget runs out
+//!   ([`Solver::with_play`]), and lets in pieces that trade the value for
+//!   speed (none is built yet).
 //! - `order`: [`Piece`] names, highest priority first. Order never changes
 //!   a value, so any chain is legal in either mode. Default: the solver's.
 //! - `root`: `{"order": [...]}`, pieces run once at the position searched
@@ -26,8 +29,9 @@
 //! - `drivers`: `"null_window"` finds a value by yes/no searches (on by
 //!   default, and off when `drivers` is given without it); `"aspiration"`
 //!   starts from the root's estimate, which `root.order` must name
-//!   ([`Solver::with_aspiration`]); `{"budget": {"nodes": N}}` gives a
-//!   value up on a position past N nodes.
+//!   ([`Solver::with_aspiration`]); `{"budget": {"nodes": N, "ms": T}}`
+//!   gives a value up past N nodes or T milliseconds (either or both; see
+//!   [`Solver::with_time`] for the clock).
 //! - `memo`: `{"entries": N}` keeps the transposition table to N entries
 //!   (by default [`Solver::MEMO`]).
 //! - `filters`: [`Filter`] names, which drop moves only where the value is
@@ -148,11 +152,12 @@ pub struct RootPlan {
     pub order: Vec<String>,
 }
 
-/// `{"nodes": N}`.
+/// `{"nodes": N, "ms": T}`, either or both.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Budget {
-    nodes: usize,
+    nodes: Option<usize>,
+    ms: Option<u64>,
 }
 
 /// A search plan; see the module docs.
@@ -174,6 +179,7 @@ struct Drivers {
     null_window: bool,
     aspiration: bool,
     budget: Option<usize>,
+    ms: Option<u64>,
 }
 
 /// What a plan's root comes to.
@@ -194,12 +200,14 @@ impl SearchPlan {
                 null_window: true,
                 aspiration: false,
                 budget: None,
+                ms: None,
             });
         };
         let mut d = Drivers {
             null_window: false,
             aspiration: false,
             budget: None,
+            ms: None,
         };
         for v in list {
             match v {
@@ -223,12 +231,18 @@ impl SearchPlan {
                     }
                     let b: Budget = serde_json::from_value(args.clone())
                         .map_err(|e| plan_error(format!("driver \"budget\": {e}")))?;
-                    if b.nodes == 0 {
+                    if b.nodes.is_none() && b.ms.is_none() {
                         return Err(plan_error(
-                            "driver \"budget\": nodes must be at least 1".into(),
+                            "driver \"budget\" takes \"nodes\", \"ms\" or both".into(),
                         ));
                     }
-                    d.budget = Some(b.nodes);
+                    if b.nodes == Some(0) || b.ms == Some(0) {
+                        return Err(plan_error(
+                            "driver \"budget\": nodes and ms must be at least 1".into(),
+                        ));
+                    }
+                    d.budget = b.nodes;
+                    d.ms = b.ms;
                 }
                 _ => {
                     return Err(plan_error(format!(
@@ -376,7 +390,11 @@ impl SearchPlan {
             .with_null_window(d.null_window)
             .with_filters(&self.filters()?)
             .with_root_non_losing(r.non_losing)
-            .with_aspiration(d.aspiration);
+            .with_aspiration(d.aspiration)
+            .with_play(self.mode == Mode::Play);
+        if let Some(ms) = d.ms {
+            s = s.with_time(std::time::Duration::from_millis(ms));
+        }
         if let Some(m) = self.memo {
             s = s.with_memo(m.entries);
         }

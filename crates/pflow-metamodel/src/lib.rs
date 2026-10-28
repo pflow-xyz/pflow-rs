@@ -9,6 +9,7 @@
 
 pub mod access;
 pub mod bits;
+pub mod book;
 pub mod error;
 pub mod filter;
 pub mod firing;
@@ -25,6 +26,7 @@ pub mod stages;
 
 pub use access::AccessControl;
 pub use bits::BitModel;
+pub use book::Book;
 pub use error::{Error, Result};
 pub use filter::Filter;
 pub use firing::{ArcRef, Marking};
