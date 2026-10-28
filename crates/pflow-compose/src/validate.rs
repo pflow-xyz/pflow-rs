@@ -14,6 +14,8 @@ use crate::queue::is_unbounded_queue;
 /// A resolved endpoint after ports have been resolved to elements.
 pub(crate) struct ResolvedEndpoint<'a> {
     pub subnet: &'a Subnet,
+    /// The port the endpoint names (declared or derived), if it names one.
+    pub port: Option<Port>,
     pub place: String,
     pub transition: String,
 }
@@ -40,6 +42,7 @@ pub(crate) fn resolve<'a>(b: &'a Bundle, e: &Endpoint) -> Result<ResolvedEndpoin
         .subnet_by_id(&e.subnet)
         .ok_or_else(|| format!("unknown subnet {:?}", e.subnet))?;
 
+    let mut named_port = None;
     let (place, transition) = if !e.port.is_empty() {
         // A declared port takes priority; otherwise fall back to the
         // derived boundary (one inout port per exported place).
@@ -51,11 +54,13 @@ pub(crate) fn resolve<'a>(b: &'a Bundle, e: &Endpoint) -> Result<ResolvedEndpoin
                 .find(|p| p.id == e.port)
                 .ok_or_else(|| format!("subnet {:?} has no port {:?}", e.subnet, e.port))?,
         };
-        if port.is_transition() {
-            (String::new(), port.transition)
+        let out = if port.is_transition() {
+            (String::new(), port.transition.clone())
         } else {
-            (port.place, String::new())
-        }
+            (port.place.clone(), String::new())
+        };
+        named_port = Some(port);
+        out
     } else if !e.place.is_empty() {
         (e.place.clone(), String::new())
     } else if !e.transition.is_empty() {
@@ -75,6 +80,7 @@ pub(crate) fn resolve<'a>(b: &'a Bundle, e: &Endpoint) -> Result<ResolvedEndpoin
     }
     Ok(ResolvedEndpoint {
         subnet: s,
+        port: named_port,
         place,
         transition,
     })
@@ -308,7 +314,7 @@ impl Bundle {
                     res.valid = false;
                     res.errors.push(ValidationError::new(
                         ERR_ENDPOINT_KIND,
-                        format!("{label}: a {:?} link connects places, but an endpoint names a transition", l.kind),
+                        format!("{label}: a {} link connects places, but an endpoint names a transition", l.kind.name()),
                         &label,
                     ));
                     return;
@@ -355,16 +361,40 @@ impl Bundle {
             return;
         }
 
+        // Port schema tags must agree when both are set (go-pflow
+        // metamodel/compose.go validateLink).
+        if let (Some(fp), Some(tp)) = (&from.port, &to.port) {
+            if !fp.schema.is_empty() && !tp.schema.is_empty() && fp.schema != tp.schema {
+                res.valid = false;
+                res.errors.push(ValidationError::new(
+                    ERR_SCHEMA_MISMATCH,
+                    format!("{label}: port schemas differ ({:?} vs {:?})", fp.schema, tp.schema),
+                    &label,
+                ));
+            }
+        }
+
         match l.kind {
             LinkKind::Token => {
                 self.validate_place_pair(&label, &from, &to, res);
-                // Port direction checks are skipped here: this
-                // implementation resolves ports to bare place/transition
-                // names rather than keeping the `Port` object on the
-                // resolved endpoint (see `resolve`), so there is nothing to
-                // re-check port `kind` against. The place-pair and
-                // structural checks above are the ones the flattened model
-                // actually depends on.
+                // Tokens leave through the from port and arrive through the
+                // to port, so neither may face the other way.
+                if let Some(p) = from.port.as_ref().filter(|p| p.kind == Some(PortKind::In)) {
+                    res.valid = false;
+                    res.errors.push(ValidationError::new(
+                        ERR_PORT_DIRECTION,
+                        format!("{label}: token link's from port {:?} is an in-port", p.id),
+                        &label,
+                    ));
+                }
+                if let Some(p) = to.port.as_ref().filter(|p| p.kind == Some(PortKind::Out)) {
+                    res.valid = false;
+                    res.errors.push(ValidationError::new(
+                        ERR_PORT_DIRECTION,
+                        format!("{label}: token link's to port {:?} is an out-port", p.id),
+                        &label,
+                    ));
+                }
             }
             LinkKind::Data => {
                 self.validate_place_pair(&label, &from, &to, res);

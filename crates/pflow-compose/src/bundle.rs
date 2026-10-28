@@ -160,6 +160,19 @@ pub enum LinkKind {
     Guard,
 }
 
+impl LinkKind {
+    /// The kind as a bundle writes it, and as go-pflow's messages name it:
+    /// `token`, `data`, `event`, `guard`.
+    pub fn name(&self) -> &'static str {
+        match self {
+            LinkKind::Token => "token",
+            LinkKind::Data => "data",
+            LinkKind::Event => "event",
+            LinkKind::Guard => "guard",
+        }
+    }
+}
+
 /// Addresses one side of a link. `port` is the normal form; `place` and
 /// `transition` are an escape hatch for addressing an element with no
 /// declared port.
