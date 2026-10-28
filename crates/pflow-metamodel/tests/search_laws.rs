@@ -260,7 +260,7 @@ fn f3_no_filters_is_the_unit_not_the_default() {
 /// F4: every set of filters, in either order, finds the default values.
 #[test]
 fn f4_every_set_of_filters_keeps_the_values() {
-    use Filter::{MustWin, NonLosing};
+    use Filter::{ForcedMoves, MustWin, NonLosing};
     let c = Chain::default();
     for (name, g, all) in nets() {
         let want = values(&by_plan(&g, &all, "{}"));
@@ -270,6 +270,9 @@ fn f4_every_set_of_filters_keeps_the_values() {
             vec![NonLosing],
             vec![MustWin, NonLosing],
             vec![NonLosing, MustWin],
+            vec![ForcedMoves],
+            vec![MustWin, ForcedMoves],
+            vec![ForcedMoves, NonLosing, MustWin],
         ] {
             let got = by(&all, || with_chain(&g, &c, &set));
             assert_eq!(values(&got), want, "{name} {set:?}");

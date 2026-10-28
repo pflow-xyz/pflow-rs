@@ -88,6 +88,13 @@ pub struct Game {
     /// that much), and the most of these. See [`touches`].
     pub(crate) feeders: Vec<Vec<(u32, u64)>>,
     pub(crate) reach: Vec<u64>,
+    /// Per goal: the places it has a condition on that no automatic
+    /// transition and no move of the other side changes (one bit each, as a
+    /// marking), so a condition on one that fails now still fails after
+    /// the other side's move. And per goal, the most one move of its own
+    /// side can change those places by (`stable_reach`).
+    pub(crate) stable: Vec<[u64; INLINE]>,
+    pub(crate) stable_reach: Vec<u64>,
     /// Every reward a final marking can have, ascending, when there are
     /// few: the values a search decides between.
     values: Vec<f64>,
@@ -224,6 +231,60 @@ fn touches(ix: &IndexedModel, auto: &[bool], sign: &[f64], goals: &[Goal]) -> Ve
         .collect()
 }
 
+/// [`Game::stable`] and [`Game::stable_reach`] for the goals of a game.
+fn stable_conditions(
+    ix: &IndexedModel,
+    auto: &[bool],
+    sign: &[f64],
+    goals: &[Goal],
+) -> (Vec<[u64; INLINE]>, Vec<u64>) {
+    let delta = |u: usize, p: usize| -> i64 {
+        let at = |xs: &[(usize, i64)]| -> i64 { xs.iter().filter(|x| x.0 == p).map(|x| x.1).sum() };
+        at(&ix.arcs[u].outputs) - at(&ix.arcs[u].inputs)
+    };
+    let mut masks = vec![];
+    let mut reach = vec![];
+    for g in goals {
+        let a = &ix.arcs[g.t];
+        let mut places: Vec<usize> = a
+            .inputs
+            .iter()
+            .chain(&a.reads)
+            .chain(&a.inhibitors)
+            .map(|x| x.0)
+            .chain(a.capacities.iter().map(|x| x.0))
+            .collect();
+        places.sort_unstable();
+        places.dedup();
+        // Changed by an automatic transition, or by a move of the side that
+        // is not the goal's own, between a position and the next one the
+        // goal's side plays.
+        places.retain(|&p| {
+            !(0..auto.len()).any(|u| (auto[u] || sign[u] == -g.side) && delta(u, p) != 0)
+        });
+        let mut mask = [0u64; INLINE];
+        for &p in &places {
+            if p / 64 < INLINE {
+                mask[p / 64] |= 1 << (p % 64);
+            }
+        }
+        reach.push(
+            (0..auto.len())
+                .filter(|&u| !auto[u] && sign[u] == g.side)
+                .map(|u| {
+                    places
+                        .iter()
+                        .map(|&p| delta(u, p).unsigned_abs())
+                        .sum::<u64>()
+                })
+                .max()
+                .unwrap_or(0),
+        );
+        masks.push(mask);
+    }
+    (masks, reach)
+}
+
 /// A set's words, inline, when it fits.
 fn inline(s: &TransitionSet) -> [u64; INLINE] {
     let mut w = [0; INLINE];
@@ -251,7 +312,10 @@ impl Game {
         let goals = goals_of(&ix, &auto, &reward);
         let fed = fed_goals(&ix, &goals, &sign);
         let feeders = touches(&ix, &auto, &sign, &goals);
+        let (stable, stable_reach) = stable_conditions(&ix, &auto, &sign, &goals);
         Self {
+            stable,
+            stable_reach,
             reach: feeders
                 .iter()
                 .map(|f| f.iter().map(|x| x.1).max().unwrap_or(0))
@@ -363,6 +427,9 @@ pub(crate) trait Walk: Clone {
     /// How many tokens (or, over bits, conditions) transition `t` is short
     /// of enabled here: [`IndexedModel::deficit`], [`BitModel::deficit`].
     fn deficit(&self, g: &Game, t: usize) -> u64;
+    /// [`Walk::deficit`] counting only conditions on the places in `among`
+    /// (bits only; the counts engine says 0).
+    fn deficit_among(&self, g: &Game, t: usize, among: &[u64; INLINE]) -> u64;
     /// Whether this is the counts engine, whose keys are hashes.
     const COUNTS: bool;
     /// The transposition table's key: the marking's words over bits, a
@@ -460,6 +527,10 @@ impl Walk for Counts {
         g.ix.deficit(t, &self.mk)
     }
 
+    fn deficit_among(&self, _: &Game, _: usize, _: &[u64; INLINE]) -> u64 {
+        0
+    }
+
     const COUNTS: bool = true;
 
     fn key(&self) -> memo::Key {
@@ -528,6 +599,13 @@ impl Walk for Bits {
 
     fn deficit(&self, g: &Game, t: usize) -> u64 {
         match g.bits.deficit(t, &self.mk) {
+            u32::MAX => u64::MAX,
+            d => d as u64,
+        }
+    }
+
+    fn deficit_among(&self, g: &Game, t: usize, among: &[u64; INLINE]) -> u64 {
+        match g.bits.deficit_among(t, &self.mk, &among[..g.bits.words()]) {
             u32::MAX => u64::MAX,
             d => d as u64,
         }
@@ -1175,7 +1253,7 @@ impl<'a> Solver<'a> {
             }
             kids.push((self.chain.key(&cx, t, &next)?, t, next));
         }
-        if f.non_losing {
+        if f.non_losing || (f.forced_moves && f.threat(g, s, w)) {
             let mut keep = Vec::with_capacity(kids.len());
             for kid in kids {
                 match f.lost(g, s, &kid.2)? {

@@ -263,6 +263,19 @@ impl BitModel {
             .sum()
     }
 
+    /// [`BitModel::deficit`], counting only the conditions on the places
+    /// whose bits are set in `among` (one bit per place, as a marking).
+    pub fn deficit_among(&self, t: usize, mk: &[u64], among: &[u64]) -> u32 {
+        if self.never[t] {
+            return u32::MAX;
+        }
+        let (a, b) = self.test_spans[t];
+        self.tests[a as usize..b as usize]
+            .iter()
+            .map(|&(w, care, one)| (((mk[w] & care) ^ one) & among[w]).count_ones())
+            .sum()
+    }
+
     /// The transitions that can fire at `mk`.
     pub fn enabled_set(&self, mk: &[u64]) -> TransitionSet {
         let mut s = TransitionSet::empty(self.spans.len());

@@ -496,6 +496,9 @@ impl SearchPlan {
         if f.non_losing {
             filters.push(Filter::NonLosing.name().into());
         }
+        if f.forced_moves {
+            filters.push(Filter::ForcedMoves.name().into());
+        }
         let mut root: Vec<String> = vec![];
         if r.non_losing {
             root.push("non_losing".into());
@@ -559,6 +562,7 @@ impl SearchPlan {
         for (on, id) in [
             (f.must_win, "filter.must_win"),
             (f.non_losing, "filter.non_losing"),
+            (f.forced_moves, "filter.forced_moves"),
             (r.non_losing, "root.non_losing"),
         ] {
             if on {

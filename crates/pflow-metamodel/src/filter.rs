@@ -14,7 +14,24 @@
 //!   move does worse: it is dropped. If every move is dropped, the position
 //!   is worth the worst bound at once.
 //!
-//! Neither changes a value, so both are allowed in exact mode. A game whose
+//! - `forced_moves`: `non_losing`, asked only where it can matter. A goal
+//!   of the other side wins on a reply only if that reply (and the goal
+//!   firing after it) makes every one of its conditions hold. Conditions on
+//!   places that no automatic transition and no move of the mover's side
+//!   changes ([`Game::stable`]: a board's stones of the other colour) are
+//!   the same at the position the reply is played from as now, so the
+//!   reply must set the ones that fail now, and one move sets only so many
+//!   ([`Game::stable_reach`]). Where every goal of the other side fails
+//!   more of them than that, no move leaves it a win, and the check is
+//!   skipped for all the moves at once; elsewhere it is `non_losing`'s, so
+//!   the moves dropped, the position settled and the nodes searched are
+//!   the same, only the replies played to find them are fewer. It can only
+//!   keep a move `non_losing` would drop, never drop one it would keep, so
+//!   values hold whatever the arcs. Bit markings only: over counts the
+//!   check is `non_losing`'s everywhere. It reads the arcs and the goals,
+//!   nothing else.
+//!
+//! None of them changes a value, so all are allowed in exact mode. A game whose
 //! decisive finals pay less than the bound (two wins that never come
 //! together, say) gives them nothing to act on, which costs only their
 //! checks. The nodes a search counts do not include the replies
@@ -28,11 +45,12 @@ use crate::game::{Game, Walk};
 pub enum Filter {
     MustWin,
     NonLosing,
+    ForcedMoves,
 }
 
 impl Filter {
     /// The names [`Filter::parse`] takes.
-    pub const NAMES: [&'static str; 2] = ["must_win", "non_losing"];
+    pub const NAMES: [&'static str; 3] = ["must_win", "non_losing", "forced_moves"];
 
     /// The filters a solver runs unless told otherwise: `must_win`, which
     /// on the Connect-4 sample saves a quarter of the nodes and of the
@@ -46,6 +64,7 @@ impl Filter {
         Ok(match name {
             "must_win" => Self::MustWin,
             "non_losing" => Self::NonLosing,
+            "forced_moves" => Self::ForcedMoves,
             _ => {
                 return Err(Error::Game(format!(
                     "unknown filter {name:?} (known: {:?})",
@@ -60,6 +79,7 @@ impl Filter {
         match self {
             Self::MustWin => "must_win",
             Self::NonLosing => "non_losing",
+            Self::ForcedMoves => "forced_moves",
         }
     }
 }
@@ -69,6 +89,7 @@ impl Filter {
 pub(crate) struct Filters {
     pub must_win: bool,
     pub non_losing: bool,
+    pub forced_moves: bool,
 }
 
 impl Filters {
@@ -76,7 +97,20 @@ impl Filters {
         Self {
             must_win: filters.contains(&Filter::MustWin),
             non_losing: filters.contains(&Filter::NonLosing),
+            forced_moves: filters.contains(&Filter::ForcedMoves),
         }
+    }
+
+    /// Whether a move of side `s` from `w` could leave a goal of the other
+    /// side in reach: false means no move can, so no reply need be played
+    /// (see the module docs, `forced_moves`).
+    pub fn threat<W: Walk>(&self, g: &Game, s: f64, w: &W) -> bool {
+        if W::COUNTS {
+            return true;
+        }
+        g.goals.iter().enumerate().any(|(i, goal)| {
+            goal.side == -s && w.deficit_among(g, goal.t, &g.stable[i]) <= g.stable_reach[i]
+        })
     }
 
     /// The best bound for side `s`.
