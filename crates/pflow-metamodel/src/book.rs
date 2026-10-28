@@ -106,6 +106,9 @@ impl Book {
                 )));
             }
             let moves = g.moves(&mk);
+            if moves.is_empty() {
+                return Err(at("a final position: there is no move to label".into()));
+            }
             if moves.len() != vals.len() {
                 return Err(at(format!(
                     "{} values for the {} moves there",

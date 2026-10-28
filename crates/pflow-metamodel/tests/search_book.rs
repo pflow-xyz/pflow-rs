@@ -87,6 +87,14 @@ fn labels_for_another_game_are_refused() {
     let bad = format!("{}\n{}\n", header(&g), json!({"mk": m0, "vals": [1.0]}));
     let e = Book::from_labels(&g, &bad).unwrap_err().to_string();
     assert!(e.contains("line 2") && e.contains("moves"), "{e}");
+    // A line for a position with no move, which once panicked.
+    let mut end = m0.clone();
+    while let Some(&t) = g.moves(&end).first() {
+        end = g.play(&end, t).unwrap();
+    }
+    let bad = format!("{}\n{}\n", header(&g), json!({"mk": end, "vals": []}));
+    let e = Book::from_labels(&g, &bad).unwrap_err().to_string();
+    assert!(e.contains("line 2") && e.contains("final"), "{e}");
     let bad = format!(
         "{}\nnot json\n{}\n",
         header(&g),
