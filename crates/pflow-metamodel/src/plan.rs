@@ -6,6 +6,7 @@
 //! ```json
 //! {"mode": "exact",
 //!  "order": ["tt_best", "immediate_win", "centrality", "history"],
+//!  "filters": ["must_win", "non_losing"],
 //!  "drivers": ["null_window", {"budget": {"nodes": 1000000}}],
 //!  "memo": {"entries": 500000}}
 //! ```
@@ -17,10 +18,15 @@
 //! - `drivers`: `"null_window"` finds a value by yes/no searches (on by
 //!   default, and off when `drivers` is given without it); `{"budget":
 //!   {"nodes": N}}` gives a value up on a position past N nodes.
-//! - `memo`: `{"entries": N}` keeps the transposition table to N entries.
-//! - `filters`, `heuristics`: names of pieces that can change the value.
-//!   None is built yet: the registry knows the two it reserves (`beam`,
-//!   `static_eval`) only to refuse them, by name, in exact mode.
+//! - `memo`: `{"entries": N}` keeps the transposition table to N entries
+//!   (by default [`Solver::MEMO`]).
+//! - `filters`: [`Filter`] names, which drop moves only where the value is
+//!   already known, so they are legal in either mode. Default:
+//!   [`Filter::DEFAULT`]; `[]` runs none.
+//! - Pieces that can change the value, a filter or a `heuristics` name:
+//!   none is built yet. The registry knows the two it reserves (`beam`, a
+//!   filter, and `static_eval`) only to refuse them, by name, in exact
+//!   mode.
 //!
 //! [`SearchPlan::check`] is the legality check, run before a solver is
 //! built; [`SearchPlan::solver`] builds it, and refuses what the net cannot
@@ -30,6 +36,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::error::{Error, Result};
+use crate::filter::Filter;
 use crate::game::{Game, Solver};
 use crate::order::{Chain, Piece};
 
@@ -74,6 +81,8 @@ const UNSOUND: [(&str, Kind); 2] = [("beam", Kind::Filter), ("static_eval", Kind
 fn kind_of(name: &str) -> Option<Kind> {
     if Piece::parse(name).is_ok() {
         Some(Kind::Order)
+    } else if Filter::parse(name).is_ok() {
+        Some(Kind::Filter)
     } else if DRIVERS.contains(&name) {
         Some(Kind::Driver)
     } else {
@@ -89,9 +98,10 @@ fn plan_error(msg: String) -> Error {
 fn expect(name: &str, want: Kind) -> Result<()> {
     match kind_of(name) {
         None => Err(plan_error(format!(
-            "unknown {} {name:?} (known: {:?}, {:?}, {:?})",
+            "unknown {} {name:?} (known: {:?}, {:?}, {:?}, {:?})",
             want.noun(),
             Piece::NAMES,
+            Filter::NAMES,
             DRIVERS,
             UNSOUND.map(|x| x.0)
         ))),
@@ -126,7 +136,7 @@ pub struct SearchPlan {
     pub order: Option<Vec<String>>,
     /// Names, and `{"budget": {...}}` objects.
     pub drivers: Option<Vec<Value>>,
-    pub filters: Vec<String>,
+    pub filters: Option<Vec<String>>,
     pub heuristics: Vec<String>,
     pub memo: Option<Memo>,
 }
@@ -209,6 +219,25 @@ impl SearchPlan {
         Chain::new(&pieces)
     }
 
+    /// The filters the plan names.
+    fn filters(&self) -> Result<Vec<Filter>> {
+        let Some(names) = &self.filters else {
+            return Ok(Filter::DEFAULT.to_vec());
+        };
+        let mut out = vec![];
+        for n in names {
+            expect(n, Kind::Filter)?;
+            let Ok(f) = Filter::parse(n) else {
+                continue;
+            };
+            if out.contains(&f) {
+                return Err(plan_error(format!("filter {n:?} is listed twice")));
+            }
+            out.push(f);
+        }
+        Ok(out)
+    }
+
     /// The legality check: every name is known and in its place, and in
     /// exact mode no filter or heuristic is there to change the value.
     /// Needs no net; what a net cannot support is refused by
@@ -219,14 +248,16 @@ impl SearchPlan {
         if self.memo.is_some_and(|m| m.entries == 0) {
             return Err(plan_error("memo: entries must be at least 1".into()));
         }
+        self.filters()?;
         for (names, kind) in [
-            (&self.filters, Kind::Filter),
+            (self.filters.as_ref().unwrap_or(&vec![]), Kind::Filter),
             (&self.heuristics, Kind::Heuristic),
         ] {
             for n in names {
                 expect(n, kind)?;
             }
-            if let Some(n) = names.first() {
+            let unsound = names.iter().find(|n| UNSOUND.iter().any(|x| x.0 == *n));
+            if let Some(n) = unsound {
                 let why = match self.mode {
                     Mode::Exact => "can change the value, which exact mode does not allow",
                     Mode::Play => "is not built in this release",
@@ -243,7 +274,8 @@ impl SearchPlan {
         self.check()?;
         let d = self.drivers()?;
         let mut s = Solver::with_chain(g, d.budget.unwrap_or(usize::MAX), self.chain()?)?
-            .with_null_window(d.null_window);
+            .with_null_window(d.null_window)
+            .with_filters(&self.filters()?);
         if let Some(m) = self.memo {
             s = s.with_memo(m.entries);
         }

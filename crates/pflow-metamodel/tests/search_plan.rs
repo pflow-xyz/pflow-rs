@@ -34,6 +34,9 @@ fn legal_plans_find_the_default_values() {
         r#"{"drivers": []}"#,
         r#"{"drivers": ["null_window", {"budget": {"nodes": 3000000}}], "memo": {"entries": 50}}"#,
         r#"{"memo": {"entries": 1000}, "order": ["centrality"]}"#,
+        r#"{"filters": ["must_win"]}"#,
+        r#"{"filters": ["non_losing"], "mode": "exact"}"#,
+        r#"{"filters": ["non_losing", "must_win"], "order": ["threats"], "memo": {"entries": 64}}"#,
     ];
     for name in ["tic-tac-toe", "connect-3"] {
         let (g, all, want) = defaults(name);
@@ -91,6 +94,10 @@ fn pieces_in_the_wrong_place_are_refused() {
     assert!(e.contains("budget"), "{e}");
     let e = refused(r#"{"drivers": [{"budget": {"nodes": 0}}]}"#);
     assert!(e.contains("budget"), "{e}");
+    let e = refused(r#"{"filters": ["must_win", "must_win"]}"#);
+    assert!(e.contains("must_win") && e.contains("twice"), "{e}");
+    let e = refused(r#"{"order": ["non_losing"]}"#);
+    assert!(e.contains("non_losing") && e.contains("filter"), "{e}");
     let e = refused(r#"{"memo": {"entries": 0}}"#);
     assert!(e.contains("memo"), "{e}");
     let e = refused(r#"{"mode": "fast"}"#);
@@ -108,6 +115,9 @@ fn exact_mode_refuses_pieces_that_can_change_the_value() {
     // Play mode lets them in the plan, but none is built.
     let e = refused(r#"{"mode": "play", "filters": ["beam"]}"#);
     assert!(e.contains("beam") && e.contains("not built"), "{e}");
+    // Alongside a sound filter, the unsound one is still the one refused.
+    let e = refused(r#"{"filters": ["must_win", "beam"]}"#);
+    assert!(e.contains("beam") && e.contains("exact"), "{e}");
 }
 
 #[test]

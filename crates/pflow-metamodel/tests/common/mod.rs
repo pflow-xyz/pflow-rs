@@ -11,6 +11,7 @@
 
 use pflow_metamodel::game::{Game, Solver};
 use pflow_metamodel::order::Chain;
+use pflow_metamodel::Filter;
 
 pub const NETS: [&str; 3] = ["tic-tac-toe", "connect-3", "connect-4"];
 
@@ -112,9 +113,21 @@ pub fn fresh(g: &Game, all: &[Vec<i64>]) -> Vec<(f64, usize)> {
 
 /// [`fresh`], ordering moves by `chain`.
 pub fn fresh_with(g: &Game, all: &[Vec<i64>], chain: &Chain) -> Vec<(f64, usize)> {
+    fresh_filtered(g, all, chain, &Filter::DEFAULT)
+}
+
+/// [`fresh_with`], dropping moves by `filters` rather than the default's.
+pub fn fresh_filtered(
+    g: &Game,
+    all: &[Vec<i64>],
+    chain: &Chain,
+    filters: &[Filter],
+) -> Vec<(f64, usize)> {
     all.iter()
         .map(|mk| {
-            let mut s = Solver::with_chain(g, BUDGET, chain.clone()).unwrap();
+            let mut s = Solver::with_chain(g, BUDGET, chain.clone())
+                .unwrap()
+                .with_filters(filters);
             let v = s.value(mk).unwrap().expect("within the node budget");
             (v, s.nodes())
         })

@@ -23,20 +23,21 @@
 //! Rewards a final marking can have are few in most games (win, draw,
 //! loss), so a value is found as a run of yes/no searches, one per gap
 //! between adjacent rewards ("is it above this one?"), each with a window
-//! that narrow. They share one transposition table, which persists across
-//! calls, and a chain of [`crate::order`] pieces (by default the table's best
-//! move, a winning one, then history) orders moves.
+//! that narrow. They share one transposition table ([`crate::memo`]),
+//! bounded and persisting across calls, and a chain of [`crate::order`]
+//! pieces (by default the table's best move, a winning one, then history)
+//! orders moves. [`crate::filter`] pieces (by default, settling a position
+//! at a winning move) drop moves that cannot change the value.
 //!
 //! A value is exact. Past its budget a search returns `None`, never a
 //! guess. `tests` hold it to a plain minimax on tic-tac-toe (bits) and on
 //! Nim (counts), at every reachable position.
 
-use std::collections::HashMap;
-use std::hash::{BuildHasherDefault, Hasher};
-
 use crate::bits::BitModel;
 use crate::error::{Error, Result};
+use crate::filter::{Filter, Filters};
 use crate::indexed::{Enabled, IndexedModel, TransitionSet};
+use crate::memo::{self, Entry, Table};
 use crate::order::{Chain, Ctx};
 
 /// A two-sided game on a net, over dense markings in `ix.places` order.
@@ -72,6 +73,12 @@ pub struct Game {
     pub fed: Vec<Vec<u32>>,
     /// Per transition: how many goals `fed` holds.
     pub centrality: Vec<u32>,
+    /// Per goal: the moves of its side that change a place it has a
+    /// condition on, each with how far one firing can bring the goal
+    /// closer to enabled (its deficit, [`Walk::deficit`], drops by at most
+    /// that much), and the most of these. See [`touches`].
+    pub(crate) feeders: Vec<Vec<(u32, u64)>>,
+    pub(crate) reach: Vec<u64>,
     /// Every reward a final marking can have, ascending, when there are
     /// few: the values a search decides between.
     values: Vec<f64>,
@@ -174,6 +181,40 @@ fn fed_goals(ix: &IndexedModel, goals: &[Goal], sign: &[f64]) -> Vec<Vec<u32>> {
         .collect()
 }
 
+/// [`Game::feeders`]: for each goal, the moves `u` of its side with
+/// `touch(u) > 0`, where `touch(u)` sums `|Δu(p)|` over the goal's
+/// conditions (each input, read, inhibitor and capacity on a place `p`).
+/// A condition's share of a deficit, in tokens or in bits, moves by at
+/// most `|Δu(p)|` when `u` fires, so `touch(u)` bounds how much one firing
+/// of `u` can lower the deficit.
+fn touches(ix: &IndexedModel, auto: &[bool], sign: &[f64], goals: &[Goal]) -> Vec<Vec<(u32, u64)>> {
+    let delta = |u: usize, p: usize| -> i64 {
+        let at = |xs: &[(usize, i64)]| -> i64 { xs.iter().filter(|x| x.0 == p).map(|x| x.1).sum() };
+        at(&ix.arcs[u].outputs) - at(&ix.arcs[u].inputs)
+    };
+    goals
+        .iter()
+        .map(|g| {
+            let a = &ix.arcs[g.t];
+            let places: Vec<usize> = a
+                .inputs
+                .iter()
+                .chain(&a.reads)
+                .chain(&a.inhibitors)
+                .map(|x| x.0)
+                .chain(a.capacities.iter().map(|x| x.0))
+                .collect();
+            (0..auto.len())
+                .filter(|&u| !auto[u] && sign[u] == g.side)
+                .filter_map(|u| {
+                    let touch: u64 = places.iter().map(|&p| delta(u, p).unsigned_abs()).sum();
+                    (touch > 0).then_some((u as u32, touch))
+                })
+                .collect()
+        })
+        .collect()
+}
+
 /// A set's words, inline, when it fits.
 fn inline(s: &TransitionSet) -> [u64; INLINE] {
     let mut w = [0; INLINE];
@@ -200,7 +241,13 @@ impl Game {
         );
         let goals = goals_of(&ix, &auto, &reward);
         let fed = fed_goals(&ix, &goals, &sign);
+        let feeders = touches(&ix, &auto, &sign, &goals);
         Self {
+            reach: feeders
+                .iter()
+                .map(|f| f.iter().map(|x| x.1).max().unwrap_or(0))
+                .collect(),
+            feeders,
             centrality: fed.iter().map(|f| f.len() as u32).collect(),
             fed,
             goals,
@@ -282,6 +329,8 @@ pub(crate) trait Walk: Clone {
     fn moves(&self, g: &Game, out: &mut Vec<usize>);
     /// Whether no move is enabled.
     fn over(&self, g: &Game) -> bool;
+    /// Whether transition `t` is enabled.
+    fn has(&self, t: usize) -> bool;
     /// Plays move `t` and settles. False when this engine cannot represent
     /// the result, which leaves `self` meaning nothing.
     fn play(&mut self, g: &Game, t: usize) -> Result<bool>;
@@ -289,8 +338,11 @@ pub(crate) trait Walk: Clone {
     /// How many tokens (or, over bits, conditions) transition `t` is short
     /// of enabled here: [`IndexedModel::deficit`], [`BitModel::deficit`].
     fn deficit(&self, g: &Game, t: usize) -> u64;
-    /// A 128-bit hash: the transposition table's key.
-    fn key(&self) -> u128;
+    /// Whether this is the counts engine, whose keys are hashes.
+    const COUNTS: bool;
+    /// The transposition table's key: the marking's words over bits, a
+    /// 128-bit hash of it over counts.
+    fn key(&self) -> memo::Key;
 }
 
 /// Mixes words into a 128-bit hash.
@@ -322,6 +374,10 @@ impl Walk for Counts {
         self.en.is_empty()
     }
 
+    fn has(&self, t: usize) -> bool {
+        self.en.contains(t)
+    }
+
     fn play(&mut self, g: &Game, t: usize) -> Result<bool> {
         g.ix.fire_tracked(t, &mut self.mk, &mut self.en);
         for _ in 0..SETTLE {
@@ -341,8 +397,11 @@ impl Walk for Counts {
         g.ix.deficit(t, &self.mk)
     }
 
-    fn key(&self) -> u128 {
-        key_of(self.mk.iter().map(|&v| v as u64))
+    const COUNTS: bool = true;
+
+    fn key(&self) -> memo::Key {
+        let h = key_of(self.mk.iter().map(|&v| v as u64));
+        [(h >> 64) as u64, h as u64, 0, 0]
     }
 }
 
@@ -374,6 +433,10 @@ impl Walk for Bits {
 
     fn over(&self, g: &Game) -> bool {
         (0..INLINE).all(|i| self.en[i] & g.move_words[i] == 0)
+    }
+
+    fn has(&self, t: usize) -> bool {
+        self.en[t / 64] >> (t % 64) & 1 == 1
     }
 
     fn play(&mut self, g: &Game, t: usize) -> Result<bool> {
@@ -408,39 +471,13 @@ impl Walk for Bits {
         }
     }
 
-    fn key(&self) -> u128 {
-        // Apart from the counts' keys: a bit marking is the same position
-        // as its counts, but hashes differently. The enabled set follows
-        // from the marking.
-        key_of(self.mk.iter().copied().chain([u64::MAX]))
-    }
-}
+    const COUNTS: bool = false;
 
-/// The table's keys are hashes already: use their low bits as they are.
-#[derive(Default)]
-struct KeyHasher(u64);
-
-impl Hasher for KeyHasher {
-    fn finish(&self) -> u64 {
-        self.0
+    fn key(&self) -> memo::Key {
+        // The marking itself (the enabled set follows from it); the table
+        // keeps it apart from the counts' hashes.
+        self.mk
     }
-    fn write(&mut self, bytes: &[u8]) {
-        for &b in bytes {
-            self.0 = self.0.rotate_left(8) ^ b as u64;
-        }
-    }
-    fn write_u128(&mut self, k: u128) {
-        self.0 = k as u64;
-    }
-}
-
-/// What a finished search knows about a position: its value lies in
-/// `[lo, hi]` (equal when exact), and the move that did best.
-#[derive(Clone, Copy)]
-struct Entry {
-    lo: f64,
-    hi: f64,
-    best: u32,
 }
 
 const NO_MOVE: u32 = u32::MAX;
@@ -451,23 +488,33 @@ const NO_MOVE: u32 = u32::MAX;
 pub struct Solver<'a> {
     g: &'a Game,
     chain: Chain,
-    tt: HashMap<u128, Entry, BuildHasherDefault<KeyHasher>>,
+    filters: Filters,
+    tt: Table,
     history: Vec<u32>,
     nodes: usize,
     budget: usize,
     /// The bit engine met a marking it cannot hold.
     spilled: bool,
-    /// Entries kept between calls: past this the table is cleared.
-    table: usize,
-    /// Entries the table never grows past, inside one search.
-    cap: usize,
     /// Whether a value is found by yes/no searches (see `solve`).
     null_window: bool,
 }
 
 impl<'a> Solver<'a> {
-    /// Entries kept before the table is cleared, by default.
-    const TABLE: usize = 2_000_000;
+    /// The entries the table holds at most, by default: 2^23, 264 MiB at the
+    /// 33 bytes an entry of a net of up to 192 places takes (about 400 MiB
+    /// while the last doubling moves it). On a Connect-4 position of 29
+    /// million nodes, searched without filters, it cost 3.6% more nodes than
+    /// an unbounded table; 2^21 entries cost 46%.
+    pub const MEMO: usize = 1 << 23;
+
+    /// The table for `g`: keys as wide as a bit marking when the bit engine
+    /// applies, else a 128-bit hash; bounds as indices when the rewards are
+    /// few.
+    fn table(g: &Game, entries: usize) -> Table {
+        let fits = g.bits.set_words() <= INLINE && g.bits.words() <= INLINE;
+        let kw = if fits { g.bits.words().max(2) } else { 2 };
+        Table::new(entries, kw, !g.values.is_empty())
+    }
 
     /// A solver giving up on a value past `budget` nodes.
     pub fn new(g: &'a Game, budget: usize) -> Self {
@@ -481,27 +528,40 @@ impl<'a> Solver<'a> {
         Ok(Self {
             g,
             chain,
-            tt: HashMap::default(),
+            filters: Filters::of(&Filter::DEFAULT),
+            tt: Self::table(g, Self::MEMO),
             history: vec![0; g.ix.transitions.len()],
             nodes: 0,
             budget,
             spilled: false,
-            table: Self::TABLE,
-            cap: usize::MAX,
             null_window: true,
         })
     }
 
-    /// Keeps the table to at most `entries`: cleared between calls past
-    /// that, and never grown past it inside one search (a position met
-    /// when it is full is searched again if met again). By default the
-    /// table is cleared past two million entries between calls but one
-    /// search may grow it without limit, so a hard position can outgrow memory
-    /// long before its node budget.
+    /// Keeps the table to at most `entries` (by default [`Solver::MEMO`]),
+    /// inside a search and across calls: past that, a new position takes
+    /// the place of a weaker one ([`crate::memo`]), and a position
+    /// forgotten is searched again if met again.
     pub fn with_memo(mut self, entries: usize) -> Self {
-        self.table = entries;
-        self.cap = entries;
+        self.tt = Self::table(self.g, entries);
         self
+    }
+
+    /// Drops moves by `filters` (see [`crate::filter`]) instead of
+    /// [`Filter::DEFAULT`].
+    pub fn with_filters(mut self, filters: &[Filter]) -> Self {
+        self.filters = Filters::of(filters);
+        self
+    }
+
+    /// Entries the table holds now.
+    pub fn memo_len(&self) -> usize {
+        self.tt.len()
+    }
+
+    /// Bytes one table entry takes, and the most bytes the table grows to.
+    pub fn memo_bytes(&self) -> (usize, usize) {
+        (self.tt.entry_bytes(), self.tt.most_bytes())
     }
 
     /// Finds a value by one search over the whole reward range, not a run
@@ -509,13 +569,6 @@ impl<'a> Solver<'a> {
     pub fn with_null_window(mut self, on: bool) -> Self {
         self.null_window = on;
         self
-    }
-
-    /// Remembers what a search of `k` found, space allowing.
-    fn store(&mut self, k: u128, e: Entry) {
-        if self.tt.len() < self.cap || self.tt.contains_key(&k) {
-            self.tt.insert(k, e);
-        }
     }
 
     /// The nodes the last [`Solver::value`] searched.
@@ -526,9 +579,7 @@ impl<'a> Solver<'a> {
     /// The exact value (+1 side's view) of a settled position with both
     /// sides playing perfectly, or `None` past `budget` nodes.
     pub fn value(&mut self, mk: &[i64]) -> Result<Option<f64>> {
-        if self.tt.len() > self.table {
-            self.tt.clear();
-        }
+        self.tt.age();
         let g = self.g;
         let fits = g.bits.set_words() <= INLINE;
         if let Some(b) = g.bits.marking(mk).filter(|b| fits && b.len() <= INLINE) {
@@ -596,9 +647,10 @@ impl<'a> Solver<'a> {
             return Ok(None);
         }
         let g = self.g;
+        let n0 = self.nodes;
         let k = w.key();
         let mut first = NO_MOVE;
-        if let Some(e) = self.tt.get(&k) {
+        if let Some(e) = self.tt.get(&k, W::COUNTS) {
             if e.lo == e.hi || e.lo >= b {
                 return Ok(Some(e.lo));
             }
@@ -613,17 +665,11 @@ impl<'a> Solver<'a> {
         w.moves(g, &mut moves);
         if moves.is_empty() {
             let x = w.score(g)?;
-            self.store(
-                k,
-                Entry {
-                    lo: x,
-                    hi: x,
-                    best: NO_MOVE,
-                },
-            );
+            self.store::<W>(&k, x, x, NO_MOVE, 1);
             return Ok(Some(x));
         }
         let s = g.mover(&moves)?;
+        let f = self.filters;
         // Children, best first, as the order chain ranks them.
         let cx = Ctx {
             g,
@@ -638,7 +684,33 @@ impl<'a> Solver<'a> {
                 self.spilled = true;
                 return Ok(None);
             }
+            if f.must_win && f.best(g, s, &next)? {
+                // The cutoff the winning move would have made.
+                self.chain.cutoff(&mut self.history, t);
+                let x = f.bound(g, s);
+                self.store::<W>(&k, x, x, t as u32, self.nodes - n0);
+                return Ok(Some(x));
+            }
             kids.push((self.chain.key(&cx, t, &next)?, t, next));
+        }
+        if f.non_losing {
+            let mut keep = Vec::with_capacity(kids.len());
+            for kid in kids {
+                match f.lost(g, s, &kid.2)? {
+                    None => {
+                        self.spilled = true;
+                        return Ok(None);
+                    }
+                    Some(true) => {}
+                    Some(false) => keep.push(kid),
+                }
+            }
+            if keep.is_empty() {
+                let x = f.bound(g, -s);
+                self.store::<W>(&k, x, x, NO_MOVE, self.nodes - n0);
+                return Ok(Some(x));
+            }
+            kids = keep;
         }
         kids.sort_by(|x, y| self.chain.before(&x.0, &y.0));
         let (a0, b0) = (a, b);
@@ -675,21 +747,15 @@ impl<'a> Solver<'a> {
         } else {
             (v, v)
         };
-        // Merge with what was known before this search narrowed the window.
-        let e = match self.tt.get(&k) {
-            Some(old) => Entry {
-                lo: lo.max(old.lo),
-                hi: hi.min(old.hi),
-                best: best.1,
-            },
-            None => Entry {
-                lo,
-                hi,
-                best: best.1,
-            },
-        };
-        self.store(k, e);
+        // Merged with what was known before this search narrowed the window.
+        self.store::<W>(&k, lo, hi, best.1, self.nodes - n0);
         Ok(Some(v))
+    }
+
+    /// Remembers that the value at `k` lies in `[lo, hi]` (and in what the
+    /// table knew of it), `best` doing best, found by `nodes` nodes.
+    fn store<W: Walk>(&mut self, k: &memo::Key, lo: f64, hi: f64, best: u32, nodes: usize) {
+        self.tt.store(k, W::COUNTS, Entry { lo, hi, best }, nodes);
     }
 }
 
@@ -697,6 +763,7 @@ impl<'a> Solver<'a> {
 mod tests {
     use super::*;
     use crate::schema::{Arc, Model, Place, Transition};
+    use std::collections::HashMap;
 
     fn place(id: &str, initial: i64) -> Place {
         Place {
@@ -987,11 +1054,65 @@ mod tests {
         g.settle(&mut start).unwrap();
         let mut s = Solver::new(&g, usize::MAX).with_memo(50);
         assert_eq!(s.value(&start).unwrap(), Some(0.0));
-        assert!(s.tt.len() <= 50, "{} entries", s.tt.len());
+        assert!(s.memo_len() <= 50, "{} entries", s.memo_len());
         let mut full = Solver::new(&g, usize::MAX);
         full.value(&start).unwrap();
-        assert!(full.tt.len() > 50, "the unbounded table is larger");
+        assert!(full.memo_len() > 50, "the default table is larger");
         assert!(s.nodes() > full.nodes(), "and remembering less costs nodes");
+    }
+
+    /// Every set of filters finds minimax's value at every position, by
+    /// bits and by counts, and settles some positions in fewer nodes.
+    #[test]
+    fn filters_find_the_same_values_on_both_engines() {
+        for (g, m0) in [tic_tac_toe(), nim()] {
+            let mut memo = HashMap::new();
+            let all = positions(&g, m0);
+            let mut plain = 0;
+            for mk in &all {
+                let mut s = Solver::new(&g, usize::MAX).with_filters(&[]);
+                s.value(mk).unwrap();
+                plain += s.nodes();
+            }
+            for filters in [
+                vec![Filter::MustWin],
+                vec![Filter::NonLosing],
+                vec![Filter::NonLosing, Filter::MustWin],
+            ] {
+                let mut nodes = 0;
+                for mk in &all {
+                    let mut s = Solver::new(&g, usize::MAX).with_filters(&filters);
+                    let want = minimax(&g, mk, &mut memo);
+                    assert_eq!(s.value(mk).unwrap(), Some(want), "{filters:?} at {mk:?}");
+                    nodes += s.nodes();
+                }
+                assert!(nodes < plain, "{filters:?}: {nodes} nodes, {plain} without");
+            }
+        }
+    }
+
+    /// A position where every move lets the other side win at once is
+    /// worth the loss, found without searching a reply.
+    #[test]
+    fn non_losing_settles_a_lost_position_at_once() {
+        let (g, m0) = tic_tac_toe();
+        let at = |name: &str| g.ix.transitions.iter().position(|t| t == name).unwrap();
+        let mut mk = m0;
+        for t in ["x_play0", "o_play1", "x_play4", "o_play8", "x_play6"] {
+            mk = g.play(&mk, at(t)).unwrap();
+        }
+        // x holds 0, 4 and 6 and threatens 0-3-6 at 3 and 2-4-6 at 2; o, to
+        // move, holds 1 and 8, cannot win at once and cannot block both.
+        let mut s = Solver::new(&g, usize::MAX).with_filters(&[Filter::NonLosing]);
+        assert_eq!(s.value(&mk).unwrap(), Some(1.0));
+        let mut plain = Solver::new(&g, usize::MAX).with_filters(&[]);
+        assert_eq!(plain.value(&mk).unwrap(), Some(1.0));
+        assert!(
+            s.nodes() < plain.nodes(),
+            "{} vs {}",
+            s.nodes(),
+            plain.nodes()
+        );
     }
 
     #[test]
