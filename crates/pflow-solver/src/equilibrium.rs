@@ -183,12 +183,12 @@ pub fn solve_until_equilibrium(
             }
 
             if adaptive && err > 0.0 {
-                let factor = 0.9 * (1.0 / err).powf(1.0 / (solver.order as f64 + 1.0));
+                let factor = 0.9 * crate::crmath::pow(1.0 / err, 1.0 / (solver.order as f64 + 1.0));
                 let factor = factor.min(5.0);
                 dtcur = dtmax.min(dtmin.max(dtcur * factor));
             }
         } else {
-            let factor = 0.9 * (1.0 / err).powf(1.0 / (solver.order as f64 + 1.0));
+            let factor = 0.9 * crate::crmath::pow(1.0 / err, 1.0 / (solver.order as f64 + 1.0));
             let factor = factor.max(0.1);
             dtcur = dtmin.max(dtcur * factor);
         }

@@ -11,15 +11,15 @@
 //! a line-for-line port of go-pflow's: same tableau constants, same stage /
 //! weight loop order, same `ucur + (dt*a) * k` and `dt * b[j] * k[j][i]`
 //! evaluation order, same error norm and controller. Go on amd64 (GOAMD64=v1,
-//! the default) does not fuse multiply-adds, and Rust never contracts, so the
-//! arithmetic is identical operation for operation. The step controller's
-//! `(1/err).powf(1/6)` is the one call that COULD differ — Rust's `powf` is
-//! the platform libm `pow`, Go's `math.Pow` is Go's own implementation — but
-//! on this corpus every controller call agreed to the bit (a pure-Python
-//! replica using libm `pow` also reproduces Go exactly). If a future
-//! platform's `pow` differs by an ulp, the bit-stable fixtures will fail here
-//! with a last-bit `t[i]` mismatch, and that is the moment to loosen to a
-//! relative bound — not before.
+//! the default) does not fuse multiply-adds, and since go-pflow
+//! feat/portable-cr-pow neither does arm64 (every product feeding a sum is
+//! wrapped in `float64(...)`, enforced by its `scripts/fma-check.sh`); Rust
+//! never contracts. The step controller's `(1/err)^(1/6)` used to be the one
+//! call that could differ (`powf` is the platform libm's, `math.Pow` Go's
+//! own); both sides now call the same correctly rounded pow,
+//! `crate::crmath::pow` here and `crmath.Pow` there, held to one corpus
+//! (`tests/crmath_corpus.rs`), so the arithmetic is identical operation for
+//! operation and there is nothing left to loosen to a relative bound.
 //!
 //! The one thing go-pflow does NOT make deterministic is flux accumulation
 //! order: its `buildVecODEFunction` iterates transitions from a Go map

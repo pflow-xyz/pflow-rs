@@ -19,7 +19,7 @@ The papers extend this further — showing the incidence matrix enables algebrai
 | `pflow-core` | Core types: `PetriNet`, `Place`, `Transition`, `Arc`, `State`, fluent `Builder`; Shape A JSON and color expansion (`colors.rs`) |
 | `pflow-metamodel` | Shape B `Model` (stages, schedules, parameters, access) and the one shared firing rule every engine calls; `IndexedModel`/`BitModel` (the same rule over dense and bit markings, for searches) and `game` (exact two-sided game values by alpha-beta, with a bounded transposition table, `memo`, sound move filters, `filter`, root pieces, `root`: an `Estimate` and the `aspiration` driver, an opening `book` read from label caches, and `Solver::choose`, a best move under a node or time budget); a `SearchPlan` draws as a Petri net (`SearchPlan::net`) whose string diagram is the plan as one composite, its composition laws held by `tests/search_laws.rs` (`docs/search-composition-laws.md`) |
 | `pflow-parser` | Shape A → Shape B converter (`is_pflow_json`, `model_from_json`), held to go-pflow's editor-shape goldens |
-| `pflow-solver` | ODE solvers (Tsitouras 5/4, RK45, etc.), equilibrium detection, vectorized fast path; `ssa` — portable Gillespie SSA (byte-exact with go-pflow/pflow-xyz/pflow-jl); `ssa::sde` — chemical Langevin SDE (intrinsic noise, byte-exact with go-pflow/pflow-xyz); `game` — the mass-action ODE of a game's net as `pflow-metamodel`'s root `Estimate` (`ode`) |
+| `pflow-solver` | ODE solvers (Tsitouras 5/4, RK45, etc.), equilibrium detection, vectorized fast path; `ssa` — portable Gillespie SSA (byte-exact with go-pflow/pflow-xyz/pflow-jl); `ssa::sde` — chemical Langevin SDE (intrinsic noise, byte-exact with go-pflow/pflow-xyz); `game` — the mass-action ODE of a game's net as `pflow-metamodel`'s root `Estimate` (`ode`); `crmath` — a correctly rounded, host-independent `pow` (no libm) that every step controller calls instead of `f64::powf` |
 | `pflow-learn` | System identification: forward + adjoint sensitivities, gradient (Adam/backtracking) and derivative-free (Nelder-Mead) fitting, MLP rate functions, tied parameters — ported from go-pflow's `learn`, held to the same Go/JS goldens (`parity/`) |
 | `pflow-tokenmodel` | Token model `Schema`, `Runtime`, content-addressed identity (CID) |
 | `pflow-dsl` | S-expression DSL parser, code generation |
@@ -61,6 +61,23 @@ cargo test -p pflow-zk              # Foundation crate only
 cargo test -p pflow-zk-arkworks     # Arkworks prover
 cargo test -p pflow-solver          # ODE + SSA (incl. the byte-exact SSA goldens); the full workspace build is slow
 ```
+
+### Portable pow (`pflow_solver::crmath`)
+
+`crates/pflow-solver/src/crmath.rs` is `x^y` correctly rounded from IEEE
+`+ - * /` and bit casts only (double-double, Ziv's rounding test, a 320-bit
+fixed-point fallback); its module doc has the method. **Never `f64::powf`** on
+a path that must match another host: it is the platform libm's (Apple's,
+glibc's, musl's port on wasm32), wrong on different inputs on each, and the
+ODE controller's `(1/err)^(1/(order+1))` feeds every later step and the game
+search's move order. go-pflow (`crmath`), pflow-xyz (`internal/crmath`, and
+`crPow` in `public/petri-solver.js`) carry operation-for-operation ports, and
+`tests/fixtures/crmath/pow.txt` (`scripts/crmath/corpus.py`, Python `decimal`
+at 120 digits) is copied byte-identical into each and asserted bit for bit,
+natively and on wasm32 (`scripts/crmath/run-wasi.mjs` runs the test binary
+under Node: `cargo test -p pflow-solver --target wasm32-wasip1 --test
+crmath_corpus --no-run`). `examples/crmath_stress.rs` checks the fast path
+against the fixed-point one on millions of inputs.
 
 ### Portable SSA (`pflow_solver::ssa`)
 

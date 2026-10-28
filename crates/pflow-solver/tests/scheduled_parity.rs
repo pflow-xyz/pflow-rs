@@ -62,7 +62,10 @@ fn forecast_schedule_refusal(m: &Model) -> Option<(String, Vec<String>, String)>
          constant rate per transition; the declared day shape would be run flat. Use the \
          discrete engine (Simulate), which honours the schedule segment by segment."
             .to_string(),
-        vec!["model-declared schedule: a time-varying rate is not a mass-action constant".to_string()],
+        vec![
+            "model-declared schedule: a time-varying rate is not a mass-action constant"
+                .to_string(),
+        ],
         "ode".to_string(),
     ))
 }
@@ -76,7 +79,10 @@ fn forecast_refuses_cafe_service_with_go_pflow_reason() {
     let model = load_model(&doc);
     let want = &doc["forecastRefusal"];
 
-    assert_eq!(want["diverged"], true, "golden's own forecastRefusal.diverged");
+    assert_eq!(
+        want["diverged"], true,
+        "golden's own forecastRefusal.diverged"
+    );
 
     let (reason, caveats, method) =
         forecast_schedule_refusal(&model).expect("cafe-service.json declares a schedule");
@@ -104,7 +110,10 @@ fn forecast_refuses_cafe_service_with_go_pflow_reason() {
 fn scheduled_run_matches_go_pflow_shape() {
     let doc = load();
     let model = load_model(&doc);
-    assert!(model.has_schedules(), "cafe-service.json declares a schedule");
+    assert!(
+        model.has_schedules(),
+        "cafe-service.json declares a schedule"
+    );
 
     let opts_doc = &doc["options"];
     let mut rates: HashMap<String, f64> = HashMap::new();
@@ -209,10 +218,16 @@ fn scheduled_run_matches_go_pflow_exactly() {
         for (i, (w, g)) in want_values.iter().zip(&got.values).enumerate() {
             let w = w.as_f64().unwrap();
             total += 1;
-            assert_eq!(*g, w, "series[{place}][{i}]: expected go-pflow's {w}, got {g}");
+            assert_eq!(
+                *g, w,
+                "series[{place}][{i}]: expected go-pflow's {w}, got {g}"
+            );
         }
     }
-    assert!(total > 0, "compared zero doubles; the golden or the run is empty");
+    assert!(
+        total > 0,
+        "compared zero doubles; the golden or the run is empty"
+    );
 
     let want_final = want["final"].as_object().expect("result.final");
     for (place, w) in want_final {
