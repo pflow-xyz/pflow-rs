@@ -121,6 +121,12 @@ Pieces from the candidate table in the ontology's ROADMAP (Phase 5, approved 202
 
   As the candidate table said, it pays off when a net has many distinct rewards, and costs a little on the ±1 games (three rewards, two gaps), where Connect-4 pays 2.6% for its different first test. The prize games are a test net (`common::prizes`): prizes taken in turn, each worth its weight to its taker.
 
+### incremental_hash (memo key)
+- The counts engine (`Counts` in game.rs) keys the table by a 128-bit hash of the marking. It used to rehash every place at each node; it now keeps the key as a Zobrist hash: each (place, count) has a fixed 128-bit key (a splitmix function of the pair, so no table is kept and a count has no ceiling), the marking's hash is the XOR of its places' keys, and a firing XORs out the touched places' keys at the old counts and in at the new ones (`IndexedModel::touched`). Automatic firings while settling do the same, so the key is current after `play`. A fresh walk (`Counts::new`), the book (`Solver::key_at`) and the search all use the same function, `rehash`. Unfiring is the same XOR, but the search copies children and does not unfire.
+- The bit engine is untouched: its key is the packed marking itself, injective, so it has no hash to maintain (the candidate table's "bits of the `flip` mask" is the same idea, already realised by keeping the marking). Exactness off the bit engine rests on 128 bits not colliding, as before; the XOR key keeps that width.
+- Gate (tests/search_hash.rs): `Game::counts_keys` plays a line and gives the incremental key beside a full rehash at each position; they are equal at every node of 300 random walks on each of tic-tac-toe, Connect-3 and Connect-4 (several thousand nodes each), and for every move out of all 5,478 reachable tic-tac-toe positions; no two different markings seen share a key. The golden gate is unchanged (it is on the bit engine). Nim, the unit tests' counts game, finds the same values.
+- Not measured on a search: every fixture net fits the bit engine, so none exercises the counts engine's key. The saving is per node, from the places of the net to the places of the transition (and its settling firings).
+
 ## Sketch: more pieces to mix in (not committed)
 
 | Piece | Kind | Needs from the net | Exact? |

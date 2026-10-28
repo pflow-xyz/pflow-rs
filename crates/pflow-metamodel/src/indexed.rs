@@ -364,6 +364,11 @@ impl IndexedModel {
         s
     }
 
+    /// The places firing `t` changes (an input or an output), ascending, once each.
+    pub(crate) fn touched(&self, t: usize) -> &[usize] {
+        &self.touched[t]
+    }
+
     /// Fires `t` in place and brings `en`, the enabled set at `mk`, up to
     /// date, re-evaluating only the conditions on the places `t` changes.
     /// Like [`Model::fire`], it does not check enablement.

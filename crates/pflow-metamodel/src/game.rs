@@ -287,6 +287,22 @@ impl Game {
         Err(endless())
     }
 
+    /// The transposition keys the counts engine holds along a line of play:
+    /// plays `line` (moves, each followed by the automatic transitions
+    /// settling) from settled marking `mk`, and gives at `mk` and after each
+    /// move a pair (the key kept by XORing in the places each firing
+    /// changed, the key of the whole marking hashed afresh). The two are
+    /// equal at every position; this is how that is checked.
+    pub fn counts_keys(&self, mk: &[i64], line: &[usize]) -> Result<Vec<(u128, u128)>> {
+        let mut w = Counts::new(self, mk.to_vec());
+        let mut out = vec![(w.hash, rehash(&w.mk))];
+        for &t in line {
+            w.play(self, t)?;
+            out.push((w.hash, rehash(&w.mk)));
+        }
+        Ok(out)
+    }
+
     /// The moves at a settled marking.
     pub fn moves(&self, mk: &[i64]) -> Vec<usize> {
         self.ix.enabled_transitions(mk)
@@ -350,21 +366,33 @@ pub(crate) trait Walk: Clone {
     /// Whether this is the counts engine, whose keys are hashes.
     const COUNTS: bool;
     /// The transposition table's key: the marking's words over bits, a
-    /// 128-bit hash of it over counts.
+    /// 128-bit hash of it over counts, kept current as moves are played.
     fn key(&self) -> memo::Key;
 }
 
-/// Mixes words into a 128-bit hash.
-fn key_of(xs: impl Iterator<Item = u64>) -> u128 {
-    let (mut a, mut b) = (0x9E37_79B9_7F4A_7C15u64, 0xC2B2_AE3D_27D4_EB4Fu64);
-    for (i, v) in xs.enumerate() {
-        let x = v.wrapping_add((i as u64) << 40);
-        a = (a ^ x).wrapping_mul(0xFF51_AFD7_ED55_8CCD).rotate_left(29);
-        b = (b ^ x.rotate_left(17))
-            .wrapping_mul(0xC4CE_B9FE_1A85_EC53)
-            .rotate_left(31);
-    }
+/// One step of splitmix64: a bijection that mixes its input well.
+fn mix(mut x: u64) -> u64 {
+    x = x.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    x = (x ^ x >> 30).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    x = (x ^ x >> 27).wrapping_mul(0x94D0_49BB_1331_11EB);
+    x ^ x >> 31
+}
+
+/// The Zobrist key of place `p` holding `c` tokens: 128 bits fixed by the
+/// pair alone, so no table is kept and a count has no ceiling.
+fn zobrist(p: usize, c: i64) -> u128 {
+    let a = mix(mix(p as u64 ^ 0xD6E8_FEB8_6659_FD93).wrapping_add(c as u64));
+    let b = mix(a ^ 0xA076_1D64_78BD_642F ^ (p as u64).rotate_left(32));
     (a as u128) << 64 | b as u128
+}
+
+/// The hash of a whole marking: the XOR of the keys of its places' counts.
+/// A firing changes the keys of the places it touches only, which
+/// [`Counts`] updates in place; this is the same value from scratch.
+pub(crate) fn rehash(mk: &[i64]) -> u128 {
+    mk.iter()
+        .enumerate()
+        .fold(0, |h, (p, &c)| h ^ zobrist(p, c))
 }
 
 /// Counts, with the enabled set kept current.
@@ -372,6 +400,32 @@ fn key_of(xs: impl Iterator<Item = u64>) -> u128 {
 pub(crate) struct Counts {
     mk: Vec<i64>,
     en: Enabled,
+    /// [`rehash`] of `mk`, kept current as moves are played.
+    hash: u128,
+}
+
+impl Counts {
+    /// The walk at settled marking `mk`.
+    fn new(g: &Game, mk: Vec<i64>) -> Self {
+        Self {
+            en: g.ix.enabled_set(&mk),
+            hash: rehash(&mk),
+            mk,
+        }
+    }
+
+    /// Fires `t`, XORing the keys of the places it changes out at their
+    /// old counts and in at their new ones.
+    fn fire(&mut self, g: &Game, t: usize) {
+        let touched = g.ix.touched(t);
+        for &p in touched {
+            self.hash ^= zobrist(p, self.mk[p]);
+        }
+        g.ix.fire_tracked(t, &mut self.mk, &mut self.en);
+        for &p in touched {
+            self.hash ^= zobrist(p, self.mk[p]);
+        }
+    }
 }
 
 impl Walk for Counts {
@@ -388,12 +442,12 @@ impl Walk for Counts {
     }
 
     fn play(&mut self, g: &Game, t: usize) -> Result<bool> {
-        g.ix.fire_tracked(t, &mut self.mk, &mut self.en);
+        self.fire(g, t);
         for _ in 0..SETTLE {
             let Some(u) = self.en.first_in(&g.auto_set) else {
                 return Ok(true);
             };
-            g.ix.fire_tracked(u, &mut self.mk, &mut self.en);
+            self.fire(g, u);
         }
         Err(endless())
     }
@@ -409,8 +463,7 @@ impl Walk for Counts {
     const COUNTS: bool = true;
 
     fn key(&self) -> memo::Key {
-        let h = key_of(self.mk.iter().map(|&v| v as u64));
-        [(h >> 64) as u64, h as u64, 0, 0]
+        [(self.hash >> 64) as u64, self.hash as u64, 0, 0]
     }
 }
 
@@ -691,7 +744,7 @@ impl<'a> Solver<'a> {
                 (k, false)
             }
             None => {
-                let h = key_of(mk.iter().map(|&v| v as u64));
+                let h = rehash(mk);
                 ([(h >> 64) as u64, h as u64, 0, 0], true)
             }
         }
@@ -720,10 +773,7 @@ impl<'a> Solver<'a> {
         for &t in &moves {
             let next = g.play(mk, t)?;
             if self.root.non_losing {
-                let w = Counts {
-                    en: g.ix.enabled_set(&next),
-                    mk: next.clone(),
-                };
+                let w = Counts::new(g, next.clone());
                 if self.filters.lost(g, s, &w)? == Some(true) {
                     continue;
                 }
@@ -881,14 +931,7 @@ impl<'a> Solver<'a> {
             }
         }
         self.nodes = 0;
-        let en = g.ix.enabled_set(mk);
-        self.solve(
-            &Counts {
-                mk: mk.to_vec(),
-                en,
-            },
-            guess,
-        )
+        self.solve(&Counts::new(g, mk.to_vec()), guess)
     }
 
     /// The value at `w` as a run of yes/no searches, one per gap between
@@ -1408,10 +1451,7 @@ mod tests {
         };
         w.mk[..b.len()].copy_from_slice(&b);
         g.bits.enabled_words(&w.mk, &mut w.en[..g.bits.set_words()]);
-        let c = Counts {
-            en: g.ix.enabled_set(&mk),
-            mk: mk.clone(),
-        };
+        let c = Counts::new(&g, mk.clone());
         let key = |name: &str| {
             let t = at(name);
             let (mut wb, mut wc) = (w, c.clone());
@@ -1484,7 +1524,7 @@ mod tests {
 
         fn estimate(&mut self, _: &Game, mk: &[i64]) -> Result<f64> {
             Ok(self.0.unwrap_or_else(|| {
-                let h = key_of(mk.iter().map(|&v| v as u64));
+                let h = rehash(mk);
                 (h % 1000) as f64 / 250.0 - 2.0
             }))
         }
@@ -1677,10 +1717,7 @@ mod tests {
             let kids: Vec<(usize, Counts)> = moves
                 .iter()
                 .map(|&t| {
-                    let mut w = Counts {
-                        mk: mk.clone(),
-                        en: g.ix.enabled_set(mk),
-                    };
+                    let mut w = Counts::new(&g, mk.clone());
                     assert!(w.play(&g, t).unwrap());
                     (t, w)
                 })
