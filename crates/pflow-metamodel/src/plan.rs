@@ -37,7 +37,11 @@
 //!   [`Solver::with_time`] for the clock). Each at most once: the search
 //!   runs them in one order, budget(null_window(core)) (or mtd_f for null_window), whatever the list's.
 //! - `memo`: `{"entries": N}` keeps the transposition table to N entries
-//!   (by default [`Solver::MEMO`]).
+//!   (by default [`Solver::MEMO`]); `"partial_key": true` lays the table out
+//!   so an entry keeps only the part of its marking that its bucket does not
+//!   say, which takes fewer words ([`Solver::with_partial_key`]). It cannot
+//!   change a value; [`SearchPlan::solver`] refuses it where the net or the
+//!   size cannot support it ([`Solver::partial_key_check`]).
 //! - `filters`: [`Filter`] names, which drop moves only where the value is
 //!   already known, so they are legal in either mode. Default:
 //!   [`Filter::DEFAULT`]; `[]` runs none.
@@ -145,11 +149,21 @@ fn expect(name: &str, want: Kind) -> Result<()> {
     }
 }
 
-/// `{"entries": N}`.
+fn default_entries() -> usize {
+    Solver::MEMO
+}
+
+/// `{"entries": N, "partial_key": true}`, either or both.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Memo {
+    #[serde(default = "default_entries")]
     pub entries: usize,
+    /// Lay the table out so an entry keeps only part of its key
+    /// ([`Solver::with_partial_key`]). Exact; refused where the net or the
+    /// size cannot support it ([`Solver::partial_key_check`]).
+    #[serde(default)]
+    pub partial_key: bool,
 }
 
 /// `{"order": [...]}`: the root's pieces.
@@ -423,7 +437,10 @@ impl SearchPlan {
             s = s.with_time(std::time::Duration::from_millis(ms));
         }
         if let Some(m) = self.memo {
-            s = s.with_memo(m.entries);
+            if m.partial_key {
+                Solver::partial_key_check(g, m.entries)?;
+            }
+            s = s.with_memo(m.entries).with_partial_key(m.partial_key);
         }
         match (r.estimate, estimate) {
             (None, _) => Ok(s),
@@ -499,6 +516,7 @@ impl SearchPlan {
             heuristics: self.heuristics.clone(),
             memo: Some(self.memo.unwrap_or(Memo {
                 entries: Solver::MEMO,
+                partial_key: false,
             })),
         })
     }
@@ -579,7 +597,12 @@ impl SearchPlan {
         n.add("chain".into(), &chain_in, &[&ordered]);
         let table = n.place("Table".into());
         let entries = p.memo.map_or(Solver::MEMO, |m| m.entries);
-        n.add(format!("memo(entries={entries})"), &[], &[&table]);
+        let layout = if p.memo.is_some_and(|m| m.partial_key) {
+            ",partial_key"
+        } else {
+            ""
+        };
+        n.add(format!("memo(entries={entries}{layout})"), &[], &[&table]);
         let mut drivers: Vec<(String, Option<&String>)> = vec![];
         if d.null_window {
             drivers.push(("driver.null_window".into(), None));

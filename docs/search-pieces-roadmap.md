@@ -129,6 +129,20 @@ Pieces from the candidate table in the ontology's ROADMAP (Phase 5, approved 202
 - Gate (tests/search_hash.rs): `Game::counts_keys` plays a line and gives the incremental key beside a full rehash at each position; they are equal at every node of 300 random walks on each of tic-tac-toe, Connect-3 and Connect-4 (several thousand nodes each), and for every move out of all 5,478 reachable tic-tac-toe positions; no two different markings seen share a key. The golden gate is unchanged (it is on the bit engine). Nim, the unit tests' counts game, finds the same values.
 - Not measured on a search: every fixture net fits the bit engine, so none exercises the counts engine's key. The saving is per node, from the places of the net to the places of the transition (and its settling firings).
 
+### partial_key (memo layout)
+- `{"memo": {"partial_key": true}}` (with or without `entries`), `Solver::with_partial_key`. An entry keeps only the part of its marking that its bucket does not say (Pons's trick). The marking is scrambled by a bijection of its `n`-bit numbers, then cut by the bucket count `B` as `v = q * B + r`; the bucket is `r`, the entry stores `q` and one bit saying whether it sits in its first bucket or its second (the second is `r` moved by an offset that `q` decides, which `q` and the bucket undo). `(q, r)` fixes `v`, so two positions never share an entry. Unlike Pons's prime-sized table this needs no condition on the table's size (a division, not the Chinese remainder theorem), so the legality check has no uniqueness bound to test; what it tests is below. The table doubles by decoding each entry back to `v` and splitting it again, so the stored width shrinks as it grows. Connect-4's 131 places: three words of key become two at 2^23 entries.
+- Legality, `Solver::partial_key_check`, run by `SearchPlan::solver` (the plan check alone needs no net): refused when the net does not fit the bit engine (over 256 places or transitions), when a transition changes a place by two tokens or more (the net does not keep to 0/1 markings), when `q` and its bit do not fit four words, or when it would save nothing at the table's size (an entry keeps as many words as the whole marking takes). A marking that leaves 0/1 anyway is searched by counts, as before; the counts keys (hashes) go in a plain side table made on first use, so no value changes. Default plans do not use it, and the golden gate is untouched.
+- Gate (tests/search_partial.rs, and the unit tests in memo.rs): values identical to the default on every tic-tac-toe position, Connect-3 and the Connect-4 sample; on tic-tac-toe in tables of 4 to 65,536 entries (evicting and doubling), fresh and shared, twice; on a net whose search spills to counts; the scramble is a bijection and `(q, r)` joins back (131 and 255 bits, power-of-two and other bucket counts); a found key reads back what was stored for it; pinned entries survive. Refusals tested for each reason above.
+- Memory and time (`cargo run --release -p pflow-metamodel --example search_partial`; peak by `search_partial one whole|partial 10 30000000`, under `/usr/bin/time -l`; the Mac was loaded, load average 13 to 24, so times are indicative):
+
+  | net | bytes an entry, whole | partial | table at 2^23 entries |
+  | --- | --- | --- | --- |
+  | tic-tac-toe, Connect-3 (31, 52 places) | 25 | 17 (-32%) | 200 MiB to 136 MiB |
+  | Connect-4 (131 places) | 33 | 25 (-24%) | 264 MiB to 200 MiB |
+
+  Connect-4 ply 10, 30M-node budget, one position: peak resident 553 MB whole, 421 to 425 MB partial (-23%); nodes 22,371,434 and 22,368,153 (the two tables evict slightly differently), the same value. The 50-position bench has the same nodes (1,119,152) and takes about 12% more wall time (best of four 1.600 s against 1.798 s): a probe now scrambles the marking and divides it.
+- Not done: the scramble and split are recomputed at each probe (a lookup and the store after it); caching the probe for a node would win some of the time back.
+
 ## Sketch: more pieces to mix in (not committed)
 
 | Piece | Kind | Needs from the net | Exact? |

@@ -583,6 +583,10 @@ pub struct Solver<'a> {
     stop: bool,
     /// Whether [`Solver::choose`] guesses when the budget runs out.
     play: bool,
+    /// The entries the table was given, and whether its entries keep only
+    /// part of their key (see [`Solver::with_partial_key`]).
+    entries: usize,
+    partial_key: bool,
 }
 
 impl<'a> Solver<'a> {
@@ -596,10 +600,57 @@ impl<'a> Solver<'a> {
     /// The table for `g`: keys as wide as a bit marking when the bit engine
     /// applies, else a 128-bit hash; bounds as indices when the rewards are
     /// few.
-    fn table(g: &Game, entries: usize) -> Table {
+    fn table(g: &Game, entries: usize, partial: bool) -> Table {
         let fits = g.bits.set_words() <= INLINE && g.bits.words() <= INLINE;
+        if partial && Self::partial_key_check(g, entries).is_ok() {
+            return Table::partial(entries, g.bits.places(), !g.values.is_empty());
+        }
         let kw = if fits { g.bits.words().max(2) } else { 2 };
         Table::new(entries, kw, !g.values.is_empty())
+    }
+
+    /// Whether `g` can use the `partial_key` table layout with `entries`
+    /// ([`Solver::with_partial_key`]), else why not:
+    ///
+    /// - the bit engine must apply (at most 256 places and 256 transitions),
+    ///   with the places' bits and the one bit that says which bucket an
+    ///   entry sits in fitting in four words;
+    /// - the net must keep to 0/1 markings as far as its arcs say (no
+    ///   transition changes a place by two tokens or more), since the layout
+    ///   is exact over bit markings only. A marking that goes past 0/1
+    ///   anyway is searched by counts, whose hashed keys wait in a plain
+    ///   table of their own, so no value changes;
+    /// - the layout must save a word: at the most the table grows to,
+    ///   an entry must keep fewer words of key than the whole marking takes.
+    ///
+    /// The uniqueness it rests on needs no condition on the table's size:
+    /// `(q, r)` with `v = q * buckets + r` fixes `v` for any bucket count
+    /// (Pons's prime and the Chinese remainder theorem are not needed), and
+    /// the scramble from marking to `v` is a bijection.
+    pub fn partial_key_check(g: &Game, entries: usize) -> Result<()> {
+        let no = |why: String| Err(Error::Game(format!("partial_key: {why}")));
+        if g.bits.set_words() > INLINE || g.bits.words() > INLINE {
+            return no(
+                "the net does not fit the bit engine (over 256 places or transitions)".into(),
+            );
+        }
+        if g.bits.spoiling() {
+            return no("a transition changes a place by two tokens or more: the net does not keep to 0/1 markings".into());
+        }
+        let nbits = g.bits.places();
+        let Some(words) = memo::partial_words(nbits, entries) else {
+            return no(format!(
+                "{nbits} places and the bit saying which bucket leave no room in four words"
+            ));
+        };
+        let whole = g.bits.words().max(2);
+        if words >= whole {
+            return no(format!(
+                "saves nothing: at {entries} entries an entry keeps {words} words of key, \
+                 the whole marking takes {whole}"
+            ));
+        }
+        Ok(())
     }
 
     /// A solver giving up on a value past `budget` nodes.
@@ -615,7 +666,7 @@ impl<'a> Solver<'a> {
             g,
             chain,
             filters: Filters::of(&Filter::DEFAULT),
-            tt: Self::table(g, Self::MEMO),
+            tt: Self::table(g, Self::MEMO, false),
             history: vec![0; g.ix.transitions.len()],
             nodes: 0,
             budget,
@@ -628,6 +679,8 @@ impl<'a> Solver<'a> {
             deadline: None,
             stop: false,
             play: false,
+            entries: Self::MEMO,
+            partial_key: false,
         })
     }
 
@@ -636,7 +689,20 @@ impl<'a> Solver<'a> {
     /// the place of a weaker one ([`crate::memo`]), and a position
     /// forgotten is searched again if met again.
     pub fn with_memo(mut self, entries: usize) -> Self {
-        self.tt = Self::table(self.g, entries);
+        self.entries = entries;
+        self.tt = Self::table(self.g, entries, self.partial_key);
+        self
+    }
+
+    /// Lays the table out with `partial_key` when `on`: an entry keeps only
+    /// the part of its marking that its bucket does not say, which takes
+    /// fewer words (see [`crate::memo`]). Values do not change. It applies
+    /// only where [`Solver::partial_key_check`] allows, and is otherwise
+    /// left off here (a plan refuses instead); like [`Solver::with_memo`]
+    /// it starts a new table, so call it before the book is pinned.
+    pub fn with_partial_key(mut self, on: bool) -> Self {
+        self.partial_key = on;
+        self.tt = Self::table(self.g, self.entries, on);
         self
     }
 

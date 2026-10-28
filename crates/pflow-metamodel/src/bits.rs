@@ -308,6 +308,18 @@ impl BitModel {
         self.words
     }
 
+    /// The places of a bit marking.
+    pub fn places(&self) -> usize {
+        self.places
+    }
+
+    /// Whether some transition changes a place by two tokens or more, so
+    /// that no firing of it leaves a 0/1 marking: the net does not keep to
+    /// 0/1 markings.
+    pub fn spoiling(&self) -> bool {
+        self.spoils.iter().any(|&x| x)
+    }
+
     /// The number of `u64` words an enabled set for
     /// [`BitModel::fire_tracked`] takes: one bit per transition.
     pub fn set_words(&self) -> usize {

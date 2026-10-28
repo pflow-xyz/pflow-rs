@@ -255,3 +255,65 @@ pub fn prizes(weights: &[i64]) -> (Game, Vec<i64>) {
     let g = Game::new(ix, vec![false; ts.len()], sign, reward);
     (g, m0)
 }
+
+/// [`prizes`], with every take also putting a token on one place, `pile`:
+/// two takes put a second token on it, so the bit engine meets a marking it
+/// cannot hold (no transition changes a place by two tokens, so the net does
+/// not say so beforehand) and the search finishes by counts.
+pub fn piling_prizes(weights: &[i64]) -> (Game, Vec<i64>) {
+    use pflow_metamodel::{Arc, Model, Place, Transition};
+    let place = |id: &str, initial| Place {
+        id: id.into(),
+        initial,
+        ..Default::default()
+    };
+    let arc = |from: &str, to: &str| Arc {
+        from: from.into(),
+        to: to.into(),
+        ..Default::default()
+    };
+    let mut places = vec![place("x_turn", 1), place("o_turn", 0), place("pile", 0)];
+    let (mut ts, mut arcs) = (vec![], vec![]);
+    for (i, _) in weights.iter().enumerate() {
+        places.push(place(&format!("prize_{i}"), 1));
+        for (s, mine, theirs) in [("x", "x_turn", "o_turn"), ("o", "o_turn", "x_turn")] {
+            let (t, got) = (format!("{s}_take_{i}"), format!("{s}_got_{i}"));
+            places.push(place(&got, 0));
+            arcs.extend([
+                arc(&format!("prize_{i}"), &t),
+                arc(mine, &t),
+                arc(&t, theirs),
+                arc(&t, &got),
+                arc(&t, "pile"),
+            ]);
+            ts.push(t);
+        }
+    }
+    let m = Model {
+        places,
+        transitions: ts
+            .iter()
+            .map(|t| Transition {
+                id: t.clone(),
+                ..Default::default()
+            })
+            .collect(),
+        arcs,
+        ..Default::default()
+    };
+    let ix = m.indexed();
+    let m0 = ix.dense(&m.initial_marking());
+    let at = |id: &str| ix.places.iter().position(|p| p == id).unwrap();
+    let mut reward = vec![];
+    for (i, &w) in weights.iter().enumerate() {
+        reward.push((at(&format!("x_got_{i}")), w as f64));
+        reward.push((at(&format!("o_got_{i}")), -(w as f64)));
+    }
+    let sign = ix
+        .transitions
+        .iter()
+        .map(|t| if t.starts_with("x_") { 1.0 } else { -1.0 })
+        .collect();
+    let g = Game::new(ix, vec![false; ts.len()], sign, reward);
+    (g, m0)
+}
