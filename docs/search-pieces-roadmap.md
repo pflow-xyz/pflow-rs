@@ -148,6 +148,23 @@ Pieces from the candidate table in the ontology's ROADMAP (Phase 5, approved 202
 - Gate (tests/search_forced.rs; F4 in tests/search_laws.rs): values identical to the default, with and without `must_win`, on every tic-tac-toe position, Connect-3 and the Connect-4 sample; and the same node counts as `non_losing` on all three (40,469 / 4,274 / 1,084,501 with `must_win`; the replies it plays are not counted nodes); on games with no goals and on one searched by counts.
 - Result: met on the gate, **no speed-up measured**. `cargo run --release -p pflow-metamodel --example search_forced` (best of 3, loaded Mac): Connect-4 sample must_win 0.58 s, plus `non_losing` 1.70 s, plus `forced_moves` 1.72 s; tic-tac-toe 0.015 s, 0.019 s, 0.019 s. The gate says "maybe a threat" at 99.97% of the Connect-4 sample's nodes (775,125 of 775,385 asks): a line with three of its four stones set counts, though an opposing stone in its fourth cell has blocked it for good, and nothing net-generic here says so. The piece is kept because the gate is values identical and nodes reported; whoever wants the saving needs a tighter, still net-derived test (the missing cell must be one a reply can still fill). It stays out of the default plan.
 
+### lmr (heuristic, not value-preserving)
+- `{"mode": "play", "heuristics": ["lmr"], "tuning": {"lmr": {"after": 3, "nodes": 64}}}`, `Solver::with_lmr(after, nodes)`. **Not value-preserving.** At a node (not the root), the moves ranked after the first `after` get `nodes` nodes each instead of what is left of the budget. The sketch asks for a depth to reduce; this search has none, so the reduction is of budget (the sketch allows "depth or budget"). A move that finishes inside its allowance gives its exact value; one that does not is taken to be worth the window's edge for the mover (as if it failed low) and the search goes on. A node that cut a move so, and every node above it, stores nothing in the table, so the table never holds a bound this piece could have got wrong. `Solver::lossy()` says whether the last call cut anything, and `Choice::exact` is false then.
+- Gate (tests/search_lossy.rs): refused in exact mode, by the existing legality check, and admitted in play mode only; in no default plan (the golden gate is unchanged); a search that cut nothing found the exact value on every tic-tac-toe position through a table earlier cut searches passed through (a polluted table would fail this); a search that cut something may differ (it does: with 1 move and 3 nodes, 259 of 5,478 searches are wrong, all of them flagged); `choose` never calls a cut search exact.
+- Effect in play mode (`cargo run --release -p pflow-solver --example search_lossy`, the 200-position Connect-4 sample, `choose` under a node budget for the whole call; "valued" is positions that got a value, "exact" how many of those equal the exact value, "best" how many picks are a best move):
+
+  | plan | budget | valued | exact | best | nodes | time |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | default | 10,000 | 172 | 172 | 188 | 330,038 | 0.16 s |
+  | default | 100,000 | 189 | 189 | 196 | 1,963,616 | 0.99 s |
+  | lmr after 3, 64 nodes | 10,000 | 189 | 185 | 191 | 206,641 | 0.11 s |
+  | lmr after 3, 64 nodes | 100,000 | 200 | 194 | 193 | 553,724 | 0.30 s |
+  | lmr after 2, 16 nodes | 10,000 | 200 | 191 | 196 | 77,604 | 0.05 s |
+  | lmr after 2, 16 nodes | 100,000 | 200 | 191 | 197 | 79,943 | 0.05 s |
+  | lmr after 4, 1000 nodes | 100,000 | 192 | 188 | 194 | 1,818,259 | 0.91 s |
+
+  With a tight allowance it values every position in a twentieth of the nodes, and 191 of 200 values are exact (9 are not); a loose one is the default's search with a few cuts. With the budget at 1,000 nodes the gain is small (161 valued by default, 189 for 2/16). It trades exactness for reach, which is the point of play mode; the table above is the price. Whether the extra best moves beat `root ode` (197 best at 1,000 nodes, 200 at 100,000, all exact) is not settled: `lmr` is cheaper, `ode` more accurate, and they have not been combined here.
+
 ## Sketch: more pieces to mix in (not committed)
 
 | Piece | Kind | Needs from the net | Exact? |

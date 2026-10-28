@@ -665,6 +665,13 @@ pub struct Solver<'a> {
     /// part of their key (see [`Solver::with_partial_key`]).
     entries: usize,
     partial_key: bool,
+    /// Late move reductions: after this many moves tried, a move gets this
+    /// many nodes (see [`Solver::with_lmr`]).
+    lmr: Option<(usize, usize)>,
+    /// How many times a lossy piece cut a move short, in all; and whether
+    /// one did in the call running.
+    cuts: usize,
+    lossy: bool,
 }
 
 impl<'a> Solver<'a> {
@@ -759,6 +766,9 @@ impl<'a> Solver<'a> {
             play: false,
             entries: Self::MEMO,
             partial_key: false,
+            lmr: None,
+            cuts: 0,
+            lossy: false,
         })
     }
 
@@ -782,6 +792,27 @@ impl<'a> Solver<'a> {
         self.partial_key = on;
         self.tt = Self::table(self.g, self.entries, on);
         self
+    }
+
+    /// Late move reductions, a piece that can change the value (play
+    /// mode): at a node, the moves ranked after the first `after` are given
+    /// `nodes` nodes each, not what is left of the budget. A move whose
+    /// search finishes in that gives its exact value; one that does not is
+    /// taken to be no better for the mover than the window's edge (as if it
+    /// failed low) and the search goes on. A node that cut a move so stores
+    /// nothing, and neither does any node above it, so the table never
+    /// holds a bound this piece could have got wrong. It is not applied at
+    /// the root. [`Solver::lossy`] says whether it cut anything.
+    pub fn with_lmr(mut self, after: usize, nodes: usize) -> Self {
+        self.lmr = Some((after, nodes));
+        self
+    }
+
+    /// Whether the last [`Solver::value`] or [`Solver::choose`] cut a move
+    /// short by a piece that can change the value ([`Solver::with_lmr`]): if
+    /// so, its value is a guess.
+    pub fn lossy(&self) -> bool {
+        self.lossy
     }
 
     /// Drops moves by `filters` (see [`crate::filter`]) instead of
@@ -1025,7 +1056,7 @@ impl<'a> Solver<'a> {
             Some(t) => Some(Choice {
                 t,
                 value: v,
-                exact: true,
+                exact: !self.lossy,
             }),
             None if self.play => Some(Choice {
                 t: known.unwrap_or(order[0]),
@@ -1040,6 +1071,7 @@ impl<'a> Solver<'a> {
     fn start(&mut self) {
         self.tt.age();
         self.stop = false;
+        self.lossy = false;
         self.deadline = self.time.map(|d| Instant::now() + d);
     }
 
@@ -1208,6 +1240,7 @@ impl<'a> Solver<'a> {
         }
         let g = self.g;
         let n0 = self.nodes;
+        let cuts0 = self.cuts;
         let k = w.key();
         let mut first = NO_MOVE;
         if let Some(e) = self.tt.get(&k, W::COUNTS) {
@@ -1292,10 +1325,39 @@ impl<'a> Solver<'a> {
             },
             NO_MOVE,
         );
-        for (_, t, next) in &kids {
-            let Some(v) = self.search(next, a, b, false)? else {
-                return Ok(None);
-            };
+        let lossy = !root && self.lmr.is_some();
+        for (idx, (_, t, next)) in kids.iter().enumerate() {
+            // `Some(edge)`: the move was cut short and is taken to be worth
+            // the window's edge for the mover.
+            let edge = if s > 0.0 { a } else { b };
+            let mut cut = false;
+            let mut v = edge;
+            if let Some((_, nodes)) = self.lmr.filter(|l| lossy && idx >= l.0) {
+                let limit = self.budget;
+                self.budget = limit.min(self.nodes.saturating_add(nodes));
+                let got = self.search(next, a, b, false);
+                self.budget = limit;
+                match got? {
+                    Some(x) => v = x,
+                    None if self.nodes > limit || self.stop || self.spilled => return Ok(None),
+                    None => cut = true,
+                }
+            } else {
+                let Some(x) = self.search(next, a, b, false)? else {
+                    return Ok(None);
+                };
+                v = x;
+            }
+            if cut {
+                self.cuts += 1;
+                self.lossy = true;
+                // Worth the edge: it can improve nothing, but the value
+                // returned must not fall short of it.
+                if (s > 0.0 && v > best.0) || (s < 0.0 && v < best.0) {
+                    best.0 = v;
+                }
+                continue;
+            }
             if (s > 0.0 && v > best.0) || (s < 0.0 && v < best.0) {
                 best = (v, *t as u32);
             }
@@ -1318,7 +1380,10 @@ impl<'a> Solver<'a> {
             (v, v)
         };
         // Merged with what was known before this search narrowed the window.
-        self.store::<W>(&k, lo, hi, best.1, self.nodes - n0);
+        // Not stored if a lossy piece cut a move short at this node or below.
+        if self.cuts == cuts0 {
+            self.store::<W>(&k, lo, hi, best.1, self.nodes - n0);
+        }
         Ok(Some(v))
     }
 

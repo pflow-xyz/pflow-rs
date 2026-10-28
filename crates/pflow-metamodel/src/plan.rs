@@ -45,10 +45,13 @@
 //! - `filters`: [`Filter`] names, which drop moves only where the value is
 //!   already known, so they are legal in either mode. Default:
 //!   [`Filter::DEFAULT`]; `[]` runs none.
-//! - Pieces that can change the value, a filter or a `heuristics` name:
-//!   none is built yet. The registry knows the two it reserves (`beam`, a
-//!   filter, and `static_eval`) only to refuse them, by name, in exact
-//!   mode.
+//! - Pieces that can change the value, a filter or a `heuristics` name,
+//!   in `"mode": "play"` only (exact mode refuses them by name): `lmr`
+//!   (late move reductions, a heuristic), tuned in `tuning`:
+//!   `{"lmr": {"after": 3, "nodes": 64}}` ([`Solver::with_lmr`]). It is in
+//!   no default, and a search that used it says so ([`Solver::lossy`]).
+//!   The registry also reserves two it has not built (`beam`, a filter, and
+//!   `static_eval`) only to refuse them, by name, in either mode.
 //!
 //! [`SearchPlan::check`] is the legality check, run before a solver is
 //! built; [`SearchPlan::solver`] builds it, and refuses what the net cannot
@@ -106,8 +109,17 @@ const DRIVERS: [&str; 4] = ["null_window", "mtd_f", "aspiration", "budget"];
 /// ([`SearchPlan::solver_with`]).
 const ESTIMATES: [&str; 1] = ["ode"];
 
-/// Reserved names of pieces that can change a value, none of them built.
+/// Reserved names of pieces that can change a value, not built.
 const UNSOUND: [(&str, Kind); 2] = [("beam", Kind::Filter), ("static_eval", Kind::Heuristic)];
+
+/// Pieces that can change a value, built: `play` mode only, and tuned in
+/// `tuning`.
+const LOSSY: [(&str, Kind); 1] = [("lmr", Kind::Heuristic)];
+
+/// What `lmr` does without `tuning`: after the first moves, this many nodes
+/// each.
+const LMR_AFTER: usize = 3;
+const LMR_NODES: usize = 64;
 
 /// What `name` is, if the registry knows it.
 fn kind_of(name: &str) -> Option<Kind> {
@@ -120,7 +132,11 @@ fn kind_of(name: &str) -> Option<Kind> {
     } else if ESTIMATES.contains(&name) {
         Some(Kind::Estimate)
     } else {
-        UNSOUND.iter().find(|x| x.0 == name).map(|x| x.1)
+        UNSOUND
+            .iter()
+            .chain(&LOSSY)
+            .find(|x| x.0 == name)
+            .map(|x| x.1)
     }
 }
 
@@ -132,13 +148,14 @@ fn plan_error(msg: String) -> Error {
 fn expect(name: &str, want: Kind) -> Result<()> {
     match kind_of(name) {
         None => Err(plan_error(format!(
-            "unknown {} {name:?} (known: {:?}, {:?}, {:?}, {:?}, {:?})",
+            "unknown {} {name:?} (known: {:?}, {:?}, {:?}, {:?}, {:?}, {:?})",
             want.noun(),
             Piece::NAMES,
             Filter::NAMES,
             DRIVERS,
             ESTIMATES,
-            UNSOUND.map(|x| x.0)
+            UNSOUND.map(|x| x.0),
+            LOSSY.map(|x| x.0)
         ))),
         Some(k) if k != want => Err(plan_error(format!(
             "{name:?} is a {}, not a {}",
@@ -173,6 +190,23 @@ pub struct RootPlan {
     pub order: Vec<String>,
 }
 
+/// `{"lmr": {"after": N, "nodes": M}}`: the arguments of the lossy pieces
+/// named in the plan. Each takes its default
+/// when not given, and is refused when its piece is not named.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct Tuning {
+    pub lmr: Option<Lmr>,
+}
+
+/// `lmr`: the moves after the first `after` get `nodes` nodes each.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Lmr {
+    pub after: usize,
+    pub nodes: usize,
+}
+
 /// `{"nodes": N, "ms": T}`, either or both.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -193,6 +227,7 @@ pub struct SearchPlan {
     pub root: Option<RootPlan>,
     pub heuristics: Vec<String>,
     pub memo: Option<Memo>,
+    pub tuning: Option<Tuning>,
 }
 
 /// What a plan's drivers come to.
@@ -202,6 +237,11 @@ struct Drivers {
     aspiration: bool,
     budget: Option<usize>,
     ms: Option<u64>,
+}
+
+/// Which lossy pieces a plan names.
+struct LossyOn {
+    lmr: bool,
 }
 
 /// What a plan's root comes to.
@@ -371,6 +411,13 @@ impl SearchPlan {
         Ok(out)
     }
 
+    /// Which lossy pieces the plan names.
+    fn lossy(&self) -> LossyOn {
+        LossyOn {
+            lmr: self.heuristics.iter().any(|n| n == "lmr"),
+        }
+    }
+
     /// The legality check: every name is known and in its place, and in
     /// exact mode no filter or heuristic is there to change the value.
     /// Needs no net; what a net cannot support is refused by
@@ -396,13 +443,36 @@ impl SearchPlan {
             for n in names {
                 expect(n, kind)?;
             }
-            let unsound = names.iter().find(|n| UNSOUND.iter().any(|x| x.0 == *n));
-            if let Some(n) = unsound {
-                let why = match self.mode {
-                    Mode::Exact => "can change the value, which exact mode does not allow",
-                    Mode::Play => "is not built in this release",
-                };
-                return Err(plan_error(format!("{} {n:?} {why}", kind.noun())));
+            let exact = self.mode == Mode::Exact;
+            for n in names {
+                if let Some(x) = UNSOUND.iter().chain(&LOSSY).find(|x| x.0 == n) {
+                    if exact {
+                        return Err(plan_error(format!(
+                            "{} {n:?} can change the value, which exact mode does not allow",
+                            kind.noun()
+                        )));
+                    }
+                    if UNSOUND.contains(x) {
+                        return Err(plan_error(format!(
+                            "{} {n:?} is not built in this release",
+                            kind.noun()
+                        )));
+                    }
+                }
+            }
+        }
+        if self.heuristics.iter().filter(|x| *x == "lmr").count() > 1 {
+            return Err(plan_error("\"lmr\" is listed twice".into()));
+        }
+        let lossy = self.lossy();
+        if let Some(t) = &self.tuning {
+            if t.lmr.is_some() && !lossy.lmr {
+                return Err(plan_error(
+                    "tuning for \"lmr\", which the plan does not name".into(),
+                ));
+            }
+            if t.lmr.is_some_and(|l| l.after == 0 || l.nodes == 0) {
+                return Err(plan_error("lmr: after and nodes must be at least 1".into()));
             }
         }
         Ok(())
@@ -441,6 +511,15 @@ impl SearchPlan {
                 Solver::partial_key_check(g, m.entries)?;
             }
             s = s.with_memo(m.entries).with_partial_key(m.partial_key);
+        }
+        let lossy = self.lossy();
+        let t = self.tuning.unwrap_or_default();
+        if lossy.lmr {
+            let l = t.lmr.unwrap_or(Lmr {
+                after: LMR_AFTER,
+                nodes: LMR_NODES,
+            });
+            s = s.with_lmr(l.after, l.nodes);
         }
         match (r.estimate, estimate) {
             (None, _) => Ok(s),
@@ -499,6 +578,7 @@ impl SearchPlan {
         if f.forced_moves {
             filters.push(Filter::ForcedMoves.name().into());
         }
+        let lossy = self.lossy();
         let mut root: Vec<String> = vec![];
         if r.non_losing {
             root.push("non_losing".into());
@@ -521,6 +601,17 @@ impl SearchPlan {
                 entries: Solver::MEMO,
                 partial_key: false,
             })),
+            tuning: lossy.lmr.then(|| {
+                let t = self.tuning.unwrap_or_default();
+                Tuning {
+                    lmr: lossy.lmr.then(|| {
+                        t.lmr.unwrap_or(Lmr {
+                            after: LMR_AFTER,
+                            nodes: LMR_NODES,
+                        })
+                    }),
+                }
+            }),
         })
     }
 
@@ -569,6 +660,25 @@ impl SearchPlan {
                 stage += 1;
                 let next = n.place(format!("MoveList·{stage}"));
                 n.add(id.into(), &[&list], &[&next]);
+                list = next;
+            }
+        }
+        // Pieces that can change the value cut moves from the list too.
+        let on = p.lossy();
+        let t = p.tuning.unwrap_or_default();
+        let lmr = t.lmr.unwrap_or(Lmr {
+            after: LMR_AFTER,
+            nodes: LMR_NODES,
+        });
+        let cuts = [(
+            on.lmr,
+            format!("heuristic.lmr(after={},nodes={})", lmr.after, lmr.nodes),
+        )];
+        for (is_on, id) in cuts {
+            if is_on {
+                stage += 1;
+                let next = n.place(format!("MoveList·{stage}"));
+                n.add(id, &[&list], &[&next]);
                 list = next;
             }
         }
