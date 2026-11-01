@@ -70,6 +70,33 @@ jobs:
       - name: test
         run: cargo test --workspace
 
+  # The npm package @pflow-xyz/pflow-wasm: builds it, then holds what would be
+  # published to its tests (no fetch from the default entry, the size budget, the
+  # byte-exact SSA goldens through the optimized module, the README's snippet, a
+  # sandbox's CSP in Chrome). Publishing is by hand: make wasm-npm-publish.
+  wasm-npm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install wasm-bindgen-cli
+        run: |
+          version="$(sed -nE 's/^WASM_BINDGEN_VERSION := //p' Makefile)"
+          cargo install wasm-bindgen-cli --version "$version" --locked --force
+
+      - name: build and test the package
+        run: make wasm-npm-test
+
   clippy:
     runs-on: ubuntu-latest
     steps:

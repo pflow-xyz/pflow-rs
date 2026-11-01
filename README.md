@@ -29,6 +29,7 @@ Rust port of [go-pflow](https://github.com/pflow-xyz/go-pflow) — Petri net mod
 | `pflow-zk-arkworks` | Groth16 prover over BN254 with Poseidon hashing (structural R1CS) |
 | `pflow-cli` | `pflow` command-line binary, modelled on go-pflow's `cmd/pflow` |
 | `pflow-mcp` | MCP server exposing Petri net tools (`petri_*`, plus `pflow_*` extras) |
+| `pflow-wasm` | The browser build, on npm as [`@pflow-xyz/pflow-wasm`](crates/pflow-wasm/npm/README.md): fire a net, run the ODE and the portable SSA from one self-contained ES module |
 | `pflow` | Umbrella crate: re-exports `pflow-core`, `pflow-dsl`, `pflow-solver` and `pflow-tokenmodel` as modules, a few common items (`PetriNet`, `solve`, `simulate_ssa`, `schema!`, ...), and `pflow-zk`/`pflow-zk-arkworks` behind the `zk`/`zk-arkworks` features. The other crates are used directly |
 
 How far each crate is from go-pflow parity is tracked in `ROADMAP.md`'s

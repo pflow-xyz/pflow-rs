@@ -23,6 +23,7 @@ members = [
     "crates/pflow-mining",
     "crates/pflow-results",
     "crates/pflow-visualization",
+    "crates/pflow-wasm",
 ]
 
 [workspace.package]
@@ -31,3 +32,14 @@ edition = "2021"
 license = "MIT"
 repository = "https://github.com/pflow-xyz/pflow-rs"
 homepage = "https://pflow.xyz"
+
+# The browser build (make wasm-npm): size over speed, as a page downloads it.
+# Floats are unaffected: rustc does no fast-math at any opt-level, and the
+# package's test holds the optimized module to the byte-exact SSA goldens.
+[profile.wasm-release]
+inherits = "release"
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
