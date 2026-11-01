@@ -701,12 +701,20 @@ impl SsaModel {
     /// Build an ordered SSA model from a `pflow_core::PetriNet`.
     ///
     /// `PetriNet` keeps places and transitions in `HashMap`s, so the caller
-    /// must supply the place and transition order explicitly. Arc weights are
-    /// `weight_sum()` and must be integral; `inhibit_transition` on an input
-    /// arc becomes an [`ArcKind::Inhibitor`]; every input is kinetic. Places
-    /// take `token_count()` (must be integral and non-negative) as the initial
-    /// marking and the first capacity component as `capacity`. Rates default
-    /// to 1.0 when absent from `rates`.
+    /// must supply the place and transition order explicitly. Contextual arcs
+    /// follow the pflow.xyz convention ([`pflow_core::PetriNet::arc_kind`]):
+    /// `inhibit_transition` drawn `place -> transition` becomes an
+    /// [`ArcKind::Inhibitor`], and drawn `transition -> place` it becomes an
+    /// [`ArcKind::Read`], flipped to `place -> transition` because that is the
+    /// only direction [`compile`] accepts for one. Every input is kinetic.
+    /// Rates default to 1.0 when absent from `rates`.
+    ///
+    /// The SSA counts tokens without colors, so a multi-color net collapses to
+    /// totals across all of its colors, never to its first color: an arc weighs
+    /// `weight_sum()` and a place starts at `token_count()` (each must be
+    /// integral and non-negative). A place's capacity is the sum of its
+    /// components, or unbounded (0) if any component is, since one unbounded
+    /// color leaves the total unbounded.
     pub fn from_petri_net(
         net: &pflow_core::PetriNet,
         place_order: &[String],
@@ -725,7 +733,11 @@ impl SsaModel {
                     p.token_count()
                 )
             })?;
-            let cap = p.capacity.first().copied().unwrap_or(0.0);
+            let cap = if p.capacity.contains(&0.0) {
+                0.0
+            } else {
+                p.capacity.iter().sum()
+            };
             let capacity = integral(cap)
                 .ok_or_else(|| format!("place {id:?}: capacity {cap} is not integral"))?;
             places.push(SsaPlace {
@@ -750,14 +762,14 @@ impl SsaModel {
             let ws = a.weight_sum();
             let weight =
                 integral(ws).ok_or_else(|| format!("arc {k}: weight {ws} is not integral"))?;
-            let kind = if a.inhibit_transition {
-                ArcKind::Inhibitor
-            } else {
-                ArcKind::Flow
+            let (from, to, kind) = match net.arc_kind(a) {
+                pflow_core::ArcKind::Normal => (&a.source, &a.target, ArcKind::Flow),
+                pflow_core::ArcKind::Inhibitor => (&a.source, &a.target, ArcKind::Inhibitor),
+                pflow_core::ArcKind::Read => (&a.target, &a.source, ArcKind::Read),
             };
             arcs.push(SsaArc {
-                from: a.source.clone(),
-                to: a.target.clone(),
+                from: from.clone(),
+                to: to.clone(),
                 weight,
                 kind,
                 kinetic: true,
@@ -1210,5 +1222,93 @@ mod tests {
             seed: 42,
         };
         assert_eq!(simulate(&m, &o).unwrap(), simulate(&chain(), &o).unwrap());
+    }
+
+    fn gated(gate: f64, build: impl FnOnce(pflow_core::Builder) -> pflow_core::Builder) -> SsaModel {
+        let b = pflow_core::PetriNet::build()
+            .place("a", 20.0)
+            .place("b", 0.0)
+            .place("g", gate)
+            .transition("t")
+            .arc("a", "t", 1.0)
+            .arc("t", "b", 1.0);
+        let net = build(b).done();
+        let p = ["a", "b", "g"].map(String::from);
+        SsaModel::from_petri_net(&net, &p, &["t".to_string()], &HashMap::new()).unwrap()
+    }
+
+    fn run_gated(m: &SsaModel) -> SsaResult {
+        let o = SsaOptions {
+            horizon: 50.0,
+            samples: 11,
+            realizations: 4,
+            seed: 7,
+        };
+        simulate(m, &o).unwrap()
+    }
+
+    #[test]
+    fn from_petri_net_flips_a_read_arc_to_place_to_transition() {
+        let m = gated(1.0, |b| b.read_arc("t", "g", 1.0));
+        let arc = m.arcs.iter().find(|a| a.kind == ArcKind::Read).unwrap();
+        assert_eq!((arc.from.as_str(), arc.to.as_str()), ("g", "t"));
+        // Left as drawn, this failed to compile with ReadOrInhibitorFromTransition.
+        compile(&m).unwrap();
+    }
+
+    #[test]
+    fn from_petri_net_read_arc_gates_without_consuming() {
+        let r = run_gated(&gated(1.0, |b| b.read_arc("t", "g", 1.0)));
+        assert_eq!(r.final_, vec![0.0, 20.0, 1.0]);
+
+        let r = run_gated(&gated(0.0, |b| b.read_arc("t", "g", 1.0)));
+        assert_eq!(r.final_, vec![20.0, 0.0, 0.0]);
+
+        // The weight is the threshold.
+        let r = run_gated(&gated(1.0, |b| b.read_arc("t", "g", 2.0)));
+        assert_eq!(r.final_, vec![20.0, 0.0, 1.0]);
+    }
+
+    #[test]
+    fn from_petri_net_inhibitor_keeps_its_direction_and_blocks() {
+        let m = gated(1.0, |b| b.inhibitor_arc("g", "t", 1.0));
+        let arc = m.arcs.iter().find(|a| a.kind == ArcKind::Inhibitor).unwrap();
+        assert_eq!((arc.from.as_str(), arc.to.as_str()), ("g", "t"));
+        assert_eq!(run_gated(&m).final_, vec![20.0, 0.0, 1.0]);
+
+        let m = gated(0.0, |b| b.inhibitor_arc("g", "t", 1.0));
+        assert_eq!(run_gated(&m).final_, vec![0.0, 20.0, 0.0]);
+    }
+
+    /// pflow-jl reads `weight[1]`: a `[0, 2]` read arc there has weight 0,
+    /// which it then treats as 1, and the first color's capacity stands in
+    /// for all of them. Here each is the total across colors.
+    #[test]
+    fn from_petri_net_totals_colors_rather_than_taking_the_first() {
+        let mut net = pflow_core::PetriNet::build()
+            .place("a", 20.0)
+            .place("b", 0.0)
+            .place("g", 2.0)
+            .transition("t")
+            .arc("a", "t", 1.0)
+            .arc("t", "b", 1.0)
+            .done();
+        net.add_arc("t", "g", vec![0.0, 2.0], true);
+        net.places.get_mut("a").unwrap().capacity = vec![30.0, 12.0];
+        net.places.get_mut("b").unwrap().capacity = vec![5.0, 0.0];
+        let p = ["a", "b", "g"].map(String::from);
+        let t = ["t".to_string()];
+        let m = SsaModel::from_petri_net(&net, &p, &t, &HashMap::new()).unwrap();
+
+        let read = m.arcs.iter().find(|a| a.kind == ArcKind::Read).unwrap();
+        assert_eq!(read.weight, 2);
+        assert_eq!(m.places[0].capacity, 42);
+        assert_eq!(m.places[1].capacity, 0, "one unbounded color leaves the total unbounded");
+        assert_eq!(run_gated(&m).final_, vec![0.0, 20.0, 2.0]);
+
+        // One token short of the color-total threshold: blocked.
+        net.places.get_mut("g").unwrap().initial = vec![1.0];
+        let m = SsaModel::from_petri_net(&net, &p, &t, &HashMap::new()).unwrap();
+        assert_eq!(run_gated(&m).final_, vec![20.0, 0.0, 1.0]);
     }
 }

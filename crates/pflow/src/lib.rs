@@ -30,7 +30,7 @@ mod tests {
         let (net, rates) = PetriNet::build().sir(999.0, 1.0, 0.0).with_rates(1.0);
 
         let state = net.set_state(None);
-        let prob = Problem::new(net, state, [0.0, 100.0], rates);
+        let prob = Problem::new(net, state, [0.0, 100.0], rates).unwrap();
         let (final_state, reached) = find_equilibrium(&prob);
 
         assert!(reached, "SIR should reach equilibrium");
@@ -369,7 +369,7 @@ mod tests {
         // Run ODE to equilibrium
         let state = net.set_state(None);
         let rates = net.set_rates(None);
-        let prob = Problem::new(net, state, [0.0, 200.0], rates);
+        let prob = Problem::new(net, state, [0.0, 200.0], rates).unwrap();
         let opts = Options { dt: 0.5, ..Options::default_opts() };
         let eq_opts = EquilibriumOptions {
             tolerance: 1e-4,
@@ -460,7 +460,7 @@ mod tests {
         // Run ODE to equilibrium
         let state = net.set_state(None);
         let rates = net.set_rates(None);
-        let prob = Problem::new(net, state, [0.0, 200.0], rates);
+        let prob = Problem::new(net, state, [0.0, 200.0], rates).unwrap();
         let opts = Options { dt: 0.5, ..Options::default_opts() };
         let eq_opts = EquilibriumOptions {
             tolerance: 1e-4,
@@ -569,7 +569,7 @@ mod tests {
         // Run ODE to equilibrium
         let state = net.set_state(None);
         let rates = net.set_rates(None);
-        let prob = Problem::new(net, state, [0.0, 200.0], rates);
+        let prob = Problem::new(net, state, [0.0, 200.0], rates).unwrap();
         let opts = Options { dt: 0.5, ..Options::default_opts() };
         let eq_opts = EquilibriumOptions {
             tolerance: 1e-4,
@@ -695,7 +695,7 @@ mod tests {
         // Run ODE to equilibrium
         let state = net.set_state(None);
         let rates = net.set_rates(None);
-        let prob = Problem::new(net, state, [0.0, 200.0], rates);
+        let prob = Problem::new(net, state, [0.0, 200.0], rates).unwrap();
         let opts = Options { dt: 0.5, ..Options::default_opts() };
         let eq_opts = EquilibriumOptions {
             tolerance: 1e-4,
@@ -824,7 +824,7 @@ mod tests {
         // Run ODE to equilibrium
         let state = net.set_state(None);
         let rates = net.set_rates(None);
-        let prob = Problem::new(net, state, [0.0, 200.0], rates);
+        let prob = Problem::new(net, state, [0.0, 200.0], rates).unwrap();
         let opts = Options { dt: 0.5, ..Options::default_opts() };
         let eq_opts = EquilibriumOptions {
             tolerance: 1e-4,
@@ -1011,7 +1011,7 @@ mod tests {
         // Run ODE to equilibrium
         let state = net.set_state(None);
         let rates = net.set_rates(None);
-        let prob = Problem::new(net, state, [0.0, 200.0], rates);
+        let prob = Problem::new(net, state, [0.0, 200.0], rates).unwrap();
         let opts = Options { dt: 0.5, ..Options::default_opts() };
         let eq_opts = EquilibriumOptions {
             tolerance: 1e-4,

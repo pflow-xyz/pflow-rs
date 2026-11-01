@@ -1,5 +1,7 @@
 use super::{default_rates, initial_state, parse_model, schema_to_petri_net};
-use pflow_solver::{methods, solve_until_equilibrium, EquilibriumOptions, Options, Problem};
+use pflow_solver::{
+    methods, solve_until_equilibrium, ContextualArcs, EquilibriumOptions, Options, Problem,
+};
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -13,13 +15,14 @@ struct EquilibriumResult {
     reason: String,
 }
 
-pub fn run(model: &str, t_max: f64) -> Result<String, String> {
+pub fn run(model: &str, t_max: f64, contextual: ContextualArcs) -> Result<String, String> {
     let schema = parse_model(model)?;
     let net = schema_to_petri_net(&schema);
     let state = initial_state(&net);
     let rates = default_rates(&schema);
 
-    let prob = Problem::new(net, state, [0.0, t_max], rates);
+    let prob = Problem::with_contextual(net, state, [0.0, t_max], rates, contextual)
+        .map_err(|e| e.to_string())?;
     let opts = Options::default_opts();
     let eq_opts = EquilibriumOptions::default_opts();
 
@@ -63,7 +66,7 @@ mod tests {
                 (arc recover -> R)
             )
         )"#;
-        let result = run(dsl, 100.0).unwrap();
+        let result = run(dsl, 100.0, ContextualArcs::Refuse).unwrap();
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert!(v["reached"].as_bool().unwrap());
     }

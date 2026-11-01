@@ -56,6 +56,59 @@ pub struct AnalysisResult<'m> {
     pub exploration_stats: ExplorationStats,
 }
 
+/// Where a transition stands under L4 liveness. See [`Analyzer::l4_liveness`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum L4Status {
+    /// From every reachable marking, some firing sequence enables it.
+    Live,
+    /// Some reachable marking can never enable it again; the witness goes there.
+    NotLive,
+    /// The state space was truncated and no explored region rules it out.
+    Unknown,
+}
+
+/// A replayable path to where a transition can never fire again.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct L4Witness {
+    /// The shortest explored firing sequence from the initial marking to
+    /// `marking`. The transition may well fire along the way.
+    pub trace: Vec<String>,
+    /// The first marking of the closed region the trace enters.
+    pub marking: Marking,
+    /// How many markings the region has. `1` with no enabled transition is a
+    /// dead marking; more than `1` is a livelock the rest of the net is shut
+    /// out of, which no deadlock check sees.
+    pub region_size: usize,
+}
+
+/// The L4 result for one transition.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TransitionL4 {
+    pub transition: String,
+    pub status: L4Status,
+    /// Present exactly when `status` is [`L4Status::NotLive`].
+    pub witness: Option<L4Witness>,
+}
+
+/// The result of [`Analyzer::l4_liveness`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct L4Report {
+    /// One entry per transition, in the model's declaration order.
+    pub transitions: Vec<TransitionL4>,
+    /// Terminal strongly connected components found. When truncated, only those
+    /// known to be closed in the full state space count.
+    pub terminal_components: usize,
+    pub state_count: usize,
+    pub truncated: bool,
+}
+
+impl L4Report {
+    /// The transitions shown not to be L4-live, in declaration order.
+    pub fn not_live(&self) -> impl Iterator<Item = &TransitionL4> {
+        self.transitions.iter().filter(|t| t.status == L4Status::NotLive)
+    }
+}
+
 /// Performs reachability analysis on a model.
 pub struct Analyzer<'m> {
     model: &'m Model,
@@ -275,6 +328,126 @@ impl<'m> Analyzer<'m> {
         }
     }
 
+    /// L4 liveness per transition, from the terminal strongly connected
+    /// components (SCCs) of the reachability graph.
+    ///
+    /// A transition is L4-live when, from every reachable marking, some firing
+    /// sequence enables it. In a finite graph every marking reaches a terminal
+    /// SCC and can never leave it, so that holds exactly when the transition
+    /// fires inside every terminal SCC. A dead marking is a terminal SCC of one
+    /// with no firings, so it makes every transition not L4-live, including
+    /// when that marking is empty, which the deadlock heuristic accepts as an
+    /// end state.
+    ///
+    /// Sound under truncation. A region only counts if every one of its states
+    /// was fully expanded, because then it is closed in the full state space as
+    /// well, and a refutation from it stands. Anything else comes back
+    /// [`L4Status::Unknown`], never [`L4Status::Live`].
+    ///
+    /// go-pflow has no counterpart: its `live` is L1, as is [`Self::analyze`]'s.
+    pub fn l4_liveness(&self) -> L4Report {
+        let result = self.build_graph();
+        let graph = &result.graph;
+        let states = graph.states_list();
+        let id = |key: &str| graph.states[key].id;
+        let successors: Vec<Vec<usize>> = states
+            .iter()
+            .map(|s| s.successors.iter().map(|&e| id(&graph.edges[e].to)).collect())
+            .collect();
+
+        // Breadth-first over the explored edges: a shortest trace to each state.
+        let root = states.first().map(|s| s.id).unwrap_or(0);
+        let mut parent: Vec<Option<usize>> = vec![None; states.len()];
+        let mut seen = vec![false; states.len()];
+        let mut order = Vec::with_capacity(states.len());
+        let mut queue = VecDeque::from([root]);
+        seen[root] = true;
+        while let Some(s) = queue.pop_front() {
+            order.push(s);
+            for &e in &states[s].successors {
+                let to = id(&graph.edges[e].to);
+                if !seen[to] {
+                    seen[to] = true;
+                    parent[to] = Some(e);
+                    queue.push_back(to);
+                }
+            }
+        }
+        let trace_to = |mut s: usize| {
+            let mut trace = Vec::new();
+            while let Some(e) = parent[s] {
+                trace.push(graph.edges[e].transition.clone());
+                s = id(&graph.edges[e].from);
+            }
+            trace.reverse();
+            trace
+        };
+
+        let component = strongly_connected_components(&successors);
+        let count = component.iter().copied().max().map_or(0, |c| c + 1);
+        let mut closed = vec![true; count];
+        for (s, tos) in successors.iter().enumerate() {
+            // Fewer edges than enabled transitions: not fully expanded, so
+            // what lies beyond is unknown.
+            if tos.iter().any(|&to| component[to] != component[s])
+                || tos.len() < states[s].enabled.len()
+            {
+                closed[component[s]] = false;
+            }
+        }
+
+        // Regions in the order the search first enters them, so each witness
+        // is the nearest one, chosen the same way on every run.
+        struct Region {
+            entry: usize,
+            size: usize,
+            fires: HashSet<String>,
+        }
+        let mut regions: Vec<Region> = Vec::new();
+        let mut region_of: HashMap<usize, usize> = HashMap::new();
+        for &s in &order {
+            let c = component[s];
+            if !closed[c] {
+                continue;
+            }
+            let r = *region_of.entry(c).or_insert_with(|| {
+                regions.push(Region { entry: s, size: 0, fires: HashSet::new() });
+                regions.len() - 1
+            });
+            regions[r].size += 1;
+            regions[r].fires.extend(states[s].enabled.iter().cloned());
+        }
+
+        let transitions = self
+            .model
+            .transitions
+            .iter()
+            .map(|t| match regions.iter().find(|r| !r.fires.contains(&t.id)) {
+                Some(r) => TransitionL4 {
+                    transition: t.id.clone(),
+                    status: L4Status::NotLive,
+                    witness: Some(L4Witness {
+                        trace: trace_to(r.entry),
+                        marking: states[r.entry].marking.clone(),
+                        region_size: r.size,
+                    }),
+                },
+                None => TransitionL4 {
+                    transition: t.id.clone(),
+                    status: if result.truncated { L4Status::Unknown } else { L4Status::Live },
+                    witness: None,
+                },
+            })
+            .collect();
+
+        L4Report {
+            transitions,
+            terminal_components: regions.len(),
+            state_count: result.state_count,
+            truncated: result.truncated,
+        }
+    }
+
     /// Whether `target` is reachable from the initial marking. Builds a
     /// fresh graph up to the configured limit. Go's `Analyzer.IsReachable`.
     pub fn is_reachable(&self, target: &Marking) -> bool {
@@ -455,6 +628,61 @@ fn distance_to_enable(marking: &Marking, inputs: &HashMap<String, i64>) -> i64 {
         }
     }
     distance
+}
+
+/// Tarjan's algorithm, iteratively so a long chain of states cannot overflow
+/// the stack. Maps each node to its component's number.
+fn strongly_connected_components(successors: &[Vec<usize>]) -> Vec<usize> {
+    const UNSEEN: usize = usize::MAX;
+    let n = successors.len();
+    let mut index = vec![UNSEEN; n];
+    let mut low = vec![0usize; n];
+    let mut on_stack = vec![false; n];
+    let mut component = vec![0usize; n];
+    let mut stack: Vec<usize> = Vec::new();
+    let mut next_index = 0;
+    let mut next_component = 0;
+
+    for start in 0..n {
+        if index[start] != UNSEEN {
+            continue;
+        }
+        // (node, next successor to look at)
+        let mut work = vec![(start, 0usize)];
+        while let Some(&mut (v, ref mut next)) = work.last_mut() {
+            if *next == 0 {
+                index[v] = next_index;
+                low[v] = next_index;
+                next_index += 1;
+                stack.push(v);
+                on_stack[v] = true;
+            }
+            if let Some(&w) = successors[v].get(*next) {
+                *next += 1;
+                if index[w] == UNSEEN {
+                    work.push((w, 0));
+                } else if on_stack[w] {
+                    low[v] = low[v].min(index[w]);
+                }
+                continue;
+            }
+            work.pop();
+            if let Some(&(u, _)) = work.last() {
+                low[u] = low[u].min(low[v]);
+            }
+            if low[v] == index[v] {
+                while let Some(w) = stack.pop() {
+                    on_stack[w] = false;
+                    component[w] = next_component;
+                    if w == v {
+                        break;
+                    }
+                }
+                next_component += 1;
+            }
+        }
+    }
+    component
 }
 
 /// DFS cycle detection from the graph's root. Go's (private)

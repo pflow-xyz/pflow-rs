@@ -374,6 +374,22 @@ pub enum ArcKind {
     Read,
 }
 
+impl PetriNet {
+    /// What `arc` means under the pflow.xyz convention: `inhibit_transition`
+    /// drawn `place -> transition` is an inhibitor, drawn `transition ->
+    /// place` it is a read arc. A [`crate::Arc`] does not say which by
+    /// itself, because the direction only means something once the net
+    /// knows which endpoint is the place. Every reader of a raw
+    /// `inhibit_transition` asks here, so the convention has one home.
+    pub fn arc_kind(&self, arc: &crate::net::Arc) -> ArcKind {
+        match (arc.inhibit_transition, self.places.contains_key(&arc.source)) {
+            (false, _) => ArcKind::Normal,
+            (true, true) => ArcKind::Inhibitor,
+            (true, false) => ArcKind::Read,
+        }
+    }
+}
+
 /// One arc of a color-unfolded net, with its true source/target and
 /// [`ArcKind`].
 #[derive(Debug, Clone)]
@@ -432,38 +448,23 @@ pub fn unfold(net: &PetriNet) -> UnfoldedNet {
         pruned_places.insert(id.clone(), p.clone());
     }
 
-    let is_place = |name: &str| expanded.places.contains_key(name);
-
     let arcs = expanded
         .arcs
         .iter()
         .map(|a| {
-            let weight = a.weight_sum();
-            if a.inhibit_transition {
-                if is_place(&a.source) {
-                    UnfoldedArc {
-                        source: a.source.clone(),
-                        target: a.target.clone(),
-                        weight,
-                        kind: ArcKind::Inhibitor,
-                    }
-                } else {
-                    // Output-side inhibitor: the editor's test arc. The
-                    // transition reads the place without consuming it.
-                    UnfoldedArc {
-                        source: a.target.clone(),
-                        target: a.source.clone(),
-                        weight,
-                        kind: ArcKind::Read,
-                    }
-                }
+            let kind = expanded.arc_kind(a);
+            // Output-side inhibitor: the editor's test arc. The transition
+            // reads the place without consuming it.
+            let (source, target) = if kind == ArcKind::Read {
+                (a.target.clone(), a.source.clone())
             } else {
-                UnfoldedArc {
-                    source: a.source.clone(),
-                    target: a.target.clone(),
-                    weight,
-                    kind: ArcKind::Normal,
-                }
+                (a.source.clone(), a.target.clone())
+            };
+            UnfoldedArc {
+                source,
+                target,
+                weight: a.weight_sum(),
+                kind,
             }
         })
         .collect();

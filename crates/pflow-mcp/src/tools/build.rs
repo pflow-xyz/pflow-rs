@@ -1,3 +1,4 @@
+use pflow_core::ArcKind;
 use super::{initial_state, parse_model, schema_to_petri_net};
 use serde::Serialize;
 
@@ -26,6 +27,10 @@ struct ArcInfo {
     source: String,
     target: String,
     weight: f64,
+    /// `read` or `inhibitor` when the arc gates rather than flows. A read arc
+    /// is listed as drawn, `transition -> place`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    kind: Option<&'static str>,
 }
 
 pub fn run(model: &str) -> Result<String, String> {
@@ -57,6 +62,11 @@ pub fn run(model: &str) -> Result<String, String> {
             source: a.source.clone(),
             target: a.target.clone(),
             weight: a.weight_sum(),
+            kind: match net.arc_kind(a) {
+                ArcKind::Normal => None,
+                ArcKind::Read => Some("read"),
+                ArcKind::Inhibitor => Some("inhibitor"),
+            },
         })
         .collect();
     arcs.sort_by(|a, b| a.source.cmp(&b.source).then_with(|| a.target.cmp(&b.target)));

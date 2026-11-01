@@ -13,6 +13,10 @@ pub struct Place {
     pub x: f64,
     pub y: f64,
     pub label_text: Option<String>,
+    /// The editor's `offset`, when the document declared one. Nothing here
+    /// computes with it, but it is part of what a net's CID hashes, so a net
+    /// read from Shape A keeps it for the writer.
+    pub offset: Option<i64>,
 }
 
 impl Place {
@@ -32,6 +36,7 @@ impl Place {
             x,
             y,
             label_text,
+            offset: None,
         }
     }
 
@@ -53,6 +58,8 @@ pub struct Transition {
     pub x: f64,
     pub y: f64,
     pub label_text: Option<String>,
+    /// As [`Place::offset`].
+    pub offset: Option<i64>,
 }
 
 impl Transition {
@@ -69,6 +76,7 @@ impl Transition {
             x,
             y,
             label_text,
+            offset: None,
         }
     }
 }

@@ -27,11 +27,10 @@ struct StochasticResult {
 /// the schema's token-state declaration order, transition order the action
 /// order; rates default to 1.0.
 ///
-/// A smoke surface, not the parity gate (`tests/ssa_parity.rs` is). The
-/// tokenmodel schema's `Arc` carries no weight, inhibitor or read marker, so
-/// `schema_to_petri_net` gives every arc weight 1 and no inhibitor: weighted,
-/// inhibited or read arcs cannot be expressed through this tool, only through
-/// `SsaModel` directly.
+/// A smoke surface, not the parity gate (`tests/ssa_parity.rs` is). Arc weights
+/// and read and inhibitor arcs carry through from any wire shape that can state
+/// them. Capacity, rate and delay do not: `Schema` has no field for them
+/// (`convert::model_to_schema`).
 pub fn run(
     model: &str,
     horizon: f64,
@@ -108,5 +107,67 @@ mod tests {
             35.666666666666664
         );
         assert_eq!(v["final_state"]["c"].as_f64().unwrap(), 100.0);
+    }
+
+    const SHAPE_A: &str = r#"{"@type":"PetriNet",
+        "places":{"a":{"initial":[20]},"b":{"initial":[0]},"g":{"initial":[GATE]}},
+        "transitions":{"t":{}},
+        "arcs":[{"source":"a","target":"t","weight":[1]},
+                {"source":"t","target":"b","weight":[1]},
+                {"source":"t","target":"g","weight":[1],"inhibitTransition":true}]}"#;
+
+    fn finals(model: &str) -> (f64, f64, f64) {
+        let r = run(model, 50.0, 11, 4, 7, &HashMap::new()).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&r).unwrap();
+        let f = |p: &str| v["final_state"][p].as_f64().unwrap();
+        (f("a"), f("b"), f("g"))
+    }
+
+    /// A read arc through the whole tool path: Shape A to `Model` (a read arc
+    /// reversed to place -> transition), to `Schema`, to `PetriNet` (drawn
+    /// transition -> place again), to `SsaModel` (flipped once more).
+    #[test]
+    fn test_stochastic_read_arc_from_shape_a() {
+        assert_eq!(finals(&SHAPE_A.replace("GATE", "1")), (0.0, 20.0, 1.0));
+        assert_eq!(finals(&SHAPE_A.replace("GATE", "0")), (20.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn test_stochastic_read_arc_from_shape_b_and_schema() {
+        let shape_b = |gate: u32| {
+            format!(
+                r#"{{"name":"g",
+                    "places":[{{"id":"a","initial":20}},{{"id":"b"}},{{"id":"g","initial":{gate}}}],
+                    "transitions":[{{"id":"t"}}],
+                    "arcs":[{{"from":"a","to":"t"}},{{"from":"t","to":"b"}},
+                            {{"from":"g","to":"t","type":"read"}}]}}"#
+            )
+        };
+        assert_eq!(finals(&shape_b(1)), (0.0, 20.0, 1.0));
+        assert_eq!(finals(&shape_b(0)), (20.0, 0.0, 0.0));
+
+        let schema = |gate: u32| {
+            format!(
+                r#"{{"name":"g",
+                    "states":[{{"id":"a","kind":"token","initial":20}},
+                              {{"id":"b","kind":"token","initial":0}},
+                              {{"id":"g","kind":"token","initial":{gate}}}],
+                    "actions":[{{"id":"t"}}],
+                    "arcs":[{{"source":"a","target":"t"}},{{"source":"t","target":"b"}},
+                            {{"source":"g","target":"t","type":"read"}}]}}"#
+            )
+        };
+        assert_eq!(finals(&schema(1)), (0.0, 20.0, 1.0));
+        assert_eq!(finals(&schema(0)), (20.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn test_stochastic_inhibitor_arc_blocks() {
+        let inhibited = SHAPE_A.replace(
+            r#""source":"t","target":"g""#,
+            r#""source":"g","target":"t""#,
+        );
+        assert_eq!(finals(&inhibited.replace("GATE", "1")), (20.0, 0.0, 1.0));
+        assert_eq!(finals(&inhibited.replace("GATE", "0")), (0.0, 20.0, 0.0));
     }
 }

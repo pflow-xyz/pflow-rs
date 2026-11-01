@@ -10,8 +10,10 @@
 //! Shape A into a [`PetriNet`], exactly as go-pflow's `parser.FromJSON`
 //! does.
 //!
+//! The writer, which needs the CID, is `pflow_tokenmodel::shape_a`.
+//!
 //! Unknown top-level and per-node fields (`@context`, `@type`, `parents`,
-//! `offset`, ...) are tolerated, not rejected — the same as Go's
+//! ...) are tolerated, not rejected — the same as Go's
 //! `encoding/json` default behaviour. Tests hold the accepted shape to a
 //! stricter, `deny_unknown_fields` view instead of loosening the library.
 
@@ -84,6 +86,15 @@ fn value_as_finite_f64(v: &Value) -> Option<f64> {
     }
 }
 
+/// Reads an `offset`: an integer, or nothing. Any other value is ignored as an
+/// unknown field would be, not rejected.
+fn lenient_offset<'de, D>(deserializer: D) -> std::result::Result<Option<i64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(Value::deserialize(deserializer)?.as_i64())
+}
+
 fn default_role() -> String {
     "default".to_string()
 }
@@ -101,6 +112,8 @@ pub struct RawPlace {
     pub y: f64,
     #[serde(default)]
     pub label: Option<String>,
+    #[serde(default, deserialize_with = "lenient_offset")]
+    pub offset: Option<i64>,
 }
 
 /// A transition as it appears under Shape A's `transitions` object.
@@ -114,6 +127,8 @@ pub struct RawTransition {
     pub y: f64,
     #[serde(default)]
     pub label: Option<String>,
+    #[serde(default, deserialize_with = "lenient_offset")]
+    pub offset: Option<i64>,
 }
 
 /// An arc as it appears in Shape A's `arcs` array.
@@ -178,10 +193,14 @@ impl ShapeADocument {
         net.token = self.token;
 
         for (id, p) in self.places {
-            net.add_place(id, p.initial.0, p.capacity.0, p.x, p.y, p.label);
+            let mut place = crate::net::Place::new(id.clone(), p.initial.0, p.capacity.0, p.x, p.y, p.label);
+            place.offset = p.offset;
+            net.places.insert(id, place);
         }
         for (id, t) in self.transitions {
-            net.add_transition(id, t.role, t.x, t.y, t.label);
+            let mut transition = crate::net::Transition::new(id.clone(), t.role, t.x, t.y, t.label);
+            transition.offset = t.offset;
+            net.transitions.insert(id, transition);
         }
         for a in self.arcs {
             let weight = match a.weight {

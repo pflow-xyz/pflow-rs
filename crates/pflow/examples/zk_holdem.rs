@@ -320,7 +320,7 @@ fn hand_integer_reduction() -> [f64; 9] {
     let state = net.set_state(None);
     let rates = net.set_rates(None);
 
-    let prob = Problem::new(net, state, [0.0, 200.0], rates);
+    let prob = Problem::new(net, state, [0.0, 200.0], rates).unwrap();
     let opts = Options {
         dt: 0.5,
         ..Options::default_opts()

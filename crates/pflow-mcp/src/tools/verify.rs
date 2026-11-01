@@ -6,7 +6,7 @@
 
 use super::convert::parse_any_model;
 use pflow_verify::property::{Kind, Property};
-use pflow_verify::Verifier;
+use pflow_verify::{L4Status, Verifier};
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -20,6 +20,24 @@ struct VerdictOut {
     evidence: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     counterexample: Option<CounterexampleOut>,
+    /// Per-transition results; only an `l4-live` property has them.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    liveness: Vec<TransitionL4Out>,
+}
+
+#[derive(Serialize)]
+struct TransitionL4Out {
+    transition: String,
+    status: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    witness: Option<L4WitnessOut>,
+}
+
+#[derive(Serialize)]
+struct L4WitnessOut {
+    trace: Vec<String>,
+    marking: HashMap<String, i64>,
+    region_size: usize,
 }
 
 #[derive(Serialize)]
@@ -78,6 +96,23 @@ pub fn run(model: &str, properties_json: &str, max_states: Option<usize>) -> Res
                 marking: c.marking.clone(),
                 explanation: c.explanation.clone(),
             }),
+            liveness: verdict
+                .liveness
+                .iter()
+                .map(|t| TransitionL4Out {
+                    transition: t.transition.clone(),
+                    status: match t.status {
+                        L4Status::Live => "live",
+                        L4Status::NotLive => "not-live",
+                        L4Status::Unknown => "unknown",
+                    },
+                    witness: t.witness.as_ref().map(|w| L4WitnessOut {
+                        trace: w.trace.clone(),
+                        marking: w.marking.clone(),
+                        region_size: w.region_size,
+                    }),
+                })
+                .collect(),
         })
         .collect();
 
@@ -128,6 +163,7 @@ fn parse_object(v: &serde_json::Value) -> Result<Property, String> {
         "deadlock-free" => Ok(Property { kind: Some(Kind::DeadlockFree), name, ..Default::default() }),
         "bounded" => Ok(Property { kind: Some(Kind::Bounded), name, ..Default::default() }),
         "live" => Ok(Property { kind: Some(Kind::Live), name, ..Default::default() }),
+        "l4-live" => Ok(Property { kind: Some(Kind::L4Live), name, ..Default::default() }),
         "terminating" => Ok(Property { kind: Some(Kind::Terminating), name, ..Default::default() }),
         "conserves" => Ok(Property { kind: Some(Kind::Conserves), name, ..Default::default() }),
         "reachable" | "unreachable" => {
@@ -192,6 +228,9 @@ fn parse_shorthand(spec: &str) -> Result<Property, String> {
         }
         "live" | "liveness" => {
             return Ok(Property { kind: Some(Kind::Live), name: spec.to_string(), ..Default::default() })
+        }
+        "l4-live" | "l4" => {
+            return Ok(Property { kind: Some(Kind::L4Live), name: spec.to_string(), ..Default::default() })
         }
         "terminating" | "terminates" => {
             return Ok(Property { kind: Some(Kind::Terminating), name: spec.to_string(), ..Default::default() })
@@ -266,6 +305,32 @@ fn parse_marking_shorthand(s: &str) -> Result<HashMap<String, i64>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn l4_live_reports_each_transition_with_a_witness() {
+        let shape_b = r#"{"name":"trap",
+            "places":[{"id":"s","initial":1},{"id":"a"},{"id":"x"},{"id":"y"}],
+            "transitions":[{"id":"go"},{"id":"back"},{"id":"trap"},{"id":"xy"},{"id":"yx"}],
+            "arcs":[{"from":"s","to":"go"},{"from":"go","to":"a"},
+                    {"from":"a","to":"back"},{"from":"back","to":"s"},
+                    {"from":"s","to":"trap"},{"from":"trap","to":"x"},
+                    {"from":"x","to":"xy"},{"from":"xy","to":"y"},
+                    {"from":"y","to":"yx"},{"from":"yx","to":"x"}]}"#;
+        let out = run(shape_b, r#"["l4-live", {"kind":"l4-live","name":"again"}, "live"]"#, None).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let l4 = &v["verdicts"][0];
+        assert_eq!(l4["status"], "refuted");
+        assert_eq!(v["verdicts"][1]["status"], "refuted");
+        let by_name = |n: &str| l4["liveness"].as_array().unwrap().iter().find(|t| t["transition"] == n).unwrap().clone();
+        assert_eq!(by_name("go")["status"], "not-live");
+        assert_eq!(by_name("go")["witness"]["trace"], serde_json::json!(["trap"]));
+        assert_eq!(by_name("go")["witness"]["region_size"], 2);
+        assert_eq!(by_name("xy")["status"], "live");
+        assert!(by_name("xy").get("witness").is_none());
+        // L1 is unchanged, and carries no per-transition list.
+        assert_eq!(v["verdicts"][2]["status"], "proved");
+        assert!(v["verdicts"][2].get("liveness").is_none());
+    }
 
     fn dsl() -> &'static str {
         r#"(schema test

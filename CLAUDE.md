@@ -19,16 +19,16 @@ The papers extend this further — showing the incidence matrix enables algebrai
 | `pflow-core` | Core types: `PetriNet`, `Place`, `Transition`, `Arc`, `State`, fluent `Builder`; Shape A JSON and color expansion (`colors.rs`) |
 | `pflow-metamodel` | Shape B `Model` (stages, schedules, parameters, access) and the one shared firing rule every engine calls; `IndexedModel`/`BitModel` (the same rule over dense and bit markings, for searches) and `game` (exact two-sided game values by alpha-beta, with a bounded transposition table, `memo`, sound move filters, `filter`, root pieces, `root`: an `Estimate` and the `aspiration` driver, an opening `book` read from label caches, and `Solver::choose`, a best move under a node or time budget); a `SearchPlan` draws as a Petri net (`SearchPlan::net`) whose string diagram is the plan as one composite, its composition laws held by `tests/search_laws.rs` (`docs/search-composition-laws.md`) |
 | `pflow-parser` | Shape A → Shape B converter (`is_pflow_json`, `model_from_json`), held to go-pflow's editor-shape goldens |
-| `pflow-solver` | ODE solvers (Tsitouras 5/4, RK45, etc.), equilibrium detection, vectorized fast path; `ssa` — portable Gillespie SSA (byte-exact with go-pflow/pflow-xyz/pflow-jl); `ssa::sde` — chemical Langevin SDE (intrinsic noise, byte-exact with go-pflow/pflow-xyz); `game` — the mass-action ODE of a game's net as `pflow-metamodel`'s root `Estimate` (`ode`) |
+| `pflow-solver` | ODE solvers (Tsitouras 5/4, RK45, etc.), equilibrium detection, vectorized fast path; `Problem::new` refuses read and inhibitor arcs unless told otherwise (`Problem::with_contextual`); `ssa` — portable Gillespie SSA (byte-exact with go-pflow/pflow-xyz/pflow-jl); `ssa::sde` — chemical Langevin SDE (intrinsic noise, byte-exact with go-pflow/pflow-xyz); `game` — the mass-action ODE of a game's net as `pflow-metamodel`'s root `Estimate` (`ode`) |
 | `pflow-learn` | System identification: forward + adjoint sensitivities, gradient (Adam/backtracking) and derivative-free (Nelder-Mead) fitting, MLP rate functions, tied parameters — ported from go-pflow's `learn`, held to the same Go/JS goldens (`parity/`) |
-| `pflow-tokenmodel` | Token model `Schema`, `Runtime`, content-addressed identity (CID) |
+| `pflow-tokenmodel` | Token model `Schema`, `Runtime`, content-addressed identity (CID); `shape_a` — the sealed Shape A writer (`to_shape_a`, `seal_shape_a`), here because the CID is |
 | `pflow-dsl` | S-expression DSL parser, code generation |
 | `pflow-macros` | `schema!` proc macro for compile-time DSL validation |
 | `pflow-zk` | ZK proof traits (`PetriProver`), `IncidenceMatrix` extraction, `fire_transition()` |
 | `pflow-zk-arkworks` | Groth16 prover over BN254 with Poseidon hashing (structural R1CS) |
 | `pflow-reachability` | Reachability graph/BFS, coverability, Farkas P/T invariants, eigenvector centrality |
 | `pflow-validation` | Structural validation (structure/connectivity/deadlock-heuristic/unbounded/conservation checks) |
-| `pflow-verify` | Property verification (deadlock-free, bounded, live, invariants, ...) with structural-then-exhaustive proof strategy |
+| `pflow-verify` | Property verification (deadlock-free, bounded, live, l4-live, invariants, ...) with structural-then-exhaustive proof strategy. `live` is L1, as in go-pflow; `l4-live` is the textbook one, per transition with witnesses |
 | `pflow-compose` | `Bundle`/`Flatten` typed subnet composition (token/data/event/guard links), `templates` (SIR/SEIR/queue/...), `derive` (evaluation-net transforms), model-extension ops |
 | `pflow-mcp` | MCP server exposing Petri net tools — `petri_*` tools build, simulate, verify and analyze models; `pflow_*` names are pflow-rs-only extras |
 | `pflow-cli` | `pflow` CLI binary — parity with go-pflow's `cmd/pflow` (create/validate/verify/expand/simulate/analyze/summary/compare/events/visualize/plot) |
@@ -36,7 +36,7 @@ The papers extend this further — showing the incidence matrix enables algebrai
 | `pflow-mining` | Alpha/Heuristic Miner discovery, footprint matrix, token-replay conformance, timing, ported from go-pflow's `mining` |
 | `pflow-results` | Simulation result types, analysis, builder, io, ported from go-pflow's `results` |
 | `pflow-visualization` | SVG rendering for Petri nets and ODE solutions, ported from go-pflow's `visualization` and `plotter` packages |
-| `pflow-tropical` | Tropical (max-plus) semiring analysis, integer null-space P/T invariant basis; Rust-only |
+| `pflow-tropical` | Tropical (max-plus) semiring analysis, integer null-space P/T invariant basis, event-graph classifier and rho (`NetMatrix::classify_event_graph`); Rust-only |
 | `pflow` | Umbrella crate. Re-exports only `pflow-core`, `pflow-dsl`, `pflow-solver` and `pflow-tokenmodel` (as `core`/`dsl`/`solver`/`tokenmodel`), a handful of items (`Builder`, `PetriNet`, `State`, `schema!`, `find_equilibrium`, `solve`, `Options`, `Problem`, `Solution`, `simulate_ssa`, `SsaModel`, `SsaOptions`, `SsaResult`), and `pflow-zk`/`pflow-zk-arkworks` behind the `zk`/`zk-arkworks` features. Every other crate is a direct dependency, not reachable through `pflow` |
 
 **Which engine for which question** (ODE vs SSA vs SDE): `docs/engine-selection.md`,

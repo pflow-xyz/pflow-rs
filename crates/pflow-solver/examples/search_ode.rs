@@ -24,7 +24,7 @@ use std::time::Instant;
 fn uncompiled(g: &Game, mk: &[i64], est: &OdeEstimate) -> usize {
     let (net, state) = OdeEstimate::petri_net(g, mk);
     let rates = net.set_rates(None);
-    let prob = Problem::new(net, state, [0.0, OdeEstimate::HORIZON], rates);
+    let prob = Problem::new(net, state, [0.0, OdeEstimate::HORIZON], rates).unwrap();
     solve(&prob, &methods::tsit5(), est.solve_options()).t.len() - 1
 }
 

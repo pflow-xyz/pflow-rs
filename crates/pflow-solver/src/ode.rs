@@ -1,11 +1,21 @@
 //! ODE solver core: Problem, Solution, Options, Solve, mass-action kinetics.
+//!
+//! Mass action has no read or inhibitor arcs. A [`Problem`] refuses a net that
+//! has them unless the caller says what to do with them ([`ContextualArcs`]),
+//! the same refusal the SDE gives ([`crate::ssa::sde`]). go-pflow's
+//! `solver/ode.go` does not refuse: it integrates such an arc as a flow arc, so
+//! an inhibitor drains the place that should block the transition. No ODE
+//! parity fixture has a contextual arc, so nothing pins that behaviour.
 
 use std::collections::HashMap;
+use std::fmt;
+use std::str::FromStr;
 
-use pflow_core::net::PetriNet;
-use pflow_core::State;
+use pflow_core::net::{Arc, PetriNet};
+use pflow_core::{ArcKind, State};
 
 use crate::methods::Solver;
+use crate::ssa::sde::{inhibitor_arc_reason, read_arc_reason};
 
 /// A function that computes the derivative du/dt given time t and state u.
 pub type ODEFunc = Box<dyn Fn(f64, &State) -> State>;
@@ -13,8 +23,154 @@ pub type ODEFunc = Box<dyn Fn(f64, &State) -> State>;
 // Internal vectorized ODE function: (t, u) -> du using dense arrays.
 type VecF = Box<dyn Fn(f64, &[f64]) -> Vec<f64>>;
 
+/// What a [`Problem`] does with a net's read and inhibitor arcs.
+///
+/// Mirrors the `contextual` keyword of pflow-jl's `to_labelled_petri_net`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ContextualArcs {
+    /// Refuse the net. The default: neither kind of arc has a mass-action form.
+    #[default]
+    Refuse,
+    /// Encode a read arc as consume-then-restore, a self-loop of the same
+    /// weight. The place then scales the flux and nets no change, which is
+    /// exact under interleaving semantics, not under partial-order semantics.
+    /// An inhibitor has no such encoding, so it is still refused.
+    SelfLoop,
+    /// Ignore every read and inhibitor arc, as if it were not drawn.
+    Drop,
+}
+
+impl FromStr for ContextualArcs {
+    type Err = String;
+
+    /// `refuse`, `selfloop` or `drop`: the spelling the CLI and MCP tools take.
+    fn from_str(s: &str) -> Result<Self, String> {
+        match s {
+            "refuse" => Ok(ContextualArcs::Refuse),
+            "selfloop" => Ok(ContextualArcs::SelfLoop),
+            "drop" => Ok(ContextualArcs::Drop),
+            other => Err(format!(
+                "contextual must be refuse, selfloop or drop, not {other:?}"
+            )),
+        }
+    }
+}
+
+/// One read or inhibitor arc named in a [`ContextualArcError`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContextualArc {
+    pub place: String,
+    pub transition: String,
+}
+
+/// A net has read or inhibitor arcs that the chosen [`ContextualArcs`] does
+/// not resolve. The lists follow the net's arc order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContextualArcError {
+    pub reads: Vec<ContextualArc>,
+    pub inhibitors: Vec<ContextualArc>,
+    pub policy: ContextualArcs,
+}
+
+impl fmt::Display for ContextualArcError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut reasons = Vec::new();
+        if !self.reads.is_empty() {
+            let arcs: Vec<String> = self
+                .reads
+                .iter()
+                .map(|a| format!("{} -o {}", a.transition, a.place))
+                .collect();
+            reasons.push(format!(
+                "{} ({})",
+                read_arc_reason(self.reads.len()),
+                arcs.join(", ")
+            ));
+        }
+        if !self.inhibitors.is_empty() {
+            let arcs: Vec<String> = self
+                .inhibitors
+                .iter()
+                .map(|a| format!("{} -o {}", a.place, a.transition))
+                .collect();
+            reasons.push(format!(
+                "{} ({})",
+                inhibitor_arc_reason(self.inhibitors.len()),
+                arcs.join(", ")
+            ));
+        }
+        let hint = match self.policy {
+            ContextualArcs::SelfLoop => {
+                "inhibitor arcs cannot be encoded as self-loops; use drop to ignore them"
+            }
+            _ => "use selfloop (read arcs only) or drop to integrate the net anyway",
+        };
+        write!(f, "{}; {hint}", reasons.join("; "))
+    }
+}
+
+impl std::error::Error for ContextualArcError {}
+
+/// Applies `policy`: the net with no contextual arc left, or the refusal.
+fn resolve_contextual(
+    mut net: PetriNet,
+    policy: ContextualArcs,
+) -> Result<PetriNet, ContextualArcError> {
+    let mut reads = Vec::new();
+    let mut inhibitors = Vec::new();
+    for a in &net.arcs {
+        match net.arc_kind(a) {
+            ArcKind::Normal => {}
+            ArcKind::Read => reads.push(ContextualArc {
+                place: a.target.clone(),
+                transition: a.source.clone(),
+            }),
+            ArcKind::Inhibitor => inhibitors.push(ContextualArc {
+                place: a.source.clone(),
+                transition: a.target.clone(),
+            }),
+        }
+    }
+    if reads.is_empty() && inhibitors.is_empty() {
+        return Ok(net);
+    }
+    match policy {
+        ContextualArcs::Refuse => {
+            return Err(ContextualArcError {
+                reads,
+                inhibitors,
+                policy,
+            })
+        }
+        ContextualArcs::SelfLoop if !inhibitors.is_empty() => {
+            return Err(ContextualArcError {
+                reads: Vec::new(),
+                inhibitors,
+                policy,
+            })
+        }
+        ContextualArcs::SelfLoop | ContextualArcs::Drop => {}
+    }
+
+    let drawn = std::mem::take(&mut net.arcs);
+    for a in drawn {
+        if !a.inhibit_transition {
+            net.arcs.push(a);
+        } else if policy == ContextualArcs::SelfLoop {
+            // Drawn transition -> place: a read arc, since an inhibitor has
+            // already been refused above.
+            net.arcs
+                .push(Arc::new(&a.target, &a.source, a.weight.clone(), false));
+            net.arcs.push(Arc::new(a.source, a.target, a.weight, false));
+        }
+    }
+    Ok(net)
+}
+
 /// An ODE initial value problem for a Petri net.
 pub struct Problem {
+    /// The net as integrated: with [`ContextualArcs::SelfLoop`] or
+    /// [`ContextualArcs::Drop`], its contextual arcs are already resolved.
     pub net: PetriNet,
     pub u0: State,
     pub tspan: [f64; 2],
@@ -29,13 +185,26 @@ pub struct Problem {
 }
 
 impl Problem {
-    /// Creates a new ODE problem from a Petri net.
+    /// Creates a new ODE problem from a Petri net, refusing a net with read or
+    /// inhibitor arcs. Use [`Problem::with_contextual`] to integrate one anyway.
     pub fn new(
         net: PetriNet,
         initial_state: State,
         tspan: [f64; 2],
         rates: HashMap<String, f64>,
-    ) -> Self {
+    ) -> Result<Self, ContextualArcError> {
+        Self::with_contextual(net, initial_state, tspan, rates, ContextualArcs::Refuse)
+    }
+
+    /// [`Problem::new`], with what to do about read and inhibitor arcs stated.
+    pub fn with_contextual(
+        net: PetriNet,
+        initial_state: State,
+        tspan: [f64; 2],
+        rates: HashMap<String, f64>,
+        contextual: ContextualArcs,
+    ) -> Result<Self, ContextualArcError> {
+        let net = resolve_contextual(net, contextual)?;
         let f = build_ode_function(&net, &rates);
         // Sorted, not `HashMap` order: the state vector's layout (and the
         // public `state_labels` order) must not vary between instances.
@@ -51,7 +220,7 @@ impl Problem {
             .collect();
         let n_places = state_labels.len();
         let vec_f = build_vec_ode_function(&net, &rates, &state_index, n_places);
-        Self {
+        Ok(Self {
             net,
             u0: initial_state,
             tspan,
@@ -61,7 +230,7 @@ impl Problem {
             state_index,
             vec_u0,
             vec_f,
-        }
+        })
     }
 }
 
@@ -547,7 +716,7 @@ mod tests {
 
         let state = net.set_state(None);
         let rates = net.set_rates(None);
-        let prob = Problem::new(net, state, [0.0, 10.0], rates);
+        let prob = Problem::new(net, state, [0.0, 10.0], rates).unwrap();
         let sol = solve(&prob, &methods::tsit5(), &Options::default_opts());
 
         let final_state = sol.get_final_state().unwrap();
@@ -581,7 +750,7 @@ mod tests {
             let mut rates = net.set_rates(None);
             rates.insert("infect".into(), 0.0005);
             rates.insert("recover".into(), 0.1);
-            let prob = Problem::new(net, state, [0.0, 100.0], rates);
+            let prob = Problem::new(net, state, [0.0, 100.0], rates).unwrap();
             let opts = Options {
                 dt: 0.01,
                 dtmin: 1e-10,
@@ -600,5 +769,161 @@ mod tests {
             (1.5..8.0).contains(&ratio),
             "steps at 1e-3: {coarse}, at 1e-5: {fine}, ratio {ratio} (expected ~2.5)"
         );
+    }
+
+    /// `a -> t -> b` with an inhibitor from `i`: A=10, B=0, I=5.
+    fn inhibited() -> PetriNet {
+        PetriNet::build()
+            .place("A", 10.0)
+            .place("B", 0.0)
+            .place("I", 5.0)
+            .transition("t")
+            .arc("A", "t", 1.0)
+            .arc("t", "B", 1.0)
+            .inhibitor_arc("I", "t", 1.0)
+            .done()
+    }
+
+    /// `a -> t -> b` reading `R`: A=10, B=0, R=1.
+    fn reading() -> PetriNet {
+        PetriNet::build()
+            .place("A", 10.0)
+            .place("B", 0.0)
+            .place("R", 1.0)
+            .transition("t")
+            .arc("A", "t", 1.0)
+            .arc("t", "B", 1.0)
+            .read_arc("t", "R", 1.0)
+            .done()
+    }
+
+    fn problem(net: PetriNet, c: ContextualArcs) -> Result<Problem, ContextualArcError> {
+        let state = net.set_state(None);
+        let rates = net.set_rates(None);
+        Problem::with_contextual(net, state, [0.0, 10.0], rates, c)
+    }
+
+    fn final_state(net: PetriNet, c: ContextualArcs) -> State {
+        let prob = problem(net, c).unwrap();
+        let sol = solve(&prob, &crate::methods::tsit5(), &Options::default_opts());
+        sol.get_final_state().unwrap().clone()
+    }
+
+    #[test]
+    fn inhibitor_arc_is_refused_by_default() {
+        let net = inhibited();
+        let state = net.set_state(None);
+        let rates = net.set_rates(None);
+        let Err(e) = Problem::new(net, state, [0.0, 10.0], rates) else {
+            panic!("an inhibitor arc was integrated");
+        };
+        assert_eq!(e.reads, vec![]);
+        assert_eq!(
+            e.inhibitors,
+            vec![ContextualArc { place: "I".into(), transition: "t".into() }]
+        );
+        assert_eq!(
+            e.to_string(),
+            "1 inhibitor arc(s) block a firing above a threshold; a continuous solver cannot \
+             test them (I -o t); use selfloop (read arcs only) or drop to integrate the net anyway"
+        );
+    }
+
+    #[test]
+    fn read_arc_is_refused_by_default() {
+        let net = reading();
+        let state = net.set_state(None);
+        let rates = net.set_rates(None);
+        let Err(e) = Problem::new(net, state, [0.0, 10.0], rates) else {
+            panic!("a read arc was integrated");
+        };
+        assert_eq!(
+            e.reads,
+            vec![ContextualArc { place: "R".into(), transition: "t".into() }]
+        );
+        assert_eq!(
+            e.to_string(),
+            "1 read arc(s) gate a firing without consuming; a continuous solver cannot test \
+             them (t -o R); use selfloop (read arcs only) or drop to integrate the net anyway"
+        );
+    }
+
+    /// The bugs this refusal replaces: as flow arcs, the inhibitor drained I
+    /// to about 0 and the read arc grew R to about 10.9. Both opt-outs must
+    /// leave the contextual place where it started.
+    #[test]
+    fn drop_ignores_the_arc() {
+        let u = final_state(inhibited(), ContextualArcs::Drop);
+        assert_eq!(u["I"], 5.0);
+        assert!(u["B"] > 9.99 && (u["A"] + u["B"] - 10.0).abs() < 1e-9, "{u:?}");
+
+        let u = final_state(reading(), ContextualArcs::Drop);
+        assert_eq!(u["R"], 1.0);
+        assert!(u["B"] > 9.99 && (u["A"] + u["B"] - 10.0).abs() < 1e-9, "{u:?}");
+    }
+
+    #[test]
+    fn selfloop_reads_without_moving_tokens() {
+        let u = final_state(reading(), ContextualArcs::SelfLoop);
+        assert!((u["R"] - 1.0).abs() < 1e-12, "{u:?}");
+        // R=1 is first-order decay of A, and R scales the flux: at R=2 it is
+        // twice as fast.
+        assert!((u["A"] - 10.0 * (-10.0f64).exp()).abs() < 1e-3, "{u:?}");
+        let doubled = PetriNet::build()
+            .place("A", 10.0)
+            .place("B", 0.0)
+            .place("R", 2.0)
+            .transition("t")
+            .arc("A", "t", 1.0)
+            .arc("t", "B", 1.0)
+            .read_arc("t", "R", 2.0)
+            .done();
+        let prob = problem(doubled, ContextualArcs::SelfLoop).unwrap();
+        // The weight is the arc's own on both sides of the loop.
+        assert_eq!(prob.net.arcs.iter().filter(|a| a.weight == [2.0]).count(), 2);
+        assert!(prob.net.arcs.iter().all(|a| !a.inhibit_transition));
+        let sol = solve(&prob, &crate::methods::tsit5(), &Options::default_opts());
+        let u = sol.get_final_state().unwrap();
+        assert!((u["R"] - 2.0).abs() < 1e-12, "{u:?}");
+        assert!((u["A"] - 10.0 * (-20.0f64).exp()).abs() < 1e-3, "{u:?}");
+    }
+
+    #[test]
+    fn selfloop_still_refuses_an_inhibitor() {
+        let Err(e) = problem(inhibited(), ContextualArcs::SelfLoop) else {
+            panic!("an inhibitor became a self-loop");
+        };
+        assert!(e.to_string().ends_with(
+            "inhibitor arcs cannot be encoded as self-loops; use drop to ignore them"
+        ));
+    }
+
+    /// The closure and the vectorized path are built separately, so both
+    /// must see the resolved net.
+    #[test]
+    fn both_derivatives_see_the_resolved_net() {
+        let prob = problem(inhibited(), ContextualArcs::Drop).unwrap();
+        let du = (prob.f)(0.0, &prob.u0);
+        assert_eq!(du["I"], 0.0);
+        assert_eq!(du["A"], -10.0);
+        let dv = (prob.vec_f)(0.0, &prob.vec_u0);
+        assert_eq!(dv[prob.state_index["I"]], 0.0);
+        assert_eq!(dv[prob.state_index["A"]], -10.0);
+    }
+
+    #[test]
+    fn a_net_with_no_contextual_arc_is_untouched_by_any_policy() {
+        for c in [ContextualArcs::Refuse, ContextualArcs::SelfLoop, ContextualArcs::Drop] {
+            let (net, _) = PetriNet::build().sir(999.0, 1.0, 0.0).with_rates(1.0);
+            assert_eq!(problem(net, c).unwrap().net.arcs.len(), 5);
+        }
+    }
+
+    #[test]
+    fn contextual_policy_parses_from_its_flag_spelling() {
+        assert_eq!("refuse".parse(), Ok(ContextualArcs::Refuse));
+        assert_eq!("selfloop".parse(), Ok(ContextualArcs::SelfLoop));
+        assert_eq!("drop".parse(), Ok(ContextualArcs::Drop));
+        assert!("ignore".parse::<ContextualArcs>().is_err());
     }
 }

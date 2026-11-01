@@ -13,7 +13,10 @@ pub use equilibrium::{
     solve_until_equilibrium, EquilibriumOptions, EquilibriumResult, OptionPair,
 };
 pub use methods::Solver;
-pub use ode::{copy_state, solve, ODEFunc, Options, Problem, Solution};
+pub use ode::{
+    copy_state, solve, ContextualArc, ContextualArcError, ContextualArcs, ODEFunc, Options,
+    Problem, Solution,
+};
 pub use ssa::{
     simulate as simulate_ssa, ArcKind, SsaArc, SsaModel, SsaOptions, SsaPlace, SsaResult,
     SsaTransition,

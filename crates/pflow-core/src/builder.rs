@@ -81,6 +81,18 @@ impl Builder {
         self
     }
 
+    /// Adds a read arc: `transition` needs `weight` tokens in `place` to fire
+    /// and consumes none of them.
+    ///
+    /// It is stored as the pflow.xyz editor draws it, `transition -> place`
+    /// with `inhibit_transition` set, which is what tells it apart from an
+    /// [`Builder::inhibitor_arc`] (`PetriNet::arc_kind`). The arguments are in
+    /// drawn order. Swapped, they would describe an inhibitor.
+    pub fn read_arc(mut self, transition: &str, place: &str, weight: f64) -> Self {
+        self.net.add_arc(transition, place, vec![weight], true);
+        self
+    }
+
     /// Adds bidirectional arcs for a flow pattern: place -> transition -> place.
     pub fn flow(mut self, from_place: &str, transition: &str, to_place: &str, weight: f64) -> Self {
         self.net
@@ -164,6 +176,23 @@ impl Default for Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn read_and_inhibitor_arcs_are_told_apart_by_direction() {
+        let net = Builder::new()
+            .place("g", 1.0)
+            .transition("t")
+            .read_arc("t", "g", 2.0)
+            .inhibitor_arc("g", "t", 1.0)
+            .arc("g", "t", 1.0)
+            .done();
+        assert_eq!(net.arc_kind(&net.arcs[0]), crate::ArcKind::Read);
+        assert_eq!(net.arcs[0].source, "t");
+        assert_eq!(net.arcs[0].target, "g");
+        assert_eq!(net.arcs[0].weight, vec![2.0]);
+        assert_eq!(net.arc_kind(&net.arcs[1]), crate::ArcKind::Inhibitor);
+        assert_eq!(net.arc_kind(&net.arcs[2]), crate::ArcKind::Normal);
+    }
 
     #[test]
     fn test_basic_builder() {

@@ -325,7 +325,7 @@ mod tests {
         let (net, rates) = PetriNet::build().sir(999.0, 1.0, 0.0).with_rates(1.0);
 
         let state = net.set_state(None);
-        let prob = Problem::new(net, state, [0.0, 100.0], rates);
+        let prob = Problem::new(net, state, [0.0, 100.0], rates).unwrap();
         let (final_state, reached) = find_equilibrium(&prob);
 
         assert!(reached, "SIR should reach equilibrium");
@@ -358,7 +358,7 @@ mod tests {
         let (net, rates) = PetriNet::build().sir(999.0, 1.0, 0.0).with_rates(1.0);
 
         let state = net.set_state(None);
-        let prob = Problem::new(net, state, [0.0, 100.0], rates);
+        let prob = Problem::new(net, state, [0.0, 100.0], rates).unwrap();
 
         // Initial state should NOT be at equilibrium
         assert!(!is_equilibrium(&prob, &prob.u0, 1e-6));

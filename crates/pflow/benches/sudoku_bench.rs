@@ -183,7 +183,7 @@ fn sudoku_4x4_ode(c: &mut Criterion) {
         b.iter(|| {
             let state = net.set_state(None);
             let rates = net.set_rates(None);
-            let prob = Problem::new(net.clone(), state, [0.0, 3.0], rates);
+            let prob = Problem::new(net.clone(), state, [0.0, 3.0], rates).unwrap();
             let opts = Options {
                 dt: 0.2,
                 abstol: 1e-4,
@@ -205,7 +205,7 @@ fn sudoku_9x9_ode(c: &mut Criterion) {
         b.iter(|| {
             let state = net.set_state(None);
             let rates = net.set_rates(None);
-            let prob = Problem::new(net.clone(), state, [0.0, 3.0], rates);
+            let prob = Problem::new(net.clone(), state, [0.0, 3.0], rates).unwrap();
             let opts = Options {
                 dt: 0.2,
                 abstol: 1e-4,
@@ -234,7 +234,7 @@ fn sudoku_16x16_ode(c: &mut Criterion) {
         b.iter(|| {
             let state = net.set_state(None);
             let rates = net.set_rates(None);
-            let prob = Problem::new(net.clone(), state, [0.0, 3.0], rates);
+            let prob = Problem::new(net.clone(), state, [0.0, 3.0], rates).unwrap();
             let opts = Options {
                 dt: 0.2,
                 abstol: 1e-4,
