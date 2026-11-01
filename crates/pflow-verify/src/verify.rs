@@ -99,6 +99,7 @@ impl<'m> Verifier<'m> {
             Some(Kind::DeadlockFree) => self.check_deadlock_free(p),
             Some(Kind::Bounded) => self.check_bounded(p),
             Some(Kind::Live) => self.check_live(p),
+            Some(Kind::L4Live) => self.check_l4_live(p),
             Some(Kind::Terminating) => self.check_terminating(p),
             Some(Kind::Reachable) => self.check_reachable(p, true),
             Some(Kind::Unreachable) => self.check_reachable(p, false),
@@ -230,6 +231,53 @@ impl<'m> Verifier<'m> {
 
         let mut v = Verdict::new(p, Status::Proved, Method::Exhaustive);
         v.detail = format!("all {} transitions can fire from some reachable state", self.model.transitions.len());
+        v
+    }
+
+    fn check_l4_live(&self, p: Property) -> Verdict {
+        let r = self.analyzer().l4_liveness();
+
+        if let Some(first) = r.not_live().next() {
+            let not_live: Vec<&str> = r.not_live().map(|t| t.transition.as_str()).collect();
+            let w = first.witness.as_ref().expect("a NotLive transition has a witness");
+            let explanation = format!(
+                "{} can never fire again once {}",
+                first.transition,
+                if w.region_size == 1 {
+                    "this marking is reached".to_string()
+                } else {
+                    format!("the net enters this closed region of {} markings", w.region_size)
+                }
+            );
+            let mut v = Verdict::new(p, Status::Refuted, method_for(r.truncated));
+            v.detail = format!("not L4-live: {}", not_live.join(", "));
+            v.counterexample =
+                Some(Counterexample { trace: w.trace.clone(), marking: w.marking.clone(), explanation });
+            v.liveness = r.transitions.clone();
+            return v;
+        }
+
+        if r.truncated {
+            let mut v = Verdict::new(p, Status::Unknown, Method::Partial);
+            v.detail = format!(
+                "no transition ruled out in the {} states explored, but the state space was truncated",
+                r.state_count
+            );
+            v.liveness = r.transitions;
+            return v;
+        }
+
+        let mut v = Verdict::new(p, Status::Proved, Method::Exhaustive);
+        v.detail = format!(
+            "all {} transitions stay fireable from all {} reachable states",
+            self.model.transitions.len(),
+            r.state_count
+        );
+        v.evidence = format!(
+            "every transition fires in each of the {} terminal strongly connected component(s)",
+            r.terminal_components
+        );
+        v.liveness = r.transitions;
         v
     }
 

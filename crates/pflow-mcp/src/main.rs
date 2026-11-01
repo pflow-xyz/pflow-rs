@@ -275,7 +275,7 @@ impl PflowServer {
     }
 
     #[tool(
-        description = "Check whether a Petri net model satisfies stated correctness properties. Returns proved/refuted/unknown per property, each with the proof method (structural/exhaustive/witness) and a replayable firing sequence on refutation. Shorthand strings: deadlock-free, bounded, live, terminating, conserves, reachable:a=1,b=1, unreachable:a=1,b=1, mutex:p1,p2 (or mutex:p1,p2<=2), or a bare linear expression like \"a + 2*b == 10\". Object form: {\"kind\":\"invariant\",\"expr\":\"...\"}, {\"kind\":\"unreachable\",\"target\":{...}}, {\"kind\":\"mutual-exclusion\",\"places\":[...],\"bound\":1}"
+        description = "Check whether a Petri net model satisfies stated correctness properties. Returns proved/refuted/unknown per property, each with the proof method (structural/exhaustive/witness) and a replayable firing sequence on refutation. Shorthand strings: deadlock-free, bounded, live (L1: each transition fires somewhere), l4-live (each transition stays fireable from every reachable marking, per-transition results with witnesses), terminating, conserves, reachable:a=1,b=1, unreachable:a=1,b=1, mutex:p1,p2 (or mutex:p1,p2<=2), or a bare linear expression like \"a + 2*b == 10\". Object form: {\"kind\":\"invariant\",\"expr\":\"...\"}, {\"kind\":\"unreachable\",\"target\":{...}}, {\"kind\":\"mutual-exclusion\",\"places\":[...],\"bound\":1}"
     )]
     async fn petri_verify(
         &self,

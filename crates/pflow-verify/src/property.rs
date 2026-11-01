@@ -3,6 +3,8 @@
 
 use std::collections::HashMap;
 
+use pflow_reachability::TransitionL4;
+
 /// What a [`Property`] asserts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
@@ -16,6 +18,11 @@ pub enum Kind {
     /// `DeadlockFree`, since a net can fire every transition along one path
     /// and still wedge on another).
     Live,
+    /// From every reachable marking, every transition can still be made to
+    /// fire (L4 liveness, the textbook one; not in go-pflow). Implies [`Kind::Live`]
+    /// and, for a net with a transition, freedom from dead markings. The verdict
+    /// carries a per-transition result in [`Verdict::liveness`].
+    L4Live,
     /// Every execution eventually stops (the reachability graph is
     /// acyclic).
     Terminating,
@@ -125,11 +132,23 @@ pub struct Verdict {
     pub evidence: String,
     /// Populated when `status` is `Refuted`.
     pub counterexample: Option<Counterexample>,
+    /// For [`Kind::L4Live`]: each transition's result, with a witness for each
+    /// failure. `counterexample` is the first failure's witness. Empty for
+    /// every other kind.
+    pub liveness: Vec<TransitionL4>,
 }
 
 impl Verdict {
     pub(crate) fn new(property: Property, status: Status, method: Method) -> Self {
-        Verdict { property, status, method, detail: String::new(), evidence: String::new(), counterexample: None }
+        Verdict {
+            property,
+            status,
+            method,
+            detail: String::new(),
+            evidence: String::new(),
+            counterexample: None,
+            liveness: Vec::new(),
+        }
     }
 }
 

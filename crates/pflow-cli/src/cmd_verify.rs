@@ -6,7 +6,7 @@
 use crate::model_io::{load_model, write_output};
 use crate::Args;
 use pflow_verify::property::{Kind, Property};
-use pflow_verify::Verifier;
+use pflow_verify::{L4Status, Verifier};
 use std::collections::HashMap;
 
 pub fn run(raw: &[String]) -> Result<(), String> {
@@ -57,6 +57,17 @@ pub fn run(raw: &[String]) -> Result<(), String> {
                 "counterexample": verdict.counterexample.as_ref().map(|c| serde_json::json!({
                     "trace": c.trace, "marking": c.marking, "explanation": c.explanation,
                 })),
+                "liveness": verdict.liveness.iter().map(|t| serde_json::json!({
+                    "transition": t.transition,
+                    "status": match t.status {
+                        L4Status::Live => "live",
+                        L4Status::NotLive => "not-live",
+                        L4Status::Unknown => "unknown",
+                    },
+                    "witness": t.witness.as_ref().map(|w| serde_json::json!({
+                        "trace": w.trace, "marking": w.marking, "regionSize": w.region_size,
+                    })),
+                })).collect::<Vec<_>>(),
             })
         })
         .collect();
@@ -100,6 +111,7 @@ fn parse_object(v: &serde_json::Value) -> Result<Property, String> {
         "deadlock-free" => Ok(Property { kind: Some(Kind::DeadlockFree), name, ..Default::default() }),
         "bounded" => Ok(Property { kind: Some(Kind::Bounded), name, ..Default::default() }),
         "live" => Ok(Property { kind: Some(Kind::Live), name, ..Default::default() }),
+        "l4-live" => Ok(Property { kind: Some(Kind::L4Live), name, ..Default::default() }),
         "terminating" => Ok(Property { kind: Some(Kind::Terminating), name, ..Default::default() }),
         "conserves" => Ok(Property { kind: Some(Kind::Conserves), name, ..Default::default() }),
         "reachable" | "unreachable" => {
@@ -154,6 +166,7 @@ fn parse_shorthand(spec: &str) -> Result<Property, String> {
         "deadlock-free" | "deadlockfree" => return Ok(Property { kind: Some(Kind::DeadlockFree), name: spec.to_string(), ..Default::default() }),
         "bounded" => return Ok(Property { kind: Some(Kind::Bounded), name: spec.to_string(), ..Default::default() }),
         "live" | "liveness" => return Ok(Property { kind: Some(Kind::Live), name: spec.to_string(), ..Default::default() }),
+        "l4-live" | "l4" => return Ok(Property { kind: Some(Kind::L4Live), name: spec.to_string(), ..Default::default() }),
         "terminating" | "terminates" => return Ok(Property { kind: Some(Kind::Terminating), name: spec.to_string(), ..Default::default() }),
         "conserves" | "conservation" => return Ok(Property { kind: Some(Kind::Conserves), name: spec.to_string(), ..Default::default() }),
         _ => {}

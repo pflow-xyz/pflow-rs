@@ -13,7 +13,9 @@ pub mod invariants;
 pub mod marking;
 pub mod spectral;
 
-pub use analyzer::{AnalysisResult, Analyzer, ExplorationStats};
+pub use analyzer::{
+    AnalysisResult, Analyzer, ExplorationStats, L4Report, L4Status, L4Witness, TransitionL4,
+};
 pub use coverability::UnboundedWitness;
 pub use graph::{Edge, Graph, State};
 pub use invariants::{FarkasResult, Invariant, InvariantAnalyzer, TInvariant};

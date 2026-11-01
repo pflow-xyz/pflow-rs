@@ -11,4 +11,5 @@ pub use property::{
     parse_expr, Counterexample, Kind, LinearExpr, Method, ParseError, Property, Relation, Report,
     Status, Verdict,
 };
+pub use pflow_reachability::{L4Status, L4Witness, TransitionL4};
 pub use verify::{Verifier, DEFAULT_MAX_STATES};
