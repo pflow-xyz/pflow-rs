@@ -136,42 +136,10 @@ pub fn load_petri_net(path: &str) -> Result<PetriNet, String> {
     Ok(model_to_petri_net(&model))
 }
 
-/// Writes a `pflow_core::PetriNet` back out as Shape A JSON — there is no
-/// Shape A serializer in `pflow-core` (it only reads Shape A; every writer
-/// in the ecosystem produces Shape B), so this is a minimal one, just
-/// enough for `pflow create`/`pflow expand` to hand back something
-/// `pflow_core::from_json`/the pflow.xyz editor can read.
-pub fn petri_net_to_shape_a_json(net: &PetriNet, name: &str) -> serde_json::Value {
-    let mut places = serde_json::Map::new();
-    for (id, p) in &net.places {
-        places.insert(
-            id.clone(),
-            serde_json::json!({"initial": p.initial, "capacity": p.capacity, "x": p.x, "y": p.y}),
-        );
-    }
-    let mut transitions = serde_json::Map::new();
-    for (id, t) in &net.transitions {
-        transitions.insert(id.clone(), serde_json::json!({"role": t.role, "x": t.x, "y": t.y}));
-    }
-    let arcs: Vec<serde_json::Value> = net
-        .arcs
-        .iter()
-        .map(|a| {
-            serde_json::json!({
-                "source": a.source,
-                "target": a.target,
-                "weight": a.weight,
-                "inhibitTransition": a.inhibit_transition,
-            })
-        })
-        .collect();
-    serde_json::json!({
-        "name": name,
-        "token": net.token,
-        "places": places,
-        "transitions": transitions,
-        "arcs": arcs,
-    })
+/// Writes a `pflow_core::PetriNet` as a sealed Shape A document: `@context`,
+/// `@type`, `@version` and its CID as `@id`. See `pflow_tokenmodel::shape_a`.
+pub fn petri_net_to_shape_a_json(net: &PetriNet) -> Result<serde_json::Value, String> {
+    pflow_tokenmodel::to_shape_a(net).map_err(|e| e.to_string())
 }
 
 pub fn write_output(json: &serde_json::Value, output: Option<&str>) -> Result<(), String> {
@@ -237,13 +205,26 @@ mod tests {
     }
 
     #[test]
+    fn shape_a_json_is_a_sealed_document() {
+        let json = petri_net_to_shape_a_json(&model_to_petri_net(&parse_model(dsl()).unwrap())).unwrap();
+        assert_eq!(json["@context"], "https://pflow.xyz/schema");
+        assert_eq!(json["@type"], "PetriNet");
+        assert_eq!(json["@version"], "1.1");
+        let id = json["@id"].as_str().unwrap();
+        assert!(id.starts_with('z'));
+        let (cid, _) = pflow_tokenmodel::compute_cid(&serde_json::to_vec(&json).unwrap()).unwrap();
+        assert_eq!(id, cid);
+    }
+
+    #[test]
     fn shape_a_json_round_trips_through_from_json() {
         let model = parse_model(dsl()).unwrap();
         let net = model_to_petri_net(&model);
-        let json = petri_net_to_shape_a_json(&net, "test");
+        let json = petri_net_to_shape_a_json(&net).unwrap();
         let bytes = serde_json::to_vec(&json).unwrap();
         let reread = pflow_core::from_json(&bytes).unwrap();
         assert_eq!(reread.places.len(), net.places.len());
         assert_eq!(reread.transitions.len(), net.transitions.len());
+        assert_eq!(petri_net_to_shape_a_json(&reread).unwrap(), json);
     }
 }

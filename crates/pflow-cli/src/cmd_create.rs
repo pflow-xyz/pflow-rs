@@ -22,6 +22,6 @@ pub fn run(raw: &[String]) -> Result<(), String> {
     }
 
     let net = templates::generate(name, &params)?;
-    let json = petri_net_to_shape_a_json(&net, name);
+    let json = petri_net_to_shape_a_json(&net)?;
     write_output(&json, args.get("output"))
 }
