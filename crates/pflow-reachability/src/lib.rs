@@ -14,7 +14,8 @@ pub mod marking;
 pub mod spectral;
 
 pub use analyzer::{
-    AnalysisResult, Analyzer, ExplorationStats, L4Report, L4Status, L4Witness, TransitionL4,
+    AnalysisResult, Analyzer, ExplorationStats, L4Report, L4Status, L4Witness, Liveness,
+    LivenessWitness, TransitionL4, Verdict, WitnessKind,
 };
 pub use coverability::UnboundedWitness;
 pub use graph::{Edge, Graph, State};
