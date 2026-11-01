@@ -185,7 +185,7 @@ pub fn create_ode_net(puzzle: &[Vec<u32>], block_size: usize) -> PetriNet {
 pub fn solve_sudoku(net: &PetriNet) -> f64 {
     let state = net.set_state(None);
     let rates = net.set_rates(None);
-    let prob = Problem::new(net.clone(), state, [0.0, 3.0], rates);
+    let prob = Problem::new(net.clone(), state, [0.0, 3.0], rates).unwrap();
     let opts = Options {
         dt: 0.2,
         abstol: 1e-4,

@@ -64,7 +64,7 @@ fn problem(rotate: usize) -> ode::Problem {
     // Rebuild the initial state and rates into fresh maps as well.
     let state = net.set_state(None);
     let rates = net.set_rates(Some(&rates));
-    ode::Problem::new(net, state, [0.0, 30.0], rates)
+    ode::Problem::new(net, state, [0.0, 30.0], rates).unwrap()
 }
 
 fn assert_state_bits_eq(ctx: &str, a: &State, b: &State) {

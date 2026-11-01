@@ -2,7 +2,7 @@ use crate::model_io::{load_petri_net, model_name_from_path, write_output};
 use crate::Args;
 use pflow_results::results::builder::Builder;
 use pflow_results::results::io::to_json;
-use pflow_solver::{methods, solve, Options, Problem};
+use pflow_solver::{methods, solve, ContextualArcs, Options, Problem};
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -32,7 +32,13 @@ pub fn run(raw: &[String]) -> Result<(), String> {
         }
     }
 
-    let prob = Problem::new(net.clone(), state.clone(), [t_start, t_end], rates.clone());
+    // Refused by default: a read or inhibitor arc has no mass-action form.
+    let contextual = match args.get("contextual") {
+        Some(s) => s.parse::<ContextualArcs>()?,
+        None => ContextualArcs::Refuse,
+    };
+    let prob = Problem::with_contextual(net.clone(), state.clone(), [t_start, t_end], rates.clone(), contextual)
+        .map_err(|e| e.to_string())?;
     let opts = Options::default_opts();
     let started = Instant::now();
     let sol = solve(&prob, &methods::tsit5(), &opts);

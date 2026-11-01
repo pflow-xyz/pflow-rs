@@ -168,7 +168,7 @@ fn main() {
         let rates = net.set_rates(None);
 
         let solve_start = Instant::now();
-        let prob = Problem::new(net, state, [0.0, 3.0], rates);
+        let prob = Problem::new(net, state, [0.0, 3.0], rates).unwrap();
         let opts = Options {
             dt: 0.2,
             abstol: 1e-4,

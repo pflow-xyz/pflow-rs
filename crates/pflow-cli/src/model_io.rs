@@ -90,9 +90,9 @@ fn schema_to_model(schema: &pflow_tokenmodel::Schema) -> Model {
 }
 
 /// Converts a `Model` into a `pflow_core::PetriNet` — the ODE/SSA/SVG
-/// representation. Read arcs become an input+output pair of the same
-/// weight (nets to zero movement, still gates on the marking); inhibitor
-/// arcs map onto `inhibit_transition`. See `pflow-mcp`'s
+/// representation. Contextual arcs use the pflow.xyz convention: an inhibitor
+/// stays `place -> transition`, a read arc is drawn `transition -> place`, both
+/// with `inhibit_transition`. See `pflow-mcp`'s
 /// `tools::convert::model_to_petri_net` for the identical rationale.
 pub fn model_to_petri_net(model: &Model) -> PetriNet {
     let mut net = PetriNet::new();
@@ -115,11 +115,10 @@ pub fn model_to_petri_net(model: &Model) -> PetriNet {
                     net.add_arc(&a.from, &a.to, vec![w], false);
                 }
             }
-            ArcType::Inhibitor => net.add_arc(&a.from, &a.to, vec![w], true),
-            ArcType::Read => {
-                net.add_arc(&a.from, &a.to, vec![w], false);
-                net.add_arc(&a.to, &a.from, vec![w], false);
-            }
+            // The firing rule only tests a token place, drawn place -> transition.
+            ArcType::Inhibitor if token_ids.contains(a.from.as_str()) => net.add_arc(&a.from, &a.to, vec![w], true),
+            ArcType::Read if token_ids.contains(a.from.as_str()) => net.add_arc(&a.to, &a.from, vec![w], true),
+            ArcType::Inhibitor | ArcType::Read => {}
         }
     }
     net

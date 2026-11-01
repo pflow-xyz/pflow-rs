@@ -324,7 +324,7 @@ mod tests {
         let tspan = [0.0, 5.0];
         let opts = Options::default_opts();
 
-        let prob = Problem::new(net.clone(), state.clone(), tspan, rates.clone());
+        let prob = Problem::new(net.clone(), state.clone(), tspan, rates.clone()).unwrap();
         let sol = solve(&prob, &tsit5(), &opts);
 
         let results = Builder::new()

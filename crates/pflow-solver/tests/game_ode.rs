@@ -19,7 +19,7 @@ fn the_compiled_net_solves_as_the_core_net_does() {
             let (u, steps) = est.final_state(&mk);
             let (net, state) = OdeEstimate::petri_net(&g, &mk);
             let rates = net.set_rates(None);
-            let prob = Problem::new(net, state, [0.0, OdeEstimate::HORIZON], rates);
+            let prob = Problem::new(net, state, [0.0, OdeEstimate::HORIZON], rates).unwrap();
             let sol = solve(&prob, &methods::tsit5(), est.solve_options());
             assert_eq!(sol.t.len() - 1, steps, "{name}");
             let end = sol.get_final_state().unwrap();

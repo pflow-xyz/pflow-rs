@@ -197,7 +197,7 @@ fn tsit5_matches_go_pflow_trajectories() {
             entry["tspan"][0].as_f64().unwrap(),
             entry["tspan"][1].as_f64().unwrap(),
         ];
-        let prob = ode::Problem::new(net, state, tspan, rates);
+        let prob = ode::Problem::new(net, state, tspan, rates).unwrap();
         let sol = ode::solve(&prob, &tsit5, &opts);
 
         let want_t = want["t"].as_array().unwrap();

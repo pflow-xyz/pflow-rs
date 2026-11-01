@@ -186,12 +186,12 @@ pub fn parse_any_model(text: &str) -> Result<Model, String> {
 /// A's ODE/SSA-oriented representation), for the tools built on that older
 /// net type (`petri_conformance`'s token-replay, the portable SSA).
 ///
-/// `pflow_core::PetriNet::Arc` has no read-arc concept, only a consuming
-/// arc and an `inhibit_transition` flag. A read arc is encoded the standard
-/// way — an input arc and an output arc of the same weight between the same
-/// place and transition, netting zero token movement but still gating
-/// enablement on the place holding at least `weight` — the usual trick
-/// for this mismatch. An inhibitor arc maps directly onto `inhibit_transition`.
+/// `pflow_core::PetriNet::Arc` has a consuming arc and an `inhibit_transition`
+/// flag. Contextual arcs use the pflow.xyz convention: an inhibitor stays
+/// `place -> transition`, a read arc is drawn `transition -> place`, both with
+/// the flag (`PetriNet::arc_kind`). A self-loop is not the same thing: it
+/// scales a rate and consumes before it restores, so each engine decides
+/// whether to accept that encoding, and this conversion does not decide for it.
 pub fn model_to_petri_net(model: &Model) -> pflow_core::PetriNet {
     let mut net = pflow_core::PetriNet::new();
 
@@ -217,14 +217,14 @@ pub fn model_to_petri_net(model: &Model) -> pflow_core::PetriNet {
                     net.add_arc(&a.from, &a.to, vec![w], false);
                 }
             }
-            MmArcType::Inhibitor => {
+            // The firing rule only tests a token place, drawn place -> transition.
+            MmArcType::Inhibitor if token_ids.contains(a.from.as_str()) => {
                 net.add_arc(&a.from, &a.to, vec![w], true);
             }
-            MmArcType::Read => {
-                // place -> transition -> place, same weight both ways.
-                net.add_arc(&a.from, &a.to, vec![w], false);
-                net.add_arc(&a.to, &a.from, vec![w], false);
+            MmArcType::Read if token_ids.contains(a.from.as_str()) => {
+                net.add_arc(&a.to, &a.from, vec![w], true);
             }
+            MmArcType::Inhibitor | MmArcType::Read => {}
         }
     }
 

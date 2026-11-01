@@ -18,7 +18,7 @@ pub mod verify;
 
 use pflow_core::{PetriNet, State};
 use pflow_dsl::parse_schema;
-use pflow_tokenmodel::Schema;
+use pflow_tokenmodel::{ArcType, Schema};
 use std::collections::HashMap;
 
 /// Parse a model string into a Schema. Accepts every wire shape
@@ -40,8 +40,14 @@ pub fn parse_model(model: &str) -> Result<Schema, String> {
     Ok(convert::model_to_schema(&model))
 }
 
-/// Convert a Schema into a PetriNet suitable for ODE simulation.
-/// Token states become places; actions become transitions; arcs map with weight 1.0.
+/// Convert a Schema into a PetriNet for the ODE and the SSA.
+///
+/// Token states become places and actions become transitions. Arcs keep their
+/// declared weight and type. Contextual arcs use the pflow.xyz convention
+/// (`PetriNet::arc_kind`): an inhibitor stays `place -> transition`, a read arc
+/// is drawn `transition -> place`. A contextual arc the firing rule would not
+/// test, one not drawn from a token place, is left out, as
+/// [`convert::model_to_petri_net`] does.
 pub fn schema_to_petri_net(schema: &Schema) -> PetriNet {
     let mut net = PetriNet::new();
 
@@ -66,8 +72,18 @@ pub fn schema_to_petri_net(schema: &Schema) -> PetriNet {
         // Only include arcs connecting token states
         let is_input = schema.state_by_id(&arc.source).is_some_and(|s| s.is_token());
         let is_output = schema.state_by_id(&arc.target).is_some_and(|s| s.is_token());
-        if is_input || is_output {
-            net.add_arc(&arc.source, &arc.target, vec![1.0], false);
+        let w = arc.effective_weight() as f64;
+        match arc.typ {
+            ArcType::Normal if is_input || is_output => {
+                net.add_arc(&arc.source, &arc.target, vec![w], false);
+            }
+            ArcType::Inhibitor if is_input => {
+                net.add_arc(&arc.source, &arc.target, vec![w], true);
+            }
+            ArcType::Read if is_input => {
+                net.add_arc(&arc.target, &arc.source, vec![w], true);
+            }
+            ArcType::Normal | ArcType::Inhibitor | ArcType::Read => {}
         }
     }
 

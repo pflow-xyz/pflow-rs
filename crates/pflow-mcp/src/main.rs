@@ -41,6 +41,8 @@ pub struct SimulateParams {
     pub t_end: Option<f64>,
     #[schemars(description = "Maximum output data points (default: 100)")]
     pub max_points: Option<usize>,
+    #[schemars(description = "Read and inhibitor arcs have no mass-action form: refuse (default), selfloop (read arcs only) or drop")]
+    pub contextual: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -49,6 +51,8 @@ pub struct EquilibriumParams {
     pub model: String,
     #[schemars(description = "Maximum simulation time to search for equilibrium (default: 1000.0)")]
     pub t_max: Option<f64>,
+    #[schemars(description = "Read and inhibitor arcs have no mass-action form: refuse (default), selfloop (read arcs only) or drop")]
+    pub contextual: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -216,7 +220,8 @@ impl PflowServer {
         let model = params.model;
         let t_end = params.t_end.unwrap_or(100.0);
         let max_points = params.max_points.unwrap_or(100);
-        tokio::task::spawn_blocking(move || tools::simulate::run(&model, t_end, max_points))
+        let contextual = parse_contextual(params.contextual.as_deref())?;
+        tokio::task::spawn_blocking(move || tools::simulate::run(&model, t_end, max_points, contextual))
             .await
             .map_err(|e| format!("Task error: {e}"))?
     }
@@ -230,7 +235,8 @@ impl PflowServer {
     ) -> Result<String, String> {
         let model = params.model;
         let t_max = params.t_max.unwrap_or(1000.0);
-        tokio::task::spawn_blocking(move || tools::equilibrium::run(&model, t_max))
+        let contextual = parse_contextual(params.contextual.as_deref())?;
+        tokio::task::spawn_blocking(move || tools::equilibrium::run(&model, t_max, contextual))
             .await
             .map_err(|e| format!("Task error: {e}"))?
     }
@@ -404,6 +410,10 @@ impl PflowServer {
             .await
             .map_err(|e| format!("Task error: {e}"))?
     }
+}
+
+fn parse_contextual(s: Option<&str>) -> Result<pflow_solver::ContextualArcs, String> {
+    s.map_or(Ok(pflow_solver::ContextualArcs::Refuse), str::parse)
 }
 
 fn parse_json_map_i64(s: Option<&str>) -> Result<std::collections::HashMap<String, i64>, String> {

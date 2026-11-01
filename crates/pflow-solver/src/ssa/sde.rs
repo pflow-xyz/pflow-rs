@@ -134,6 +134,18 @@ fn compile_sde(model: &CompiledModel) -> Vec<SdeTransition> {
         .collect()
 }
 
+/// The refusal for read arcs, word for word as the SDE goldens pin it. The ODE
+/// refuses with the same sentence ([`crate::ode::ContextualArcError`]), so this
+/// is the one place it is written.
+pub(crate) fn read_arc_reason(n: usize) -> String {
+    format!("{n} read arc(s) gate a firing without consuming; a continuous solver cannot test them")
+}
+
+/// The refusal for inhibitor arcs; see [`read_arc_reason`].
+pub(crate) fn inhibitor_arc_reason(n: usize) -> String {
+    format!("{n} inhibitor arc(s) block a firing above a threshold; a continuous solver cannot test them")
+}
+
 /// True if the model has anything an SDE (or the ODE) cannot express: a read
 /// arc, an inhibitor, a non-kinetic input, or a reachable capacity. Mirrors
 /// go-pflow's `Model.Gating()` word for word (`metamodel/firing.go`) at the
@@ -162,14 +174,10 @@ fn gating_reasons(model: &CompiledModel) -> Vec<String> {
         .sum();
 
     if reads > 0 {
-        out.push(format!(
-            "{reads} read arc(s) gate a firing without consuming; a continuous solver cannot test them"
-        ));
+        out.push(read_arc_reason(reads));
     }
     if inhibits > 0 {
-        out.push(format!(
-            "{inhibits} inhibitor arc(s) block a firing above a threshold; a continuous solver cannot test them"
-        ));
+        out.push(inhibitor_arc_reason(inhibits));
     }
     if static_arcs > 0 {
         out.push(format!(

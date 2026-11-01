@@ -54,6 +54,7 @@ variations it unlocks, so "how far is Rust" has a one-line answer at any time.
 | `tokenmodel/petri` (Petri semantics as a tokenmodel specialization, structural invariant analysis) | — | **gap, not ported** | — |
 | `codegen/solidity` (Solidity contracts and guard translation from token model schemas) | — | **gap, not ported**. Separate from the `zkcompile` Solidity verifier listed under *Not ported, on purpose* | — |
 | Rust-only: `pflow-tropical`, `pflow-macros` | — | ahead of Go | — |
+| Rust-only: the ODE refuses read and inhibitor arcs (ported from pflow-jl's `to_labelled_petri_net`) | `pflow-solver::ode` (`Problem::new`, `Problem::with_contextual`, `ContextualArcs`, `ContextualArcError`) | **deliberately ahead of go-pflow**: `Problem::new` returns `Err` on a read or inhibitor arc, in the SDE's wording (`read_arc_reason`, `inhibitor_arc_reason`, one copy). The opt-outs are `SelfLoop` (read arcs only) and `Drop`. go-pflow's `solver/ode.go` still integrates such an arc as a flow arc (an inhibitor `I -o t` drains `I`). `pflow-learn`'s `sensitivity.rs` walks `prob.net.arcs` the same way, and is not changed here | Rust-owned unit tests in `ode.rs`, plus tool-level tests in `pflow-mcp` `tools/{simulate,analyze}.rs`. No go-pflow golden: none exists for this behaviour, and `tests/fixtures/ode/fixtures.json` has no contextual arc, so `ode_parity.rs` is unaffected |
 
 Showcase scorecard today: **kinetics** replays byte-exact once the SSA JSON
 loader moves from the parity test into the library; **loyalty** parses and
