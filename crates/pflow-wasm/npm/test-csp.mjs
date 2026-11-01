@@ -87,7 +87,9 @@ async function run(entry, { wasmEval }) {
   const browser = spawn(
     chrome,
     ['--headless=new', '--no-sandbox', '--disable-gpu', `--user-data-dir=${profile}`, `${pageOrigin}/page.html`],
-    { stdio: 'ignore' },
+    // Its own process group: Chrome's children outlive a kill of the parent alone,
+    // and keep writing to the profile.
+    { stdio: 'ignore', detached: true },
   );
   const closed = new Promise((r) => browser.once('close', r));
   let timer;
@@ -100,9 +102,18 @@ async function run(entry, { wasmEval }) {
     return { body, requested: [...requested] };
   } finally {
     clearTimeout(timer);
-    browser.kill('SIGKILL');
+    try {
+      process.kill(-browser.pid, 'SIGKILL');
+    } catch {
+      // Already gone.
+    }
     await closed;
-    rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    // Best effort: a temp directory left behind is not a result of this test.
+    try {
+      rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    } catch (e) {
+      console.log(`note: left ${profile}: ${e.code}`);
+    }
   }
 }
 
