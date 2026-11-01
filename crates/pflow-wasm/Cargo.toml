@@ -1,0 +1,27 @@
+[package]
+name = "pflow-wasm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "pflow-rs for the browser: load a net, fire it, run the ODE and the portable SSA, through wasm-bindgen"
+# Distributed on npm as @pflow-xyz/pflow-wasm (make wasm-npm), not on crates.io.
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pflow-core = { path = "../pflow-core" }
+pflow-metamodel = { path = "../pflow-metamodel" }
+pflow-parser = { path = "../pflow-parser" }
+pflow-solver = { path = "../pflow-solver" }
+serde = { version = "1", features = ["derive"] }
+# float_roundtrip is a runtime requirement here, not only a test one: a model's
+# rates arrive as JSON text, and serde_json's default parser can misread one by
+# an ulp, which would break the SSA's byte-exact contract in the browser.
+serde_json = { version = "1", features = ["float_roundtrip"] }
+# Exactly the wasm-bindgen CLI's version (WASM_BINDGEN_VERSION in the Makefile):
+# the CLI refuses a module built against any other.
+wasm-bindgen = "=0.2.129"
