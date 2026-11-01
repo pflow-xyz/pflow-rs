@@ -32,15 +32,26 @@ pub struct AnalysisResult<'m> {
     pub bounded: bool,
     pub max_tokens: HashMap<String, i64>,
     pub max_depth: i64,
+    /// A heuristic for "stuck, not finished": it skips a marking that drained
+    /// to empty. [`Self::dead_markings`] and [`Self::liveness`] use the standard
+    /// definition, under which any marking with nothing enabled is dead.
     pub has_deadlock: bool,
     /// Keys (see [`marking::key`]) of states flagged as deadlocks.
     pub deadlocks: Vec<String>,
+    /// Keys of every explored marking with no enabled transition, nearest first.
+    pub dead_markings: Vec<String>,
     pub has_cycle: bool,
     /// Firing sequences that form cycles.
     pub cycles: Vec<Vec<String>>,
-    /// All transitions can eventually fire (only meaningful when
-    /// `is_complete`).
+    /// L4 liveness: from every reachable marking, every transition can
+    /// eventually fire. Set by [`Analyzer::analyze`]; true only when the search
+    /// was complete. It used to mean what [`Self::quasi_live`] means now.
     pub live: bool,
+    /// L1: every transition fires in some reachable marking. A net can be
+    /// quasi-live and still deadlock.
+    pub quasi_live: bool,
+    /// The three-valued verdicts and the witness. Set by [`Analyzer::analyze`].
+    pub liveness: Liveness,
     /// Transitions proven never to fire (populated only when `is_complete`).
     pub dead_trans: Vec<String>,
     pub truncated: bool,
@@ -54,6 +65,91 @@ pub struct AnalysisResult<'m> {
     pub confirmed_dead: Vec<String>,
     pub fired_transitions: Vec<String>,
     pub exploration_stats: ExplorationStats,
+}
+
+/// A three-valued answer: a search that stopped early has not seen every state,
+/// so a claim about all of them can only be unknown.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Verdict {
+    True,
+    False,
+    #[default]
+    Unknown,
+}
+
+impl Verdict {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Verdict::True => "true",
+            Verdict::False => "false",
+            Verdict::Unknown => "unknown",
+        }
+    }
+
+    fn of(b: bool) -> Self {
+        if b {
+            Verdict::True
+        } else {
+            Verdict::False
+        }
+    }
+}
+
+/// What a [`LivenessWitness`] leads to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WitnessKind {
+    /// A dead marking: nothing is enabled there.
+    Deadlock,
+    /// A closed region of markings the net keeps moving around in, shut out of
+    /// some transitions for good. No deadlock check sees this.
+    Livelock,
+}
+
+/// A replayable firing sequence refuting liveness.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LivenessWitness {
+    pub kind: WitnessKind,
+    /// The shortest explored firing sequence from the initial marking to
+    /// `marking`.
+    pub trace: Vec<String>,
+    /// Where `trace` ends: the dead marking, or the first marking of the region.
+    pub marking: Marking,
+    /// How many markings the closed region has; `1` for a dead marking.
+    pub region_size: usize,
+    /// The transitions that can never fire again once `marking` is reached, in
+    /// declaration order.
+    pub never_fires: Vec<String>,
+}
+
+/// The standard liveness verdicts for a reachability graph, as go-pflow's
+/// `reachability.Liveness`.
+///
+/// - `deadlock_free`: no reachable marking is dead (has no enabled transition).
+///   An empty marking counts, unlike [`AnalysisResult::has_deadlock`].
+/// - `live` (L4): from every reachable marking, every transition can eventually
+///   fire, which holds exactly when each terminal strongly connected component
+///   enables every transition. With a transition to speak of it implies
+///   `deadlock_free`; with none it holds vacuously.
+/// - `quasi_live` (L1): every transition fires in some reachable marking.
+///
+/// When the search was truncated, nothing is ever `True`. A refutation still
+/// stands if it is real regardless of what lies beyond the bound: a dead marking
+/// that was reached, or a region all of whose markings were fully expanded and
+/// whose edges all stay inside. Everything else is `Unknown`; the bound that
+/// stopped the search is in [`AnalysisResult::exploration_stats`] and
+/// [`AnalysisResult::truncate_msg`].
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Liveness {
+    pub deadlock_free: Verdict,
+    pub live: Verdict,
+    pub quasi_live: Verdict,
+    /// Refutes `deadlock_free` if a dead marking was found, otherwise `live`.
+    pub witness: Option<LivenessWitness>,
+    /// The transitions shown not to be L4-live, in declaration order.
+    pub not_live: Vec<String>,
+    /// Regions known to be closed. On a complete search that is every terminal
+    /// strongly connected component.
+    pub terminal_components: usize,
 }
 
 /// Where a transition stands under L4 liveness. See [`Analyzer::l4_liveness`].
@@ -246,9 +342,9 @@ impl<'m> Analyzer<'m> {
         let initial_total = marking::total(&self.initial);
         let mut deadlocks = Vec::new();
         let mut has_deadlock = false;
-        let terminal_keys: Vec<String> =
+        let dead_markings: Vec<String> =
             graph.terminal_states().into_iter().map(|s| s.key.clone()).collect();
-        for key in terminal_keys {
+        for key in dead_markings.iter().cloned() {
             let is_dl = {
                 let state = &graph.states[&key];
                 let mut dl = false;
@@ -276,9 +372,12 @@ impl<'m> Analyzer<'m> {
             max_depth,
             has_deadlock,
             deadlocks,
+            dead_markings,
             has_cycle: false,
             cycles: Vec::new(),
             live: false,
+            quasi_live: false,
+            liveness: Liveness::default(),
             dead_trans: Vec::new(),
             truncated,
             truncate_msg,
@@ -319,12 +418,66 @@ impl<'m> Analyzer<'m> {
 
         if result.is_complete {
             result.dead_trans = unfired.clone();
-            result.confirmed_dead = unfired;
-            result.live = result.dead_trans.is_empty();
+            result.confirmed_dead = unfired.clone();
+            result.quasi_live = result.dead_trans.is_empty();
         } else {
-            result.potentially_dead = unfired;
+            result.potentially_dead = unfired.clone();
             result.dead_trans.clear();
-            result.live = false;
+            result.quasi_live = false;
+        }
+
+        result.liveness = self.liveness_of(result, &unfired);
+        result.live = result.liveness.live == Verdict::True;
+    }
+
+    /// The verdicts over an explored graph. `unfired` is the transitions that
+    /// never fired in it.
+    fn liveness_of(&self, result: &AnalysisResult<'m>, unfired: &[String]) -> Liveness {
+        let graph = &result.graph;
+        let states = graph.states_list();
+        let (regions, parent) = closed_regions(graph);
+
+        let never = |r: &Region| -> Vec<String> {
+            self.model
+                .transitions
+                .iter()
+                .map(|t| t.id.clone())
+                .filter(|id| !r.fires.contains(id))
+                .collect()
+        };
+        let dead = regions.iter().find(|r| states[r.entry].enabled.is_empty());
+        let shut_out = regions.iter().find(|r| !never(r).is_empty());
+        let not_live = self
+            .model
+            .transitions
+            .iter()
+            .map(|t| t.id.clone())
+            .filter(|id| regions.iter().any(|r| !r.fires.contains(id)))
+            .collect();
+
+        let refuted_or = |refuted: bool| {
+            if refuted {
+                Verdict::False
+            } else if result.is_complete {
+                Verdict::True
+            } else {
+                Verdict::Unknown
+            }
+        };
+        let witnessed = dead.map(|r| (r, WitnessKind::Deadlock)).or(shut_out.map(|r| (r, WitnessKind::Livelock)));
+        Liveness {
+            deadlock_free: refuted_or(dead.is_some()),
+            live: refuted_or(shut_out.is_some()),
+            quasi_live: if result.is_complete { Verdict::of(unfired.is_empty()) } else { Verdict::Unknown },
+            witness: witnessed.map(|(r, kind)| LivenessWitness {
+                kind,
+                trace: trace_to(graph, &parent, r.entry),
+                marking: states[r.entry].marking.clone(),
+                region_size: r.size,
+                never_fires: never(r),
+            }),
+            not_live,
+            terminal_components: regions.len(),
         }
     }
 
@@ -344,79 +497,14 @@ impl<'m> Analyzer<'m> {
     /// well, and a refutation from it stands. Anything else comes back
     /// [`L4Status::Unknown`], never [`L4Status::Live`].
     ///
-    /// go-pflow has no counterpart: its `live` is L1, as is [`Self::analyze`]'s.
+    /// [`Self::analyze`]'s `live` is this over the whole net. go-pflow's
+    /// `verify.KindL4Live` is the same property; its witnesses break ties by
+    /// transition name, these by declaration order, since a Go net has none.
     pub fn l4_liveness(&self) -> L4Report {
         let result = self.build_graph();
         let graph = &result.graph;
         let states = graph.states_list();
-        let id = |key: &str| graph.states[key].id;
-        let successors: Vec<Vec<usize>> = states
-            .iter()
-            .map(|s| s.successors.iter().map(|&e| id(&graph.edges[e].to)).collect())
-            .collect();
-
-        // Breadth-first over the explored edges: a shortest trace to each state.
-        let root = states.first().map(|s| s.id).unwrap_or(0);
-        let mut parent: Vec<Option<usize>> = vec![None; states.len()];
-        let mut seen = vec![false; states.len()];
-        let mut order = Vec::with_capacity(states.len());
-        let mut queue = VecDeque::from([root]);
-        seen[root] = true;
-        while let Some(s) = queue.pop_front() {
-            order.push(s);
-            for &e in &states[s].successors {
-                let to = id(&graph.edges[e].to);
-                if !seen[to] {
-                    seen[to] = true;
-                    parent[to] = Some(e);
-                    queue.push_back(to);
-                }
-            }
-        }
-        let trace_to = |mut s: usize| {
-            let mut trace = Vec::new();
-            while let Some(e) = parent[s] {
-                trace.push(graph.edges[e].transition.clone());
-                s = id(&graph.edges[e].from);
-            }
-            trace.reverse();
-            trace
-        };
-
-        let component = strongly_connected_components(&successors);
-        let count = component.iter().copied().max().map_or(0, |c| c + 1);
-        let mut closed = vec![true; count];
-        for (s, tos) in successors.iter().enumerate() {
-            // Fewer edges than enabled transitions: not fully expanded, so
-            // what lies beyond is unknown.
-            if tos.iter().any(|&to| component[to] != component[s])
-                || tos.len() < states[s].enabled.len()
-            {
-                closed[component[s]] = false;
-            }
-        }
-
-        // Regions in the order the search first enters them, so each witness
-        // is the nearest one, chosen the same way on every run.
-        struct Region {
-            entry: usize,
-            size: usize,
-            fires: HashSet<String>,
-        }
-        let mut regions: Vec<Region> = Vec::new();
-        let mut region_of: HashMap<usize, usize> = HashMap::new();
-        for &s in &order {
-            let c = component[s];
-            if !closed[c] {
-                continue;
-            }
-            let r = *region_of.entry(c).or_insert_with(|| {
-                regions.push(Region { entry: s, size: 0, fires: HashSet::new() });
-                regions.len() - 1
-            });
-            regions[r].size += 1;
-            regions[r].fires.extend(states[s].enabled.iter().cloned());
-        }
+        let (regions, parent) = closed_regions(graph);
 
         let transitions = self
             .model
@@ -427,7 +515,7 @@ impl<'m> Analyzer<'m> {
                     transition: t.id.clone(),
                     status: L4Status::NotLive,
                     witness: Some(L4Witness {
-                        trace: trace_to(r.entry),
+                        trace: trace_to(graph, &parent, r.entry),
                         marking: states[r.entry].marking.clone(),
                         region_size: r.size,
                     }),
@@ -612,7 +700,10 @@ impl<'m> Analyzer<'m> {
                 result.potentially_dead.retain(|t| !reachable_set.contains(t));
             }
 
-            result.live = result.confirmed_dead.is_empty() && result.potentially_dead.is_empty();
+            // A targeted search firing every transition shows L1, each with its
+            // own firing sequence. It says nothing of L4, which needs every
+            // marking, and `liveness` still describes the truncated graph.
+            result.quasi_live = result.confirmed_dead.is_empty() && result.potentially_dead.is_empty();
         }
 
         result
@@ -628,6 +719,84 @@ fn distance_to_enable(marking: &Marking, inputs: &HashMap<String, i64>) -> i64 {
         }
     }
     distance
+}
+
+/// A closed region of the explored graph: a strongly connected component every
+/// marking of which was fully expanded and every edge of which stays inside. On
+/// a complete search these are exactly the terminal components.
+struct Region {
+    entry: usize,
+    size: usize,
+    fires: HashSet<String>,
+}
+
+/// The closed regions, in the order the search first enters them so that the
+/// first of a kind is the nearest, and the breadth-first parent edge of each
+/// state for [`trace_to`].
+fn closed_regions(graph: &Graph) -> (Vec<Region>, Vec<Option<usize>>) {
+    let states = graph.states_list();
+    let id = |key: &str| graph.states[key].id;
+    let successors: Vec<Vec<usize>> = states
+        .iter()
+        .map(|s| s.successors.iter().map(|&e| id(&graph.edges[e].to)).collect())
+        .collect();
+
+    // Breadth-first over the explored edges: a shortest trace to each state.
+    let root = states.first().map(|s| s.id).unwrap_or(0);
+    let mut parent: Vec<Option<usize>> = vec![None; states.len()];
+    let mut seen = vec![false; states.len()];
+    let mut order = Vec::with_capacity(states.len());
+    let mut queue = VecDeque::from([root]);
+    seen[root] = true;
+    while let Some(s) = queue.pop_front() {
+        order.push(s);
+        for &e in &states[s].successors {
+            let to = id(&graph.edges[e].to);
+            if !seen[to] {
+                seen[to] = true;
+                parent[to] = Some(e);
+                queue.push_back(to);
+            }
+        }
+    }
+
+    let component = strongly_connected_components(&successors);
+    let count = component.iter().copied().max().map_or(0, |c| c + 1);
+    let mut closed = vec![true; count];
+    for (s, tos) in successors.iter().enumerate() {
+        // Fewer edges than enabled transitions: not fully expanded, so
+        // what lies beyond is unknown.
+        if tos.iter().any(|&to| component[to] != component[s]) || tos.len() < states[s].enabled.len() {
+            closed[component[s]] = false;
+        }
+    }
+
+    let mut regions: Vec<Region> = Vec::new();
+    let mut region_of: HashMap<usize, usize> = HashMap::new();
+    for &s in &order {
+        let c = component[s];
+        if !closed[c] {
+            continue;
+        }
+        let r = *region_of.entry(c).or_insert_with(|| {
+            regions.push(Region { entry: s, size: 0, fires: HashSet::new() });
+            regions.len() - 1
+        });
+        regions[r].size += 1;
+        regions[r].fires.extend(states[s].enabled.iter().cloned());
+    }
+    (regions, parent)
+}
+
+/// The firing sequence from the root to `s` along `parent`.
+fn trace_to(graph: &Graph, parent: &[Option<usize>], mut s: usize) -> Vec<String> {
+    let mut trace = Vec::new();
+    while let Some(e) = parent[s] {
+        trace.push(graph.edges[e].transition.clone());
+        s = graph.states[&graph.edges[e].from].id;
+    }
+    trace.reverse();
+    trace
 }
 
 /// Tarjan's algorithm, iteratively so a long chain of states cannot overflow
@@ -795,6 +964,7 @@ mod tests {
         assert!(!result.has_deadlock);
         assert!(result.is_complete);
         assert!(result.live);
+        assert!(result.quasi_live);
         assert!(result.bounded);
     }
 
@@ -806,7 +976,8 @@ mod tests {
         assert_eq!(result.state_count, 2);
         assert!(!result.has_cycle);
         assert!(result.has_deadlock, "terminal non-empty marking is a deadlock");
-        assert!(result.live);
+        assert!(result.quasi_live, "the one transition fires");
+        assert!(!result.live, "and then never again");
     }
 
     #[test]

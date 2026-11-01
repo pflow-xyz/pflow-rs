@@ -19,7 +19,7 @@ pub enum Kind {
     /// and still wedge on another).
     Live,
     /// From every reachable marking, every transition can still be made to
-    /// fire (L4 liveness, the textbook one; not in go-pflow). Implies [`Kind::Live`]
+    /// fire (L4 liveness, the textbook one; go-pflow's `KindL4Live`). Implies [`Kind::Live`]
     /// and, for a net with a transition, freedom from dead markings. The verdict
     /// carries a per-transition result in [`Verdict::liveness`].
     L4Live,

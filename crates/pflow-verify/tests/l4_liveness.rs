@@ -1,12 +1,13 @@
-//! L4 liveness (`Kind::L4Live`). Rust-owned: go-pflow's `live` is L1, so there
-//! is no golden to replay. The netting nets are pflow-jl's
+//! L4 liveness (`Kind::L4Live`, and `Analyzer::analyze`'s verdicts). There is no
+//! go-pflow golden to replay; the philosophers net is the same one as go-pflow's
+//! `reachability/liveness_test.go`, with the same expected verdicts. The netting nets are pflow-jl's
 //! (`test/test_netting.jl`, `docs/netting-experiment.md`), and its testset
 //! "liveness does not survive gluing" states the expected results.
 
 use std::collections::{HashMap, HashSet};
 
 use pflow_metamodel::{Arc, Model, Place, Transition};
-use pflow_reachability::{Analyzer, L4Status};
+use pflow_reachability::{Analyzer, L4Status, Verdict, WitnessKind};
 use pflow_verify::{Kind, Method, Property, Status, Verifier};
 
 fn model(places: &[(&str, i64)], flows: &[(&str, &[&str], &[&str])]) -> Model {
@@ -331,4 +332,192 @@ fn terminal_components_agree_with_the_definition() {
     // Guard the test itself: it has to have seen both answers on real nets.
     assert!(checked > 100, "checked {checked}");
     assert!(live > 50 && not_live > 50, "live {live}, not live {not_live}");
+}
+
+/// Two philosophers, each taking their left fork first. Every transition fires
+/// somewhere, and both holding a fork is a dead marking.
+fn philosophers() -> Model {
+    model(
+        &[
+            ("fork1", 1),
+            ("fork2", 1),
+            ("p1_thinking", 1),
+            ("p1_has_left", 0),
+            ("p1_eating", 0),
+            ("p2_thinking", 1),
+            ("p2_has_left", 0),
+            ("p2_eating", 0),
+        ],
+        &[
+            ("p1_take_left", &["p1_thinking", "fork1"], &["p1_has_left"]),
+            ("p1_take_right", &["p1_has_left", "fork2"], &["p1_eating"]),
+            ("p1_release", &["p1_eating"], &["p1_thinking", "fork1", "fork2"]),
+            ("p2_take_left", &["p2_thinking", "fork2"], &["p2_has_left"]),
+            ("p2_take_right", &["p2_has_left", "fork1"], &["p2_eating"]),
+            ("p2_release", &["p2_eating"], &["p2_thinking", "fork1", "fork2"]),
+        ],
+    )
+}
+
+#[test]
+fn analyze_says_a_deadlocking_net_is_not_live() {
+    let m = philosophers();
+    let r = Analyzer::new(&m).analyze();
+    assert!(r.is_complete);
+    assert!(r.has_deadlock);
+    assert!(!r.live, "a reachable dead marking is not live");
+    assert!(r.quasi_live, "the old meaning of live still holds here");
+    let l = &r.liveness;
+    assert_eq!(l.deadlock_free, Verdict::False);
+    assert_eq!(l.live, Verdict::False);
+    assert_eq!(l.quasi_live, Verdict::True);
+    assert_eq!(l.not_live.len(), 6);
+
+    let w = l.witness.as_ref().expect("a reachable dead marking comes with a witness");
+    assert_eq!(w.kind, WitnessKind::Deadlock);
+    assert_eq!(w.region_size, 1);
+    assert_eq!(w.trace, vec!["p1_take_left".to_string(), "p2_take_left".to_string()]);
+    assert_eq!(w.marking["p1_has_left"], 1);
+    assert_eq!(w.marking["p2_has_left"], 1);
+    assert_eq!(w.never_fires.len(), 6);
+    assert_replays(&m, &w.trace, &w.marking);
+}
+
+#[test]
+fn analyze_calls_ordered_forks_live() {
+    let m = model(
+        &[
+            ("fork1", 1),
+            ("fork2", 1),
+            ("p1_thinking", 1),
+            ("p1_has_first", 0),
+            ("p1_eating", 0),
+            ("p2_thinking", 1),
+            ("p2_has_first", 0),
+            ("p2_eating", 0),
+        ],
+        &[
+            ("p1_first", &["p1_thinking", "fork1"], &["p1_has_first"]),
+            ("p1_second", &["p1_has_first", "fork2"], &["p1_eating"]),
+            ("p1_release", &["p1_eating"], &["p1_thinking", "fork1", "fork2"]),
+            ("p2_first", &["p2_thinking", "fork1"], &["p2_has_first"]),
+            ("p2_second", &["p2_has_first", "fork2"], &["p2_eating"]),
+            ("p2_release", &["p2_eating"], &["p2_thinking", "fork1", "fork2"]),
+        ],
+    );
+    let r = Analyzer::new(&m).analyze();
+    assert!(r.live);
+    assert_eq!(r.liveness.deadlock_free, Verdict::True);
+    assert_eq!(r.liveness.live, Verdict::True);
+    assert_eq!(r.liveness.quasi_live, Verdict::True);
+    assert!(r.liveness.witness.is_none());
+}
+
+/// A closed cycle shutting out the rest: no dead marking, every transition fires
+/// once, and still not live.
+#[test]
+fn analyze_finds_a_livelock_no_deadlock_check_sees() {
+    let m = model(
+        &[("a", 1), ("b", 0), ("x", 0), ("y", 0)],
+        &[
+            ("go", &["a"], &["b"]),
+            ("back", &["b"], &["a"]),
+            ("trap", &["a"], &["x"]),
+            ("xy", &["x"], &["y"]),
+            ("yx", &["y"], &["x"]),
+        ],
+    );
+    let l = Analyzer::new(&m).analyze().liveness;
+    assert_eq!(l.deadlock_free, Verdict::True);
+    assert_eq!(l.quasi_live, Verdict::True);
+    assert_eq!(l.live, Verdict::False);
+    let w = l.witness.unwrap();
+    assert_eq!(w.kind, WitnessKind::Livelock);
+    assert_eq!(w.region_size, 2);
+    assert_eq!(w.never_fires, vec!["go".to_string(), "back".to_string(), "trap".to_string()]);
+    assert_replays(&m, &w.trace, &w.marking);
+}
+
+/// Draining to empty is a dead marking by the definition, though `has_deadlock`'s
+/// heuristic accepts it as an end state.
+#[test]
+fn analyze_counts_an_empty_dead_marking() {
+    let m = model(&[("a", 1)], &[("drain", &["a"], &[])]);
+    let r = Analyzer::new(&m).analyze();
+    assert!(!r.has_deadlock);
+    assert_eq!(r.dead_markings.len(), 1);
+    assert_eq!(r.liveness.deadlock_free, Verdict::False);
+    assert_eq!(r.liveness.live, Verdict::False);
+    assert_eq!(r.liveness.quasi_live, Verdict::True);
+}
+
+/// No transition at all: the one marking is dead, and "every transition" holds
+/// vacuously, the one case where live does not imply deadlock-free.
+#[test]
+fn analyze_with_no_transitions_is_vacuously_live() {
+    let m = model(&[("a", 1)], &[]);
+    let l = Analyzer::new(&m).analyze().liveness;
+    assert_eq!(l.deadlock_free, Verdict::False);
+    assert_eq!(l.live, Verdict::True);
+    assert_eq!(l.quasi_live, Verdict::True);
+    assert!(l.witness.unwrap().trace.is_empty());
+}
+
+#[test]
+fn analyze_never_claims_true_when_truncated() {
+    let m = model(&[("q", 0)], &[("arrive", &[], &["q"])]);
+    for r in [
+        Analyzer::new(&m).with_max_states(50).analyze(),
+        Analyzer::new(&m).with_max_tokens(5).analyze(),
+    ] {
+        assert!(!r.is_complete);
+        assert_eq!(r.liveness.deadlock_free, Verdict::Unknown);
+        assert_eq!(r.liveness.live, Verdict::Unknown);
+        assert_eq!(r.liveness.quasi_live, Verdict::Unknown);
+        assert!(!r.live && !r.quasi_live);
+        assert!(r.liveness.witness.is_none());
+    }
+}
+
+/// A dead marking reached before the bound is real however little was explored.
+#[test]
+fn analyze_keeps_a_real_deadlock_when_truncated() {
+    let m = model(
+        &[("start", 1), ("dead", 0), ("q", 0), ("run", 0)],
+        &[
+            ("stop", &["start"], &["dead"]),
+            ("begin", &["start"], &["run"]),
+            ("arrive", &["run"], &["run", "q"]),
+        ],
+    );
+    let r = Analyzer::new(&m).with_max_states(50).analyze();
+    assert!(!r.is_complete);
+    assert_eq!(r.liveness.deadlock_free, Verdict::False);
+    assert_eq!(r.liveness.live, Verdict::False);
+    assert_eq!(r.liveness.quasi_live, Verdict::Unknown);
+    let w = r.liveness.witness.unwrap();
+    assert_replays(&m, &w.trace, &w.marking);
+}
+
+/// A live ring cut by the bound: what the search did not expand refutes nothing.
+#[test]
+fn analyze_does_not_refute_from_an_unexpanded_region() {
+    let m = model(
+        &[("a", 1), ("b", 0), ("c", 0), ("d", 0)],
+        &[("ab", &["a"], &["b"]), ("bc", &["b"], &["c"]), ("cd", &["c"], &["d"]), ("da", &["d"], &["a"])],
+    );
+    let r = Analyzer::new(&m).with_max_states(2).analyze();
+    assert!(!r.is_complete);
+    assert_eq!(r.liveness.live, Verdict::Unknown);
+    assert!(r.liveness.witness.is_none());
+    assert_eq!(Analyzer::new(&m).analyze().liveness.live, Verdict::True);
+}
+
+/// `analyze`'s verdict and `Kind::L4Live` must be one answer, on any net.
+#[test]
+fn analyze_agrees_with_kind_l4_live() {
+    for m in [philosophers(), cycle(), netting()] {
+        let live = Analyzer::new(&m).analyze().live;
+        assert_eq!(l4(&m).status == Status::Proved, live, "{:?}", m.transitions.len());
+    }
 }
