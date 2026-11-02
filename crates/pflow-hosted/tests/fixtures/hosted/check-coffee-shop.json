@@ -1,0 +1,11 @@
+{
+ "answer": {
+  "arcs": 8,
+  "ok": true,
+  "places": 4,
+  "transitions": 5
+ },
+ "arguments": {},
+ "net": "coffee-shop.jsonld",
+ "tool": "pflow_check"
+}

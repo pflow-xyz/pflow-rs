@@ -1,0 +1,108 @@
+{
+ "answer": {
+  "ok": false,
+  "proved": 4,
+  "refuted": 2,
+  "state_count": 65,
+  "truncated": false,
+  "unknown": 0,
+  "verdicts": [
+   {
+    "counterexample": {
+     "explanation": "no transition is enabled in this marking",
+     "marking": {
+      "I": 0,
+      "R": 1,
+      "S": 9
+     },
+     "trace": [
+      "recover"
+     ]
+    },
+    "detail": "10 deadlock state(s) reachable",
+    "method": "exhaustive",
+    "property": {
+     "kind": "deadlock-free"
+    },
+    "status": "refuted"
+   },
+   {
+    "detail": "every place is covered by a P-invariant, so the net is bounded for any initial marking",
+    "evidence": "P-invariants: I + R + S == 10",
+    "method": "structural",
+    "property": {
+     "kind": "bounded"
+    },
+    "status": "proved"
+   },
+   {
+    "detail": "all 2 transitions can fire from some reachable state",
+    "method": "exhaustive",
+    "property": {
+     "kind": "live"
+    },
+    "status": "proved"
+   },
+   {
+    "counterexample": {
+     "explanation": "infect, recover can never fire again once this marking is reached",
+     "marking": {
+      "I": 0,
+      "R": 1,
+      "S": 9
+     },
+     "trace": [
+      "recover"
+     ]
+    },
+    "detail": "not L4-live: infect, recover",
+    "method": "exhaustive",
+    "property": {
+     "kind": "l4-live"
+    },
+    "status": "refuted"
+   },
+   {
+    "detail": "the reachability graph is acyclic across all 65 states, so every execution terminates",
+    "method": "exhaustive",
+    "property": {
+     "kind": "terminating"
+    },
+    "status": "proved"
+   },
+   {
+    "detail": "I + R + S is a P-invariant of the net and holds at the initial marking",
+    "evidence": "y*C = 0 for y = I + R + S; value at initial marking = 10",
+    "method": "structural",
+    "property": {
+     "kind": "conserves"
+    },
+    "status": "proved"
+   }
+  ]
+ },
+ "arguments": {
+  "properties": [
+   {
+    "kind": "deadlock-free"
+   },
+   {
+    "kind": "bounded"
+   },
+   {
+    "kind": "live"
+   },
+   {
+    "kind": "l4-live"
+   },
+   {
+    "kind": "terminating"
+   },
+   {
+    "kind": "conserves"
+   }
+  ]
+ },
+ "net": "sir.jsonld",
+ "tool": "pflow_verify"
+}

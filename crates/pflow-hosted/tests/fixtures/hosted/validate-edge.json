@@ -1,0 +1,215 @@
+{
+ "answer": {
+  "errors": [
+   {
+    "category": "structure",
+    "location": [
+     "c.c0"
+    ],
+    "message": "Place 'c.c0' has negative initial tokens",
+    "severity": "error",
+    "suggestion": "Set initial tokens to non-negative value"
+   },
+   {
+    "category": "structure",
+    "location": [
+     "a.c0"
+    ],
+    "message": "Place 'a.c0' initial tokens (5.00) exceed capacity (2.00)",
+    "severity": "error",
+    "suggestion": "Reduce initial tokens or increase capacity"
+   },
+   {
+    "category": "structure",
+    "location": [
+     "a",
+     "t"
+    ],
+    "message": "Arc 0 (a → t) has non-positive weight",
+    "severity": "error",
+    "suggestion": "Set arc weight to positive value"
+   },
+   {
+    "category": "unbounded",
+    "location": [
+     "b.c0"
+    ],
+    "message": "Place 'b.c0' is unbounded: repeating [t] adds tokens indefinitely",
+    "severity": "error",
+    "suggestion": "Add a capacity, or consume the accumulated tokens on the cycle"
+   },
+   {
+    "category": "unbounded",
+    "location": [
+     "b.c1"
+    ],
+    "message": "Place 'b.c1' is unbounded: repeating [t] adds tokens indefinitely",
+    "severity": "error",
+    "suggestion": "Add a capacity, or consume the accumulated tokens on the cycle"
+   }
+  ],
+  "info": [
+   {
+    "category": "unbounded",
+    "location": [
+     "b.c1"
+    ],
+    "message": "Place 'b.c1' is a sink (only inputs, no outputs)",
+    "severity": "info"
+   },
+   {
+    "category": "unbounded",
+    "location": [
+     "e.c0"
+    ],
+    "message": "Place 'e.c0' is a source (only outputs, no inputs)",
+    "severity": "info"
+   },
+   {
+    "category": "unbounded",
+    "location": [
+     "c.c0"
+    ],
+    "message": "Place 'c.c0' is a sink (only inputs, no outputs)",
+    "severity": "info"
+   },
+   {
+    "category": "conservation",
+    "location": [
+     "t",
+     "v"
+    ],
+    "message": "Net does not conserve total tokens (transitions with unbalanced flow: [t v])",
+    "severity": "info"
+   },
+   {
+    "category": "conservation",
+    "message": "Found 7 conservation law(s): a.c0 == 5; a.c1 == 0; c.c0 == -1; c.c1 == 0; d.c0 == 0; d.c1 == 0; e.c1 == 0",
+    "severity": "info"
+   }
+  ],
+  "invariants": [
+   "a.c0 == 5",
+   "a.c1 == 0",
+   "c.c0 == -1",
+   "c.c1 == 0",
+   "d.c0 == 0",
+   "d.c1 == 0",
+   "e.c1 == 0"
+  ],
+  "summary": {
+   "arcs": 6,
+   "conserved": false,
+   "errors": 5,
+   "places": 10,
+   "transitions": 3,
+   "warnings": 11
+  },
+  "valid": false,
+  "warnings": [
+   {
+    "category": "connectivity",
+    "location": [
+     "d.c1"
+    ],
+    "message": "Place 'd.c1' is not connected to any transition",
+    "severity": "warning",
+    "suggestion": "Add arcs to connect this place"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "e.c1"
+    ],
+    "message": "Place 'e.c1' is not connected to any transition",
+    "severity": "warning",
+    "suggestion": "Add arcs to connect this place"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "a.c0"
+    ],
+    "message": "Place 'a.c0' is not connected to any transition",
+    "severity": "warning",
+    "suggestion": "Add arcs to connect this place"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "a.c1"
+    ],
+    "message": "Place 'a.c1' is not connected to any transition",
+    "severity": "warning",
+    "suggestion": "Add arcs to connect this place"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "c.c1"
+    ],
+    "message": "Place 'c.c1' is not connected to any transition",
+    "severity": "warning",
+    "suggestion": "Add arcs to connect this place"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "d.c0"
+    ],
+    "message": "Place 'd.c0' is not connected to any transition",
+    "severity": "warning",
+    "suggestion": "Add arcs to connect this place"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "v"
+    ],
+    "message": "Transition 'v' has no output places",
+    "severity": "warning",
+    "suggestion": "Add output arcs to places"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "t"
+    ],
+    "message": "Transition 't' has no input places",
+    "severity": "warning",
+    "suggestion": "Add input arcs from places"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "v",
+     "e.c0"
+    ],
+    "message": "Transition 'v' cannot fire with initial marking (insufficient tokens in: [e.c0])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "unbounded",
+    "location": [
+     "b.c1"
+    ],
+    "message": "Place 'b.c1' is not covered by any P-invariant, so nothing structurally bounds it",
+    "severity": "warning",
+    "suggestion": "Add a capacity, or balance the flow so the place participates in a conservation law"
+   },
+   {
+    "category": "unbounded",
+    "location": [
+     "b.c0"
+    ],
+    "message": "Place 'b.c0' is not covered by any P-invariant, so nothing structurally bounds it",
+    "severity": "warning",
+    "suggestion": "Add a capacity, or balance the flow so the place participates in a conservation law"
+   }
+  ]
+ },
+ "arguments": {},
+ "net": "local/edge.json",
+ "tool": "pflow_validate"
+}

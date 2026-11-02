@@ -1,0 +1,11 @@
+{
+ "answer": {
+  "arcs": 18,
+  "ok": true,
+  "places": 5,
+  "transitions": 6
+ },
+ "arguments": {},
+ "net": "game-nim.jsonld",
+ "tool": "pflow_check"
+}

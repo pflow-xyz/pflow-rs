@@ -1,0 +1,54 @@
+{
+ "answer": {
+  "conservative": false,
+  "p_invariants": [
+   {
+    "coefficients": {
+     "capacity": 1,
+     "weight": 1
+    },
+    "equation": "capacity + weight == 15",
+    "value": 15
+   },
+   {
+    "coefficients": {
+     "capacity": 2,
+     "item0": 6,
+     "item1": 2,
+     "value": 1
+    },
+    "equation": "2*capacity + 6*item0 + 2*item1 + value == 38",
+    "value": 38
+   },
+   {
+    "coefficients": {
+     "item0": 2,
+     "item1": 4,
+     "item2": 6,
+     "item3": 9,
+     "weight": 1
+    },
+    "equation": "2*item0 + 4*item1 + 6*item2 + 9*item3 + weight == 21",
+    "value": 21
+   },
+   {
+    "coefficients": {
+     "item0": 10,
+     "item1": 10,
+     "item2": 12,
+     "item3": 18,
+     "value": 1
+    },
+    "equation": "10*item0 + 10*item1 + 12*item2 + 18*item3 + value == 50",
+    "value": 50
+   }
+  ],
+  "p_truncated": false,
+  "structurally_bounded": true,
+  "t_invariants": null,
+  "t_truncated": false
+ },
+ "arguments": {},
+ "net": "knapsack.jsonld",
+ "tool": "pflow_invariants"
+}

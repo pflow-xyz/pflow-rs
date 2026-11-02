@@ -1,0 +1,120 @@
+{
+ "answer": {
+  "ok": false,
+  "proved": 0,
+  "refuted": 2,
+  "state_count": 500,
+  "truncated": true,
+  "unknown": 4,
+  "verdicts": [
+   {
+    "detail": "no deadlock in the 500 states explored, but the state space was truncated",
+    "method": "partial",
+    "property": {
+     "kind": "deadlock-free"
+    },
+    "status": "unknown"
+   },
+   {
+    "counterexample": {
+     "explanation": "after the prefix [(already satisfied at the initial marking)], repeating [t] returns to a marking that strictly covers map[a.c0:5 a.c1:0 b.c0:1 b.c1:2 c.c0:-1 c.c1:0 d.c0:0 d.c1:0 e.c0:0 e.c1:0], adding tokens to b.c0, b.c1 each time — so the count is unbounded",
+     "marking": {
+      "a.c0": 5,
+      "a.c1": 0,
+      "b.c0": 2,
+      "b.c1": 4,
+      "c.c0": -1,
+      "c.c1": 0,
+      "d.c0": 0,
+      "d.c1": 0,
+      "e.c0": 0,
+      "e.c1": 0
+     },
+     "trace": [
+      "t"
+     ]
+    },
+    "detail": "place(s) b.c0, b.c1 grow without bound",
+    "method": "witness",
+    "property": {
+     "kind": "bounded"
+    },
+    "status": "refuted"
+   },
+   {
+    "detail": "did not observe u, v firing in the 500 states explored; state space truncated",
+    "method": "partial",
+    "property": {
+     "kind": "live"
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "no transition ruled out in the 500 states explored, but the state space was truncated",
+    "method": "partial",
+    "property": {
+     "kind": "l4-live"
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "no cycle among the 500 states explored, but the state space was truncated",
+    "method": "partial",
+    "property": {
+     "kind": "terminating"
+    },
+    "status": "unknown"
+   },
+   {
+    "counterexample": {
+     "explanation": "a.c0 + a.c1 + b.c0 + b.c1 + c.c0 + c.c1 + d.c0 + d.c1 + e.c0 + e.c1 = 10 here, violating a.c0 + a.c1 + b.c0 + b.c1 + c.c0 + c.c1 + d.c0 + d.c1 + e.c0 + e.c1 == 7",
+     "marking": {
+      "a.c0": 5,
+      "a.c1": 0,
+      "b.c0": 2,
+      "b.c1": 4,
+      "c.c0": -1,
+      "c.c1": 0,
+      "d.c0": 0,
+      "d.c1": 0,
+      "e.c0": 0,
+      "e.c1": 0
+     },
+     "trace": [
+      "t"
+     ]
+    },
+    "detail": "a.c0 + a.c1 + b.c0 + b.c1 + c.c0 + c.c1 + d.c0 + d.c1 + e.c0 + e.c1 == 7 fails: a.c0 + a.c1 + b.c0 + b.c1 + c.c0 + c.c1 + d.c0 + d.c1 + e.c0 + e.c1 = 10 at a reachable marking",
+    "method": "partial",
+    "property": {
+     "kind": "conserves"
+    },
+    "status": "refuted"
+   }
+  ]
+ },
+ "arguments": {
+  "properties": [
+   {
+    "kind": "deadlock-free"
+   },
+   {
+    "kind": "bounded"
+   },
+   {
+    "kind": "live"
+   },
+   {
+    "kind": "l4-live"
+   },
+   {
+    "kind": "terminating"
+   },
+   {
+    "kind": "conserves"
+   }
+  ]
+ },
+ "net": "local/edge.json",
+ "tool": "pflow_verify"
+}

@@ -1,0 +1,10 @@
+{
+ "answer": {
+  "cid": "z4EBG9jA7f4q9yx4QjzH3RDPQXiqjnNTz3ALdpjHD3CRTbNrcCD",
+  "kind": "net",
+  "reduced": true
+ },
+ "arguments": {},
+ "net": "local/bare.json",
+ "tool": "pflow_cid"
+}

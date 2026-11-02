@@ -1,0 +1,106 @@
+{
+ "answer": {
+  "info": [
+   {
+    "category": "unbounded",
+    "location": [
+     "Mix.https://pflow.xyz/tokens/blue"
+    ],
+    "message": "Place 'Mix.https://pflow.xyz/tokens/blue' is a sink (only inputs, no outputs)",
+    "severity": "info"
+   },
+   {
+    "category": "unbounded",
+    "location": [
+     "Pool.https://pflow.xyz/tokens/blue"
+    ],
+    "message": "Place 'Pool.https://pflow.xyz/tokens/blue' is a source (only outputs, no inputs)",
+    "severity": "info"
+   },
+   {
+    "category": "conservation",
+    "location": [
+     "combine"
+    ],
+    "message": "Net does not conserve total tokens (transitions with unbalanced flow: [combine])",
+    "severity": "info"
+   },
+   {
+    "category": "conservation",
+    "message": "Found 3 conservation law(s): Done.https://pflow.xyz/tokens/blue == 0; Done.https://pflow.xyz/tokens/red + 2*Mix.https://pflow.xyz/tokens/blue + Pool.https://pflow.xyz/tokens/blue + Pool.https://pflow.xyz/tokens/red == 30; Mix.https://pflow.xyz/tokens/red == 0",
+    "severity": "info"
+   }
+  ],
+  "invariants": [
+   "Done.https://pflow.xyz/tokens/blue == 0",
+   "Done.https://pflow.xyz/tokens/red + 2*Mix.https://pflow.xyz/tokens/blue + Pool.https://pflow.xyz/tokens/blue + Pool.https://pflow.xyz/tokens/red == 30",
+   "Mix.https://pflow.xyz/tokens/red == 0"
+  ],
+  "reachability": {
+   "bounded": true,
+   "deadlockStates": null,
+   "hasCycles": false,
+   "maxDepth": 48,
+   "maxTokens": {
+    "Done.https://pflow.xyz/tokens/red": 30,
+    "Mix.https://pflow.xyz/tokens/blue": 13,
+    "Pool.https://pflow.xyz/tokens/blue": 10,
+    "Pool.https://pflow.xyz/tokens/red": 30
+   },
+   "reachable": 2000,
+   "terminalStates": null,
+   "truncated": true,
+   "truncatedReason": "state limit reached"
+  },
+  "summary": {
+   "arcs": 6,
+   "conserved": false,
+   "errors": 0,
+   "places": 6,
+   "transitions": 3,
+   "warnings": 3
+  },
+  "valid": true,
+  "warnings": [
+   {
+    "category": "connectivity",
+    "location": [
+     "Done.https://pflow.xyz/tokens/blue"
+    ],
+    "message": "Place 'Done.https://pflow.xyz/tokens/blue' is not connected to any transition",
+    "severity": "warning",
+    "suggestion": "Add arcs to connect this place"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "Mix.https://pflow.xyz/tokens/red"
+    ],
+    "message": "Place 'Mix.https://pflow.xyz/tokens/red' is not connected to any transition",
+    "severity": "warning",
+    "suggestion": "Add arcs to connect this place"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "combine",
+     "Done.https://pflow.xyz/tokens/red"
+    ],
+    "message": "Transition 'combine' cannot fire with initial marking (insufficient tokens in: [Done.https://pflow.xyz/tokens/red])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "reachability",
+    "message": "Reachability analysis truncated: state limit reached",
+    "severity": "warning",
+    "suggestion": "Consider simplifying model or increasing state limit"
+   }
+  ]
+ },
+ "arguments": {
+  "reachability": true
+ },
+ "net": "colored.jsonld",
+ "tool": "pflow_validate"
+}

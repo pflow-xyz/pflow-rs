@@ -1,0 +1,52 @@
+{
+ "answer": {
+  "matrix": [
+   [
+    0,
+    0,
+    0
+   ],
+   [
+    -2,
+    0,
+    1
+   ],
+   [
+    1,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0
+   ],
+   [
+    0,
+    -1,
+    0
+   ],
+   [
+    0,
+    1,
+    -1
+   ]
+  ],
+  "places": [
+   "Done.https://pflow.xyz/tokens/blue",
+   "Done.https://pflow.xyz/tokens/red",
+   "Mix.https://pflow.xyz/tokens/blue",
+   "Mix.https://pflow.xyz/tokens/red",
+   "Pool.https://pflow.xyz/tokens/blue",
+   "Pool.https://pflow.xyz/tokens/red"
+  ],
+  "transitions": [
+   "combine",
+   "convert",
+   "work"
+  ]
+ },
+ "arguments": {},
+ "net": "colored.jsonld",
+ "tool": "pflow_incidence"
+}

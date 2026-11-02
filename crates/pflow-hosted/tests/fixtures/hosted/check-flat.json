@@ -1,0 +1,6 @@
+{
+ "arguments": {},
+ "error": "net.places: an object keyed by place id (this looks like the flat net pflow_bundle_flatten returns, which the net tools cannot read: fire it with pflow_bundle_run)",
+ "net": "local/flat.json",
+ "tool": "pflow_check"
+}

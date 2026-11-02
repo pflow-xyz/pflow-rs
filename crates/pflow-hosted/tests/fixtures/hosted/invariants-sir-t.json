@@ -1,0 +1,12 @@
+{
+ "answer": {
+  "structurally_bounded": true,
+  "t_invariants": null,
+  "t_truncated": false
+ },
+ "arguments": {
+  "kind": "t"
+ },
+ "net": "sir.jsonld",
+ "tool": "pflow_invariants"
+}

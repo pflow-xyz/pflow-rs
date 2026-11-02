@@ -1,0 +1,195 @@
+{
+ "answer": {
+  "arcs": [
+   {
+    "inhibit": false,
+    "source": "WaitingCustomers",
+    "target": "BrewCoffee",
+    "weight": [
+     1,
+     0,
+     0
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "CoffeeBeans",
+    "target": "BrewCoffee",
+    "weight": [
+     0,
+     1,
+     0
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "EmptyCups",
+    "target": "BrewCoffee",
+    "weight": [
+     0,
+     0,
+     1
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "BrewCoffee",
+    "target": "ServedCoffee",
+    "weight": [
+     1,
+     0,
+     0
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "ServedCoffee",
+    "target": "CustomerLeaves",
+    "weight": [
+     1,
+     0,
+     0
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "CustomerArrives",
+    "target": "WaitingCustomers",
+    "weight": [
+     1,
+     0,
+     0
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "RestockBeans",
+    "target": "CoffeeBeans",
+    "weight": [
+     0,
+     3,
+     0
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "RestockCups",
+    "target": "EmptyCups",
+    "weight": [
+     0,
+     0,
+     3
+    ]
+   }
+  ],
+  "colors": 3,
+  "enabled": [
+   "BrewCoffee",
+   "CustomerArrives",
+   "RestockBeans",
+   "RestockCups"
+  ],
+  "marking": {
+   "CoffeeBeans.https://pflow.xyz/tokens/blue": 0,
+   "CoffeeBeans.https://pflow.xyz/tokens/brown": 5,
+   "CoffeeBeans.https://pflow.xyz/tokens/red": 0,
+   "EmptyCups.https://pflow.xyz/tokens/blue": 5,
+   "EmptyCups.https://pflow.xyz/tokens/brown": 0,
+   "EmptyCups.https://pflow.xyz/tokens/red": 0,
+   "ServedCoffee.https://pflow.xyz/tokens/blue": 0,
+   "ServedCoffee.https://pflow.xyz/tokens/brown": 0,
+   "ServedCoffee.https://pflow.xyz/tokens/red": 0,
+   "WaitingCustomers.https://pflow.xyz/tokens/blue": 0,
+   "WaitingCustomers.https://pflow.xyz/tokens/brown": 0,
+   "WaitingCustomers.https://pflow.xyz/tokens/red": 2
+  },
+  "places": [
+   {
+    "capacity": [
+     0,
+     10,
+     0
+    ],
+    "id": "CoffeeBeans",
+    "initial": [
+     0,
+     5,
+     0
+    ],
+    "label": "Coffee Beans"
+   },
+   {
+    "capacity": [
+     0,
+     0,
+     10
+    ],
+    "id": "EmptyCups",
+    "initial": [
+     0,
+     0,
+     5
+    ],
+    "label": "Empty Cups"
+   },
+   {
+    "capacity": [
+     5,
+     0,
+     0
+    ],
+    "id": "ServedCoffee",
+    "initial": [
+     0,
+     0,
+     0
+    ],
+    "label": "Served Coffee"
+   },
+   {
+    "capacity": [
+     10,
+     0,
+     0
+    ],
+    "id": "WaitingCustomers",
+    "initial": [
+     2,
+     0,
+     0
+    ],
+    "label": "Waiting Customers"
+   }
+  ],
+  "transitions": [
+   {
+    "id": "BrewCoffee",
+    "label": "Brew Coffee",
+    "rate": 1
+   },
+   {
+    "id": "CustomerArrives",
+    "label": "Customer Arrives",
+    "rate": 1
+   },
+   {
+    "id": "CustomerLeaves",
+    "label": "Customer Leaves",
+    "rate": 1
+   },
+   {
+    "id": "RestockBeans",
+    "label": "Restock Beans",
+    "rate": 1
+   },
+   {
+    "id": "RestockCups",
+    "label": "Restock Cups",
+    "rate": 1
+   }
+  ]
+ },
+ "arguments": {},
+ "net": "coffee-shop.jsonld",
+ "tool": "pflow_info"
+}

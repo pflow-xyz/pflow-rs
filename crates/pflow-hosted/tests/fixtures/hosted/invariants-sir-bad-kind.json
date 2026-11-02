@@ -1,0 +1,8 @@
+{
+ "arguments": {
+  "kind": "x"
+ },
+ "error": "kind: p, t or both",
+ "net": "sir.jsonld",
+ "tool": "pflow_invariants"
+}

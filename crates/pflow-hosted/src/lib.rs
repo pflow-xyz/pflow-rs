@@ -15,12 +15,42 @@
 
 use serde_json::Value;
 
+// Single-net tools (the hosted `mcp.go`/`mcp_registry.go` ones); `net`
+// reads their shared `net` argument.
+mod check;
+mod cid;
+mod export;
+mod incidence;
+mod info;
+mod invariants;
+mod net;
+mod validate;
+mod verify;
+
 /// The tools [`call`] answers, by their local name (the hosted name without
 /// `pflow_`).
-pub const TOOLS: &[&str] = &[];
+pub const TOOLS: &[&str] = &[
+    "check",
+    "cid",
+    "incidence",
+    "invariants",
+    "validate",
+    "verify",
+    "export",
+    "info",
+];
 
 /// Runs one tool. `Err` is the tool's refusal, worded as the hosted tool's.
 pub fn call(tool: &str, args: &Value) -> Result<Value, String> {
-    let _ = args;
-    Err(format!("unknown tool {tool:?}"))
+    match tool {
+        "check" => check::run(args),
+        "cid" => cid::run(args),
+        "incidence" => incidence::run(args),
+        "invariants" => invariants::run(args),
+        "validate" => validate::run(args),
+        "verify" => verify::run(args),
+        "export" => export::run(args),
+        "info" => info::run(args),
+        _ => Err(format!("unknown tool {tool:?}")),
+    }
 }

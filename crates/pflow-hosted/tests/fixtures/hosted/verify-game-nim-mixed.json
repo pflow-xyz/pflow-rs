@@ -1,0 +1,160 @@
+{
+ "answer": {
+  "ok": false,
+  "proved": 0,
+  "refuted": 0,
+  "state_count": 0,
+  "truncated": false,
+  "unknown": 10,
+  "verdicts": [
+   {
+    "detail": "target references places not in the net: R",
+    "method": "",
+    "property": {
+     "kind": "reachable",
+     "target": {
+      "R": 10
+     }
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "target references places not in the net: R, S",
+    "method": "",
+    "property": {
+     "kind": "reachable",
+     "target": {
+      "R": 5,
+      "S": 0
+     }
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "expression references places not in the net: I, R, S",
+    "method": "",
+    "property": {
+     "expr": "S + I + R == 10",
+     "kind": "invariant"
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "expression references places not in the net: S",
+    "method": "",
+    "property": {
+     "expr": "S <= 5",
+     "kind": "invariant"
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "expression references places not in the net: I, S",
+    "method": "",
+    "property": {
+     "bound": 2,
+     "kind": "mutual-exclusion",
+     "name": "mx",
+     "places": [
+      "S",
+      "I"
+     ]
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "unknown property kind \"bogus\"",
+    "method": "",
+    "property": {
+     "kind": "bogus"
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "could not parse expression: expression has no comparison operator (expected one of ==, !=, <=, >=, <, >): \"S +\"",
+    "method": "",
+    "property": {
+     "expr": "S +",
+     "kind": "invariant"
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "expression references places not in the net: Q",
+    "method": "",
+    "property": {
+     "expr": "Q >= 1",
+     "kind": "invariant"
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "property requires a target marking",
+    "method": "",
+    "property": {
+     "kind": "reachable"
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "unknown property kind \"\"",
+    "method": "",
+    "property": {
+     "kind": ""
+    },
+    "status": "unknown"
+   }
+  ]
+ },
+ "arguments": {
+  "properties": [
+   {
+    "kind": "reachable",
+    "target": {
+     "R": 10
+    }
+   },
+   {
+    "kind": "reachable",
+    "target": {
+     "R": 5,
+     "S": 0
+    }
+   },
+   {
+    "expr": "S + I + R == 10",
+    "kind": "invariant"
+   },
+   {
+    "expr": "S <= 5",
+    "kind": "invariant"
+   },
+   {
+    "bound": 2,
+    "kind": "mutual-exclusion",
+    "name": "mx",
+    "places": [
+     "S",
+     "I"
+    ]
+   },
+   {
+    "kind": "bogus"
+   },
+   {
+    "expr": "S +",
+    "kind": "invariant"
+   },
+   {
+    "expr": "Q >= 1",
+    "kind": "invariant"
+   },
+   {
+    "kind": "reachable"
+   },
+   null
+  ]
+ },
+ "net": "game-nim.jsonld",
+ "tool": "pflow_verify"
+}

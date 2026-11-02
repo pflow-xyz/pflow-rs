@@ -1,0 +1,6 @@
+{
+ "arguments": {},
+ "error": "does not seal: [E_SUBNET] subnet id \"till\" appears twice",
+ "net": "bundle-bad-subnets.json",
+ "tool": "pflow_cid"
+}

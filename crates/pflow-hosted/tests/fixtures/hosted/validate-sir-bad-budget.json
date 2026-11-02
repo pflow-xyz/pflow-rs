@@ -1,0 +1,9 @@
+{
+ "arguments": {
+  "max_states": 0,
+  "reachability": true
+ },
+ "error": "max_states: a number in [1, 20000]",
+ "net": "sir.jsonld",
+ "tool": "pflow_validate"
+}

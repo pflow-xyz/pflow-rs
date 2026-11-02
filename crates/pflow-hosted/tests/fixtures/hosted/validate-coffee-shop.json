@@ -1,0 +1,165 @@
+{
+ "answer": {
+  "info": [
+   {
+    "category": "conservation",
+    "location": [
+     "BrewCoffee",
+     "CustomerArrives",
+     "CustomerLeaves",
+     "RestockBeans",
+     "RestockCups"
+    ],
+    "message": "Net does not conserve total tokens (transitions with unbalanced flow: [BrewCoffee CustomerArrives CustomerLeaves RestockBeans RestockCups])",
+    "severity": "info"
+   },
+   {
+    "category": "conservation",
+    "message": "Found 8 conservation law(s): CoffeeBeans.https://pflow.xyz/tokens/blue == 0; CoffeeBeans.https://pflow.xyz/tokens/red == 0; EmptyCups.https://pflow.xyz/tokens/brown == 0; EmptyCups.https://pflow.xyz/tokens/red == 0; ServedCoffee.https://pflow.xyz/tokens/blue == 0; ServedCoffee.https://pflow.xyz/tokens/brown == 0; WaitingCustomers.https://pflow.xyz/tokens/blue == 0; WaitingCustomers.https://pflow.xyz/tokens/brown == 0",
+    "severity": "info"
+   }
+  ],
+  "invariants": [
+   "CoffeeBeans.https://pflow.xyz/tokens/blue == 0",
+   "CoffeeBeans.https://pflow.xyz/tokens/red == 0",
+   "EmptyCups.https://pflow.xyz/tokens/brown == 0",
+   "EmptyCups.https://pflow.xyz/tokens/red == 0",
+   "ServedCoffee.https://pflow.xyz/tokens/blue == 0",
+   "ServedCoffee.https://pflow.xyz/tokens/brown == 0",
+   "WaitingCustomers.https://pflow.xyz/tokens/blue == 0",
+   "WaitingCustomers.https://pflow.xyz/tokens/brown == 0"
+  ],
+  "summary": {
+   "arcs": 8,
+   "conserved": false,
+   "errors": 0,
+   "places": 12,
+   "transitions": 5,
+   "warnings": 13
+  },
+  "valid": true,
+  "warnings": [
+   {
+    "category": "connectivity",
+    "location": [
+     "ServedCoffee.https://pflow.xyz/tokens/blue"
+    ],
+    "message": "Place 'ServedCoffee.https://pflow.xyz/tokens/blue' is not connected to any transition",
+    "severity": "warning",
+    "suggestion": "Add arcs to connect this place"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "WaitingCustomers.https://pflow.xyz/tokens/brown"
+    ],
+    "message": "Place 'WaitingCustomers.https://pflow.xyz/tokens/brown' is not connected to any transition",
+    "severity": "warning",
+    "suggestion": "Add arcs to connect this place"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "CoffeeBeans.https://pflow.xyz/tokens/blue"
+    ],
+    "message": "Place 'CoffeeBeans.https://pflow.xyz/tokens/blue' is not connected to any transition",
+    "severity": "warning",
+    "suggestion": "Add arcs to connect this place"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "ServedCoffee.https://pflow.xyz/tokens/brown"
+    ],
+    "message": "Place 'ServedCoffee.https://pflow.xyz/tokens/brown' is not connected to any transition",
+    "severity": "warning",
+    "suggestion": "Add arcs to connect this place"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "WaitingCustomers.https://pflow.xyz/tokens/blue"
+    ],
+    "message": "Place 'WaitingCustomers.https://pflow.xyz/tokens/blue' is not connected to any transition",
+    "severity": "warning",
+    "suggestion": "Add arcs to connect this place"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "CoffeeBeans.https://pflow.xyz/tokens/red"
+    ],
+    "message": "Place 'CoffeeBeans.https://pflow.xyz/tokens/red' is not connected to any transition",
+    "severity": "warning",
+    "suggestion": "Add arcs to connect this place"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "EmptyCups.https://pflow.xyz/tokens/red"
+    ],
+    "message": "Place 'EmptyCups.https://pflow.xyz/tokens/red' is not connected to any transition",
+    "severity": "warning",
+    "suggestion": "Add arcs to connect this place"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "EmptyCups.https://pflow.xyz/tokens/brown"
+    ],
+    "message": "Place 'EmptyCups.https://pflow.xyz/tokens/brown' is not connected to any transition",
+    "severity": "warning",
+    "suggestion": "Add arcs to connect this place"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "CustomerArrives"
+    ],
+    "message": "Transition 'CustomerArrives' has no input places",
+    "severity": "warning",
+    "suggestion": "Add input arcs from places"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "CustomerLeaves"
+    ],
+    "message": "Transition 'CustomerLeaves' has no output places",
+    "severity": "warning",
+    "suggestion": "Add output arcs to places"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "RestockBeans"
+    ],
+    "message": "Transition 'RestockBeans' has no input places",
+    "severity": "warning",
+    "suggestion": "Add input arcs from places"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "RestockCups"
+    ],
+    "message": "Transition 'RestockCups' has no input places",
+    "severity": "warning",
+    "suggestion": "Add input arcs from places"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "CustomerLeaves",
+     "ServedCoffee.https://pflow.xyz/tokens/red"
+    ],
+    "message": "Transition 'CustomerLeaves' cannot fire with initial marking (insufficient tokens in: [ServedCoffee.https://pflow.xyz/tokens/red])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   }
+  ]
+ },
+ "arguments": {},
+ "net": "coffee-shop.jsonld",
+ "tool": "pflow_validate"
+}

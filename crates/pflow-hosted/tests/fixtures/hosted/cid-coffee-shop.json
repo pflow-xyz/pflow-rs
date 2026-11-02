@@ -1,0 +1,8 @@
+{
+ "answer": {
+  "cid": "z4EBG9jDsuUdvVN4bUXRHxoDG3p274FfhcJd8BiruRcE1jLCHi8"
+ },
+ "arguments": {},
+ "net": "coffee-shop.jsonld",
+ "tool": "pflow_cid"
+}
