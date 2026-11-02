@@ -1,8 +1,16 @@
 # pflow-rs
 
-Rust port of [go-pflow](https://github.com/pflow-xyz/go-pflow) — Petri net modeling with ODE simulation and token model DSL.
+Explanations you can run, in Rust. Describe a system once as a Petri net and
+the same net answers several questions: how its tokens flow over time (ODE
+simulation, and a seeded Gillespie SSA that is byte-exact with go-pflow and
+pflow.xyz), which markings it can reach and what it conserves (reachability,
+coverability, P/T invariants), what its max-plus structure says (tropical
+analysis), and, with a zero-knowledge proof, that one transition legally moved
+it from one marking to the next.
 
-**Paper:** [Incidence Reduction: Extracting Exact Strategic Values from Game Topologies via Petri Net ODE Equilibrium](https://github.com/pflow-xyz/pflow-rs/releases/latest/download/integer-reduction-draft.pdf)
+pflow-rs is the Rust port of [go-pflow](https://github.com/pflow-xyz/go-pflow),
+held to go-pflow's goldens, and runs in the browser as
+[`@pflow-xyz/pflow-wasm`](https://www.npmjs.com/package/@pflow-xyz/pflow-wasm).
 
 ## Crates
 
@@ -37,6 +45,8 @@ Status table.
 
 ## Quick Start
 
+### Rust
+
 ```rust
 use pflow::*;
 
@@ -45,14 +55,60 @@ let (net, rates) = PetriNet::build()
     .sir(999.0, 1.0, 0.0)
     .with_rates(1.0);
 
-// Solve to equilibrium
+// Solve to equilibrium (Problem::new refuses read and inhibitor arcs)
 let state = net.set_state(None);
-let prob = Problem::new(net, state, [0.0, 100.0], rates);
+let prob = Problem::new(net, state, [0.0, 100.0], rates).unwrap();
 let (final_state, reached) = find_equilibrium(&prob);
 
 assert!(reached);
 // S + I + R = 1000 (conserved)
 ```
+
+### Browser (npm)
+
+[`@pflow-xyz/pflow-wasm`](crates/pflow-wasm/npm/README.md) 0.3.0 is the same
+engine as one self-contained ES module: fire a net, run the mass-action ODE and
+the portable SSA. This is a complete page; the `.wasm` is embedded, so `init()`
+makes no further network request (the page's CSP must still allow
+`'wasm-unsafe-eval'`).
+
+```html
+<pre id="out"></pre>
+<script type="module">
+  import init, { Net, version } from "https://cdn.jsdelivr.net/npm/@pflow-xyz/pflow-wasm@0.3.0/pflow-wasm.inline.js";
+
+  await init();
+
+  const net = new Net({
+    name: "coffee",
+    places: [
+      { id: "beans", initial: 3 },
+      { id: "cups" },
+    ],
+    transitions: [{ id: "brew", rate: 0.5 }],
+    arcs: [
+      { from: "beans", to: "brew" },
+      { from: "brew", to: "cups" },
+    ],
+  });
+
+  const lines = [`pflow-wasm ${version()}`];
+  lines.push(`enabled: ${net.enabled()}`);
+  lines.push(`after brew: ${JSON.stringify(net.fire("brew"))}`);
+
+  const ode = net.simulate({ tEnd: 10, maxPoints: 20 });
+  lines.push(`ODE at t=10: ${JSON.stringify(ode.final)}`);
+
+  const ssa = net.stochastic({ horizon: 10, samples: 11, realizations: 100, seed: 42 });
+  lines.push(`SSA mean at t=10: ${JSON.stringify(ssa.final)}`);
+
+  document.getElementById("out").textContent = lines.join("\n");
+  console.log(lines.join("\n"));
+</script>
+```
+
+Or `npm install @pflow-xyz/pflow-wasm`. The package README covers the split
+entry, the full API, and what it refuses (guards, stages, rate schedules).
 
 ## Petri Net Builder
 
@@ -83,7 +139,7 @@ Seven explicit Runge-Kutta methods plus implicit solvers for stiff systems:
 ```rust
 use pflow_solver::*;
 
-let prob = Problem::new(net, state, [0.0, 100.0], rates);
+let prob = Problem::new(net, state, [0.0, 100.0], rates)?;
 
 // Explicit (adaptive step size)
 let sol = solve(&prob, &methods::tsit5(), &Options::default_opts());
@@ -313,6 +369,10 @@ The `pflow` umbrella with default features (`pflow-core`, `pflow-solver`,
 
 `pflow-solver` itself has no external runtime dependencies. The ZK and MCP
 crates bring in more (arkworks; `rmcp`, `tokio`, `schemars`).
+
+## Papers
+
+- **Draft:** [Incidence Reduction: Extracting Exact Strategic Values from Game Topologies via Petri Net ODE Equilibrium](papers/integer-reduction/incidence-reduction.pdf) (source: `papers/integer-reduction/main.tex`)
 
 ## Contributing
 
