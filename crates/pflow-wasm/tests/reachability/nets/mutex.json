@@ -1,0 +1,195 @@
+{
+ "@context": "https://pflow.xyz/schema",
+ "@type": "PetriNet",
+ "@version": "1.1",
+ "name": "mutex",
+ "places": {
+  "idle1": {
+   "@type": "Place",
+   "initial": [
+    1
+   ],
+   "capacity": [
+    0
+   ],
+   "x": 0,
+   "y": 0
+  },
+  "cs1": {
+   "@type": "Place",
+   "initial": [
+    0
+   ],
+   "capacity": [
+    0
+   ],
+   "x": 0,
+   "y": 0
+  },
+  "idle2": {
+   "@type": "Place",
+   "initial": [
+    1
+   ],
+   "capacity": [
+    0
+   ],
+   "x": 0,
+   "y": 0
+  },
+  "cs2": {
+   "@type": "Place",
+   "initial": [
+    0
+   ],
+   "capacity": [
+    0
+   ],
+   "x": 0,
+   "y": 0
+  },
+  "lock": {
+   "@type": "Place",
+   "initial": [
+    1
+   ],
+   "capacity": [
+    0
+   ],
+   "x": 0,
+   "y": 0
+  }
+ },
+ "transitions": {
+  "enter1": {
+   "@type": "Transition",
+   "x": 0,
+   "y": 0
+  },
+  "exit1": {
+   "@type": "Transition",
+   "x": 0,
+   "y": 0
+  },
+  "enter2": {
+   "@type": "Transition",
+   "x": 0,
+   "y": 0
+  },
+  "exit2": {
+   "@type": "Transition",
+   "x": 0,
+   "y": 0
+  }
+ },
+ "arcs": [
+  {
+   "@type": "Arrow",
+   "source": "idle1",
+   "target": "enter1",
+   "weight": [
+    1
+   ],
+   "inhibitTransition": false
+  },
+  {
+   "@type": "Arrow",
+   "source": "lock",
+   "target": "enter1",
+   "weight": [
+    1
+   ],
+   "inhibitTransition": false
+  },
+  {
+   "@type": "Arrow",
+   "source": "enter1",
+   "target": "cs1",
+   "weight": [
+    1
+   ],
+   "inhibitTransition": false
+  },
+  {
+   "@type": "Arrow",
+   "source": "cs1",
+   "target": "exit1",
+   "weight": [
+    1
+   ],
+   "inhibitTransition": false
+  },
+  {
+   "@type": "Arrow",
+   "source": "exit1",
+   "target": "idle1",
+   "weight": [
+    1
+   ],
+   "inhibitTransition": false
+  },
+  {
+   "@type": "Arrow",
+   "source": "exit1",
+   "target": "lock",
+   "weight": [
+    1
+   ],
+   "inhibitTransition": false
+  },
+  {
+   "@type": "Arrow",
+   "source": "idle2",
+   "target": "enter2",
+   "weight": [
+    1
+   ],
+   "inhibitTransition": false
+  },
+  {
+   "@type": "Arrow",
+   "source": "lock",
+   "target": "enter2",
+   "weight": [
+    1
+   ],
+   "inhibitTransition": false
+  },
+  {
+   "@type": "Arrow",
+   "source": "enter2",
+   "target": "cs2",
+   "weight": [
+    1
+   ],
+   "inhibitTransition": false
+  },
+  {
+   "@type": "Arrow",
+   "source": "cs2",
+   "target": "exit2",
+   "weight": [
+    1
+   ],
+   "inhibitTransition": false
+  },
+  {
+   "@type": "Arrow",
+   "source": "exit2",
+   "target": "idle2",
+   "weight": [
+    1
+   ],
+   "inhibitTransition": false
+  },
+  {
+   "@type": "Arrow",
+   "source": "exit2",
+   "target": "lock",
+   "weight": [
+    1
+   ],
+   "inhibitTransition": false
+  }
+ ]
+}

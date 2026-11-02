@@ -1,5 +1,5 @@
 # The npm package @pflow-xyz/pflow-wasm. Everything else here is plain cargo.
-.PHONY: wasm-npm wasm-npm-test wasm-npm-publish wasm-mcp wasm-mcp-test wasm-mcp-publish
+.PHONY: wasm-npm wasm-npm-test wasm-npm-publish wasm-mcp wasm-mcp-test wasm-mcp-crosscheck wasm-mcp-publish
 
 # Must equal the wasm-bindgen dependency in crates/pflow-wasm/Cargo.toml.
 WASM_BINDGEN_VERSION := 0.2.129
@@ -52,7 +52,14 @@ wasm-mcp-test: wasm-mcp
 	node $(MCP_OUT)/test.mjs $(MCP_OUT); rc=$$?; rm -f $(MCP_OUT)/test.mjs; exit $$rc
 	cd $(MCP_OUT) && npm pack --dry-run 2>&1 | grep -E 'total files|package size|unpacked'
 
-# Needs `npm login` as an owner of the @pflow-xyz scope. Publish wasm-npm first or together:
-# the version is the workspace version, and versions cannot be republished.
+# Network: the built server's `reachability` against pflow.xyz/mcp's
+# pflow_reachability on tests/reachability/nets. The offline guard is
+# `cargo test -p pflow-wasm --test reachability_parity`.
+wasm-mcp-crosscheck: wasm-mcp
+	cp crates/pflow-wasm/mcp/crosscheck-hosted.mjs $(MCP_OUT)/crosscheck.mjs
+	node $(MCP_OUT)/crosscheck.mjs $(MCP_OUT) crates/pflow-wasm/tests/reachability/nets; rc=$$?; rm -f $(MCP_OUT)/crosscheck.mjs; exit $$rc
+
+# Needs `npm login` as an owner of the @pflow-xyz scope. The package has its own
+# version (crates/pflow-wasm/mcp/build.mjs), and versions cannot be republished.
 wasm-mcp-publish: wasm-mcp-test
 	cd $(MCP_OUT) && npm publish --access public

@@ -1,0 +1,44 @@
+{
+  "bounded": true,
+  "complete": true,
+  "dead_transitions": null,
+  "deadlock_free": false,
+  "deadlocks": 2,
+  "edges": 5,
+  "first_deadlock": {
+    "full": 1,
+    "pair": 0,
+    "raw": 2
+  },
+  "live": false,
+  "max_states_asked": 2000,
+  "max_tokens": {
+    "full": 2,
+    "pair": 2,
+    "raw": 4
+  },
+  "not_live": [
+    "make",
+    "pack"
+  ],
+  "note": "untimed: rates play no part; a claim about every state holds only when complete is true",
+  "quasi_live": true,
+  "states": 6,
+  "witness": {
+    "kind": "deadlock",
+    "trace": [
+      "make",
+      "pack"
+    ],
+    "marking": {
+      "full": 1,
+      "pair": 0,
+      "raw": 2
+    },
+    "region_size": 1,
+    "never_fires": [
+      "make",
+      "pack"
+    ]
+  }
+}

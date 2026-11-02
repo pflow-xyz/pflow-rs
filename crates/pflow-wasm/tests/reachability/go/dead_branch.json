@@ -1,0 +1,35 @@
+{
+  "bounded": true,
+  "complete": true,
+  "dead_transitions": [
+    "never"
+  ],
+  "deadlock_free": true,
+  "deadlocks": 0,
+  "edges": 2,
+  "live": false,
+  "max_states_asked": 2000,
+  "max_tokens": {
+    "p": 1,
+    "q": 1
+  },
+  "not_live": [
+    "never"
+  ],
+  "note": "untimed: rates play no part; a claim about every state holds only when complete is true",
+  "quasi_live": false,
+  "states": 2,
+  "witness": {
+    "kind": "livelock",
+    "trace": [],
+    "marking": {
+      "p": 1,
+      "q": 0,
+      "z": 0
+    },
+    "region_size": 2,
+    "never_fires": [
+      "never"
+    ]
+  }
+}

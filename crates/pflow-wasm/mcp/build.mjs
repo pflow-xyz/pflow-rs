@@ -10,7 +10,11 @@ import { fileURLToPath } from 'node:url';
 const [wasmPkg, outDir] = process.argv.slice(2);
 if (!wasmPkg || !outDir) { console.error('usage: build.mjs <pflow-wasm package dir> <out dir>  (CHYP_PKG, ONTOLOGY_DIR override the sibling checkouts)'); process.exit(2); }
 const here = dirname(fileURLToPath(import.meta.url));
-const version = JSON.parse(readFileSync(join(wasmPkg, 'package.json'), 'utf8')).version;
+// The package's own version, independent of the workspace (pflow-wasm's) one:
+// the MCP surface changes on its own schedule. Bump it here; npm refuses a
+// version it already has.
+const version = '0.4.0';
+const engineVersion = JSON.parse(readFileSync(join(wasmPkg, 'package.json'), 'utf8')).version;
 
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
@@ -54,4 +58,4 @@ writeFileSync(join(outDir, 'package.json'), JSON.stringify({
   dependencies: { '@modelcontextprotocol/sdk': '^1.0.0', n3: '^1.17.0', zod: '^3.23.0' },
   publishConfig: { access: 'public' },
 }, null, 2) + '\n');
-console.log(`@pflow-xyz/pflow-mcp@${version} in ${outDir}`);
+console.log(`@pflow-xyz/pflow-mcp@${version} (engine pflow-wasm ${engineVersion}) in ${outDir}`);

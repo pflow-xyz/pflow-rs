@@ -1,0 +1,19 @@
+{
+  "bounded": true,
+  "complete": true,
+  "dead_transitions": null,
+  "deadlock_free": true,
+  "deadlocks": 0,
+  "edges": 2,
+  "live": true,
+  "max_states_asked": 2000,
+  "max_tokens": {
+    "p": 1,
+    "q": 1
+  },
+  "not_live": null,
+  "note": "untimed: rates play no part; a claim about every state holds only when complete is true",
+  "quasi_live": true,
+  "states": 2,
+  "witness": null
+}

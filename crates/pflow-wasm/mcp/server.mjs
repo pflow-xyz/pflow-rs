@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import init, { Net, version } from './pflow-wasm.inline.js';
+import init, { Net } from './pflow-wasm.inline.js';
 
 await init();
 
@@ -19,7 +19,9 @@ const nets = new Map();
 const models = new Map(); // name -> model object, for artifact_html
 let last = null;
 
-const server = new McpServer({ name: 'pflow-mcp', version: version() });
+// The package has its own version (build.mjs); the engine's is version().
+const pkgVersion = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
+const server = new McpServer({ name: 'pflow-mcp', version: pkgVersion });
 
 const ok = (value) => ({ content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] });
 const fail = (e) => ({ isError: true, content: [{ type: 'text', text: String(e?.message ?? e) }] });
@@ -95,6 +97,25 @@ tool('stochastic',
     rates },
   ({ net, ...options }) => get(net).stochastic(options));
 
+tool('reachability',
+  'Explore the reachable markings (pflow-rs reachability, untimed: rates play no part), with parity to pflow.xyz/mcp pflow_reachability: state and edge count, bounded or not, dead markings with the first, transitions that never fire, and three verdicts, each true, false or "unknown": deadlock_free (no reachable marking has nothing enabled, an empty one included), live (L4: from every reachable marking, every transition can still fire) and quasi_live (L1: every transition fires in some reachable marking, which a net with a deadlock can pass). witness is a firing sequence that replays from `from` to the dead marking, or into a closed region shutting transitions out, with never_fires naming them. When complete is false the search stopped at its bound (truncated says why): no verdict is true, and only a witness makes one false. Pass a loaded net by name, or a model inline. Does not move the marking.',
+  { net: netName,
+    model: z.union([z.string(), z.record(z.string(), z.any())]).optional()
+      .describe('A net to analyze without loading it (pflow.xyz JSON object or text); overrides net'),
+    max_states: z.number().int().min(1).max(20000).optional().describe('State budget (default 2000, ≤ 20000)'),
+    max_tokens: z.number().int().min(1).optional()
+      .describe('Tokens in one place past which the net is called unbounded (default 1000)'),
+    from: z.enum(['initial', 'current']).optional()
+      .describe('Start from the initial marking (default, as the hosted tool) or a loaded net\'s current one') },
+  ({ net, model, max_states, max_tokens, from }) => {
+    const options = { maxStates: max_states, maxTokens: max_tokens, from };
+    if (model != null) {
+      if (from === 'current') throw new Error('from "current" needs a loaded net, not an inline model');
+      const n = new Net(model);
+      try { return n.reachability(options); } finally { n.free?.(); }
+    }
+    return get(net).reachability(options);
+  });
 
 // ---- artifact_html -------------------------------------------------------
 

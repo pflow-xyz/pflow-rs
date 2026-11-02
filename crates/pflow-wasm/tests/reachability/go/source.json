@@ -1,0 +1,23 @@
+{
+  "bound": {
+    "max_states": 50,
+    "max_tokens": 1000
+  },
+  "bounded": "unknown: the search stopped at max_states",
+  "complete": false,
+  "dead_transitions": null,
+  "deadlock_free": "unknown",
+  "deadlocks": 0,
+  "edges": 49,
+  "live": "unknown",
+  "max_states_asked": 50,
+  "max_tokens": {
+    "p": 49
+  },
+  "not_live": null,
+  "note": "untimed: rates play no part; a claim about every state holds only when complete is true",
+  "quasi_live": "unknown",
+  "states": 50,
+  "truncated": "state limit reached",
+  "witness": null
+}

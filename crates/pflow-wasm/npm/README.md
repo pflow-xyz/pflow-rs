@@ -94,6 +94,7 @@ The embedded module takes `await init()`, because decompressing it is async.
 | `net.reset()` | | Back to the initial marking |
 | `net.simulate(options?)` | `{method, places, times, series, final, gating}` | Mass-action ODE (Tsit5) |
 | `net.stochastic(options?)` | `{method, seed, places, times, series, final}` | Portable Gillespie SSA |
+| `net.reachability(options?)` | `{states, complete, deadlock_free, live, quasi_live, witness, ...}` | Bounded state-space search with liveness verdicts (not in 0.3.0) |
 
 `simulate` and `stochastic` start from the current marking and do not move it.
 
@@ -105,6 +106,16 @@ solution could not honour, such as a capacity.
 `stochastic` options: `horizon` (10), `samples` (101), `realizations` (1), `seed`
 (1), `rates`. Each place's series is `{values, stddev}`, with `stddev` present when
 `realizations > 1`.
+
+`reachability` options: `maxStates` (2000, at most 20000), `maxTokens` (1000, the
+per-place count past which the net is called unbounded), and `from`: `"initial"`
+(the default) or `"current"`. It ignores rates and does not move the marking. The
+result is pflow.xyz/mcp `pflow_reachability`'s, key for key, and is held to
+go-pflow's on sample nets (`tests/reachability_parity.rs`): `deadlock_free`,
+`live` (L4) and `quasi_live` (L1) are each `true`, `false` or `"unknown"`, never
+`true` unless `complete`; `witness` is a firing sequence that replays from `from`
+to a dead marking or into a closed region, with `never_fires` naming the
+transitions it shuts out; `truncated` and `bound` say where a search stopped.
 
 Errors throw: a transition that is not enabled (with the reason), an unknown
 option, a rate for a transition the net does not have.
