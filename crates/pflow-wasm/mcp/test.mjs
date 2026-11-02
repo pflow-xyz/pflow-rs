@@ -17,7 +17,9 @@ const call = async (name, args = {}) => {
 
 const tools = (await client.listTools()).tools.map((t) => t.name).sort();
 assert.deepEqual(tools, ['artifact_html', 'chyp_check', 'chyp_part', 'chyp_rule', 'fire', 'list_nets', 'load_net',
-  'ontology_classes', 'ontology_describe', 'ontology_search', 'reset', 'simulate', 'state', 'stochastic']);
+  'ontology_classes', 'ontology_describe', 'ontology_search', 'reachability', 'reset', 'simulate', 'state', 'stochastic']);
+const { version } = JSON.parse((await import('node:fs')).readFileSync(join(dir, 'package.json'), 'utf8'));
+assert.equal(client.getServerVersion().version, version, 'server reports the package version');
 
 const coffee = {
   name: 'coffee',
@@ -43,11 +45,53 @@ const a = await call('stochastic', { horizon: 10, samples: 11, seed: 42 });
 const b = await call('stochastic', { horizon: 10, samples: 11, seed: 42 });
 assert.equal(a.text, b.text, 'same seed, same run');
 
-await call('reset');
-assert.equal((await call('state')).json.marking.beans, 3);
+// reachability: from the initial marking by default, as the hosted tool
+r = await call('reachability');
+assert.equal(r.json.states, 4);
+assert.equal(r.json.complete, true);
+assert.equal(r.json.deadlock_free, false);
+assert.equal(r.json.quasi_live, true);
+assert.equal(r.json.live, false);
+assert.deepEqual(r.json.first_deadlock, { beans: 0, cups: 3 });
+assert.deepEqual(r.json.witness.trace, ['brew', 'brew', 'brew']);
+r = await call('reachability', { from: 'current' });
+assert.equal(r.json.states, 3, 'from the current marking (one brew fired)');
+assert.equal((await call('state')).json.marking.beans, 2, 'the search does not move the marking');
+
+// a livelock: deadlock-free and L1, but not L4; the witness replays with fire
+const livelock = {
+  name: 'livelock',
+  places: [{ id: 'p', initial: 1 }, { id: 'q' }, { id: 'r' }, { id: 's' }],
+  transitions: ['t', 'u', 'x', 'v', 'w'].map((id) => ({ id })),
+  arcs: [['p', 't'], ['t', 'q'], ['q', 'u'], ['u', 'p'], ['p', 'x'], ['x', 'r'], ['r', 'v'], ['v', 's'], ['s', 'w'], ['w', 'r']]
+    .map(([from, to]) => ({ from, to })),
+};
+r = await call('reachability', { model: livelock });
+assert.equal(r.json.deadlock_free, true);
+assert.equal(r.json.quasi_live, true);
+assert.equal(r.json.live, false);
+assert.equal(r.json.witness.kind, 'livelock');
+assert.deepEqual(r.json.witness.never_fires, ['t', 'u', 'x']);
+assert.ok(!(await call('list_nets')).json.nets.includes('livelock'), 'an inline model is not loaded');
+await call('load_net', { model: livelock });
+let m;
+for (const t of r.json.witness.trace) m = (await call('fire', { transition: t })).json.marking;
+assert.deepEqual(m, r.json.witness.marking, 'witness replays');
+
+// unbounded: the search stops, and claims nothing true
+r = await call('reachability', { model: { name: 'src', places: [{ id: 'p' }], transitions: [{ id: 't' }], arcs: [{ from: 't', to: 'p' }] }, max_states: 50 });
+assert.equal(r.json.complete, false);
+assert.equal(r.json.states, 50);
+assert.ok(r.json.truncated && /^unknown/.test(r.json.bounded));
+for (const k of ['deadlock_free', 'live', 'quasi_live']) assert.notEqual(r.json[k], true, k);
+assert.ok((await call('reachability', { max_states: 20001 })).error, 'over the budget cap');
+assert.ok((await call('reachability', { model: livelock, from: 'current' })).error);
+
+await call('reset', { net: 'coffee' });
+assert.equal((await call('state', { net: 'coffee' })).json.marking.beans, 3);
 assert.ok((await call('state', { net: 'missing' })).error);
 
-r = await call('artifact_html', { path: join(dir, 'artifact-test.html') });
+r = await call('artifact_html', { net: 'coffee', path: join(dir, 'artifact-test.html') });
 const { readFileSync, rmSync } = await import('node:fs');
 const html = readFileSync(r.json.path, 'utf8');
 rmSync(r.json.path);

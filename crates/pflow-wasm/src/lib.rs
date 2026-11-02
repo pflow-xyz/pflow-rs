@@ -3,7 +3,9 @@
 //! This crate adds no engine behaviour, only the JavaScript boundary: firing
 //! is `pflow_metamodel`'s rule, the ODE is `pflow_solver::solve` with Tsit5,
 //! the stochastic run is `pflow_solver::ssa::simulate` (the portable,
-//! byte-exact Gillespie SSA).
+//! byte-exact Gillespie SSA), and the state-space search is
+//! `pflow_reachability::Analyzer` (bounded BFS, the L1/L4 liveness verdicts
+//! and a replayable witness, as go-pflow's `reachability`).
 //!
 //! The logic lives in [`Core`], plain Rust over JSON text returning
 //! `Result<String, String>`, so it is tested natively (`cargo test -p
@@ -15,6 +17,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use pflow_core::PetriNet;
 use pflow_metamodel::{ArcType, Marking, Model};
+use pflow_reachability::{Analyzer, Verdict, WitnessKind};
 use pflow_solver::ssa::{
     simulate as simulate_ssa, ArcKind, SsaArc, SsaModel, SsaOptions, SsaPlace, SsaTransition,
 };
@@ -205,6 +208,32 @@ struct StochasticOptions {
     rates: HashMap<String, f64>,
 }
 
+#[derive(Deserialize, Default)]
+#[serde(default, deny_unknown_fields, rename_all = "camelCase")]
+struct ReachabilityOptions {
+    max_states: Option<u64>,
+    max_tokens: Option<i64>,
+    from: Option<String>,
+}
+
+/// pflow.xyz/mcp's `pflow_reachability` budget: default 2000, at most 20000.
+pub const REACH_DEFAULT_STATES: u64 = 2_000;
+pub const REACH_MAX_STATES: u64 = 20_000;
+/// go-pflow's per-place token bound, past which a net is called unbounded.
+pub const REACH_DEFAULT_TOKENS: i64 = 1_000;
+
+fn verdict_value(v: Verdict) -> Value {
+    match v {
+        Verdict::True => json!(true),
+        Verdict::False => json!(false),
+        _ => json!("unknown"),
+    }
+}
+
+fn sorted_marking(m: &Marking) -> BTreeMap<&str, i64> {
+    m.iter().map(|(k, v)| (k.as_str(), *v)).collect()
+}
+
 fn parse_options<T: for<'a> Deserialize<'a> + Default>(
     text: &str,
     what: &str,
@@ -278,6 +307,90 @@ impl Core {
 
     pub fn reset(&mut self) {
         self.marking = self.model.initial_marking();
+    }
+
+    /// Bounded reachability: the state space from the initial marking (or,
+    /// with `from: "current"`, the current one), and go-pflow's three
+    /// liveness verdicts over it. Rates play no part. The response is
+    /// pflow.xyz/mcp `pflow_reachability`'s, key for key: each verdict is
+    /// `true`, `false` or `"unknown"`; nothing is `true` unless `complete`;
+    /// `witness` is a firing sequence that replays from the start marking to a
+    /// dead marking or into a closed region `never_fires` names.
+    pub fn reachability_json(&self, options_json: &str) -> Result<String, String> {
+        let o: ReachabilityOptions = parse_options(options_json, "reachability")?;
+        let max_states = o.max_states.unwrap_or(REACH_DEFAULT_STATES);
+        if !(1..=REACH_MAX_STATES).contains(&max_states) {
+            return Err(format!(
+                "reachability: maxStates must be between 1 and {REACH_MAX_STATES}"
+            ));
+        }
+        let max_tokens = o.max_tokens.unwrap_or(REACH_DEFAULT_TOKENS);
+        if max_tokens < 1 {
+            return Err("reachability: maxTokens must be at least 1".into());
+        }
+        let start = match o.from.as_deref() {
+            None | Some("initial") => self.model.initial_marking(),
+            Some("current") => self.marking.clone(),
+            Some(other) => {
+                return Err(format!(
+                    "reachability: from must be \"initial\" or \"current\", not {other:?}"
+                ))
+            }
+        };
+        let r = Analyzer::new(&self.model)
+            .with_initial_marking(start.clone())
+            .with_max_states(max_states as usize)
+            .with_max_tokens(max_tokens)
+            .analyze();
+        let lv = &r.liveness;
+        let witness = lv.witness.as_ref().map(|w| {
+            json!({
+                "kind": match w.kind {
+                    WitnessKind::Deadlock => "deadlock",
+                    WitnessKind::Livelock => "livelock",
+                },
+                "trace": w.trace,
+                "marking": sorted_marking(&w.marking),
+                "region_size": w.region_size,
+                "never_fires": w.never_fires,
+            })
+        });
+        let mut out = json!({
+            "engine": "pflow-rs pflow-reachability (wasm)",
+            "from": sorted_marking(&start),
+            "states": r.state_count,
+            "edges": r.edge_count,
+            "complete": r.is_complete,
+            "bounded": r.bounded,
+            "max_tokens": r.max_tokens.iter().map(|(k, v)| (k.as_str(), *v)).collect::<BTreeMap<_, _>>(),
+            "deadlocks": r.dead_markings.len(),
+            "deadlock_free": verdict_value(lv.deadlock_free),
+            "live": verdict_value(lv.live),
+            "quasi_live": verdict_value(lv.quasi_live),
+            "witness": witness,
+            "not_live": lv.not_live,
+            "dead_transitions": r.dead_trans,
+            "note": "untimed: rates play no part; a claim about every state holds only when complete is true",
+        });
+        if r.truncated {
+            out["truncated"] = json!(r.truncate_msg);
+            out["bound"] = json!({
+                "max_states": r.exploration_stats.states_limit,
+                "max_tokens": r.exploration_stats.tokens_limit,
+            });
+        }
+        if !r.is_complete {
+            // The analyzer's `bounded` covers only the states it saw.
+            out["bounded"] = json!("unknown: the search stopped at max_states");
+        }
+        if let Some(first) = r
+            .dead_markings
+            .first()
+            .and_then(|k| r.graph.get_state_by_key(k))
+        {
+            out["first_deadlock"] = json!(sorted_marking(&first.marking));
+        }
+        Ok(out.to_string())
     }
 
     /// The model's own rates with `overrides` on top. A rate for a transition
@@ -435,6 +548,48 @@ export interface StochasticOptions {
   /** Rate overrides by transition id. */
   rates?: Record<string, number>;
 }
+export interface ReachabilityOptions {
+  /** State budget; default 2000, at most 20000. */
+  maxStates?: number;
+  /** Tokens in one place past which the net is called unbounded; default 1000. */
+  maxTokens?: number;
+  /** Explore from the "initial" marking (default) or the "current" one. */
+  from?: "initial" | "current";
+}
+/** true, false, or "unknown" when the search stopped before seeing every state. */
+export type Verdict = boolean | "unknown";
+export interface ReachabilityWitness {
+  kind: "deadlock" | "livelock";
+  /** Fire these in order from the start marking to reach `marking`. */
+  trace: string[];
+  marking: Marking;
+  /** Markings in the closed region; 1 for a dead marking. */
+  region_size: number;
+  /** Transitions that can never fire again once `marking` is reached. */
+  never_fires: string[];
+}
+export interface ReachabilityResult {
+  engine: string;
+  from: Marking;
+  states: number;
+  edges: number;
+  complete: boolean;
+  bounded: boolean | string;
+  max_tokens: Record<string, number>;
+  deadlocks: number;
+  deadlock_free: Verdict;
+  /** L4: from every reachable marking, every transition can still fire. */
+  live: Verdict;
+  /** L1: every transition fires in some reachable marking. */
+  quasi_live: Verdict;
+  witness: ReachabilityWitness | null;
+  not_live: string[];
+  dead_transitions: string[];
+  note: string;
+  truncated?: string;
+  bound?: { max_states: number; max_tokens: number };
+  first_deadlock?: Marking;
+}
 export interface StochasticResult {
   method: "ssa-portable";
   seed: number;
@@ -540,6 +695,20 @@ impl Net {
         let text = self
             .core
             .simulate_json(&to_text(&options)?)
+            .map_err(|e| JsError::new(&e))?;
+        to_js(&text)
+    }
+
+    /// Bounded reachability with the deadlock-free, L1 and L4 verdicts and a
+    /// replayable witness. Does not move the marking.
+    #[wasm_bindgen(unchecked_return_type = "ReachabilityResult")]
+    pub fn reachability(
+        &self,
+        #[wasm_bindgen(unchecked_param_type = "ReachabilityOptions | undefined")] options: JsValue,
+    ) -> Result<JsValue, JsError> {
+        let text = self
+            .core
+            .reachability_json(&to_text(&options)?)
             .map_err(|e| JsError::new(&e))?;
         to_js(&text)
     }
@@ -745,5 +914,124 @@ mod tests {
         let slow = parsed(&c.simulate_json(r#"{"tEnd":1}"#).unwrap());
         let fast = parsed(&c.simulate_json(r#"{"tEnd":1,"rates":{"t":5}}"#).unwrap());
         assert!(fast["final"]["b"].as_f64() > slow["final"]["b"].as_f64());
+    }
+
+    // ---- reachability ----------------------------------------------------
+
+    /// Fires `trace` from `from` with the firing rule and returns where it ends:
+    /// a witness must replay.
+    fn replay(net: &str, from: &Value, trace: &Value) -> Value {
+        let mut c = Core::new(net).unwrap();
+        for (k, v) in from.as_object().unwrap() {
+            c.marking.insert(k.clone(), v.as_i64().unwrap());
+        }
+        for t in trace.as_array().unwrap() {
+            c.fire_json(t.as_str().unwrap()).unwrap();
+        }
+        parsed(&c.marking_json())
+    }
+
+    /// p -> t -> q -> u -> p: live, bounded, no deadlock.
+    const CYCLE: &str = r#"{"name":"cycle","places":[{"id":"p","initial":1},{"id":"q"}],
+        "transitions":[{"id":"t"},{"id":"u"}],
+        "arcs":[{"from":"p","to":"t"},{"from":"t","to":"q"},{"from":"q","to":"u"},{"from":"u","to":"p"}]}"#;
+
+    /// a choice between a loop (t, u) and a one-way exit into a loop (x, then v, w)
+    /// that shuts t and u out: quasi-live and deadlock-free, but not L4-live.
+    const LIVELOCK: &str = r#"{"name":"livelock",
+        "places":[{"id":"p","initial":1},{"id":"q"},{"id":"r"},{"id":"s"}],
+        "transitions":[{"id":"t"},{"id":"u"},{"id":"x"},{"id":"v"},{"id":"w"}],
+        "arcs":[{"from":"p","to":"t"},{"from":"t","to":"q"},{"from":"q","to":"u"},{"from":"u","to":"p"},
+                {"from":"p","to":"x"},{"from":"x","to":"r"},
+                {"from":"r","to":"v"},{"from":"v","to":"s"},{"from":"s","to":"w"},{"from":"w","to":"r"}]}"#;
+
+    /// t makes a token from nothing: unbounded, so the search stops at its budget.
+    const SOURCE: &str = r#"{"name":"source","places":[{"id":"p"}],
+        "transitions":[{"id":"t"}],"arcs":[{"from":"t","to":"p"}]}"#;
+
+    #[test]
+    fn reachability_deadlock_has_a_replayable_witness() {
+        let c = Core::new(CHAIN).unwrap();
+        let r = parsed(&c.reachability_json("").unwrap());
+        assert_eq!(r["states"], 4);
+        assert_eq!(r["edges"], 3);
+        assert_eq!(r["complete"], true);
+        assert_eq!(r["bounded"], true);
+        assert_eq!(r["deadlocks"], 1);
+        assert_eq!(r["deadlock_free"], false);
+        assert_eq!(r["live"], false);
+        assert_eq!(r["quasi_live"], true);
+        assert_eq!(r["first_deadlock"], json!({"a": 0, "b": 3}));
+        let w = &r["witness"];
+        assert_eq!(w["kind"], "deadlock");
+        assert_eq!(w["trace"], json!(["t", "t", "t"]));
+        assert_eq!(w["never_fires"], json!(["t"]));
+        assert_eq!(replay(CHAIN, &r["from"], &w["trace"]), w["marking"]);
+    }
+
+    #[test]
+    fn reachability_live_cycle_proves_everything() {
+        let r = parsed(&Core::new(CYCLE).unwrap().reachability_json("").unwrap());
+        assert_eq!(r["states"], 2);
+        assert_eq!(r["deadlock_free"], true);
+        assert_eq!(r["live"], true);
+        assert_eq!(r["quasi_live"], true);
+        assert_eq!(r["witness"], Value::Null);
+        assert_eq!(r["not_live"], json!([]));
+        assert!(r.get("truncated").is_none() && r.get("first_deadlock").is_none());
+    }
+
+    #[test]
+    fn reachability_livelock_is_l1_not_l4() {
+        let r = parsed(&Core::new(LIVELOCK).unwrap().reachability_json("").unwrap());
+        assert_eq!(r["complete"], true);
+        assert_eq!(r["deadlock_free"], true);
+        assert_eq!(r["quasi_live"], true);
+        assert_eq!(r["live"], false);
+        let w = &r["witness"];
+        assert_eq!(w["kind"], "livelock");
+        assert_eq!(w["region_size"], 2);
+        assert_eq!(w["never_fires"], json!(["t", "u", "x"]));
+        assert_eq!(r["not_live"], json!(["t", "u", "x"]));
+        assert_eq!(replay(LIVELOCK, &r["from"], &w["trace"]), w["marking"]);
+    }
+
+    #[test]
+    fn reachability_truncates_and_claims_nothing_true() {
+        let r = parsed(
+            &Core::new(SOURCE)
+                .unwrap()
+                .reachability_json(r#"{"maxStates":50}"#)
+                .unwrap(),
+        );
+        assert_eq!(r["complete"], false);
+        assert!(r["bounded"].as_str().unwrap().starts_with("unknown"));
+        assert!(r["truncated"].is_string());
+        assert_eq!(r["bound"]["max_states"], 50);
+        for k in ["deadlock_free", "live", "quasi_live"] {
+            assert_ne!(r[k], true, "{k} must not be true on a truncated search");
+        }
+    }
+
+    #[test]
+    fn reachability_from_the_current_marking_and_bad_options() {
+        let mut c = Core::new(CHAIN).unwrap();
+        c.fire_json("t").unwrap();
+        let initial = parsed(&c.reachability_json("").unwrap());
+        assert_eq!(initial["states"], 4);
+        let current = parsed(&c.reachability_json(r#"{"from":"current"}"#).unwrap());
+        assert_eq!(current["states"], 3);
+        assert_eq!(current["from"], json!({"a": 2, "b": 1}));
+        // The search does not move the marking.
+        assert_eq!(parsed(&c.marking_json()), json!({"a": 2, "b": 1}));
+        for bad in [
+            r#"{"maxStates":0}"#,
+            r#"{"maxStates":20001}"#,
+            r#"{"maxTokens":0}"#,
+            r#"{"from":"later"}"#,
+            r#"{"max_states":10}"#,
+        ] {
+            assert!(c.reachability_json(bad).is_err(), "{bad}");
+        }
     }
 }

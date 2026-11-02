@@ -16,6 +16,7 @@ crate-type = ["cdylib", "rlib"]
 pflow-core = { path = "../pflow-core" }
 pflow-metamodel = { path = "../pflow-metamodel" }
 pflow-parser = { path = "../pflow-parser" }
+pflow-reachability = { path = "../pflow-reachability" }
 pflow-solver = { path = "../pflow-solver" }
 serde = { version = "1", features = ["derive"] }
 # float_roundtrip is a runtime requirement here, not only a test one: a model's

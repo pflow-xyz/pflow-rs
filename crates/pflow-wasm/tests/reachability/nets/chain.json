@@ -1,0 +1,57 @@
+{
+ "@context": "https://pflow.xyz/schema",
+ "@type": "PetriNet",
+ "@version": "1.1",
+ "name": "chain",
+ "places": {
+  "a": {
+   "@type": "Place",
+   "initial": [
+    3
+   ],
+   "capacity": [
+    0
+   ],
+   "x": 0,
+   "y": 0
+  },
+  "b": {
+   "@type": "Place",
+   "initial": [
+    0
+   ],
+   "capacity": [
+    0
+   ],
+   "x": 0,
+   "y": 0
+  }
+ },
+ "transitions": {
+  "t": {
+   "@type": "Transition",
+   "x": 0,
+   "y": 0
+  }
+ },
+ "arcs": [
+  {
+   "@type": "Arrow",
+   "source": "a",
+   "target": "t",
+   "weight": [
+    1
+   ],
+   "inhibitTransition": false
+  },
+  {
+   "@type": "Arrow",
+   "source": "t",
+   "target": "b",
+   "weight": [
+    1
+   ],
+   "inhibitTransition": false
+  }
+ ]
+}

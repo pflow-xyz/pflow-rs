@@ -1,0 +1,86 @@
+{
+  "bounded": true,
+  "complete": true,
+  "dead_transitions": null,
+  "deadlock_free": false,
+  "deadlocks": 1,
+  "edges": 27,
+  "first_deadlock": {
+    "eat0": 0,
+    "eat1": 0,
+    "eat2": 0,
+    "fork0": 0,
+    "fork1": 0,
+    "fork2": 0,
+    "hasL0": 1,
+    "hasL1": 1,
+    "hasL2": 1,
+    "think0": 0,
+    "think1": 0,
+    "think2": 0
+  },
+  "live": false,
+  "max_states_asked": 2000,
+  "max_tokens": {
+    "eat0": 1,
+    "eat1": 1,
+    "eat2": 1,
+    "fork0": 1,
+    "fork1": 1,
+    "fork2": 1,
+    "hasL0": 1,
+    "hasL1": 1,
+    "hasL2": 1,
+    "think0": 1,
+    "think1": 1,
+    "think2": 1
+  },
+  "not_live": [
+    "put0",
+    "put1",
+    "put2",
+    "takeL0",
+    "takeL1",
+    "takeL2",
+    "takeR0",
+    "takeR1",
+    "takeR2"
+  ],
+  "note": "untimed: rates play no part; a claim about every state holds only when complete is true",
+  "quasi_live": true,
+  "states": 14,
+  "witness": {
+    "kind": "deadlock",
+    "trace": [
+      "takeL0",
+      "takeL1",
+      "takeL2"
+    ],
+    "marking": {
+      "eat0": 0,
+      "eat1": 0,
+      "eat2": 0,
+      "fork0": 0,
+      "fork1": 0,
+      "fork2": 0,
+      "hasL0": 1,
+      "hasL1": 1,
+      "hasL2": 1,
+      "think0": 0,
+      "think1": 0,
+      "think2": 0
+    },
+    "region_size": 1,
+    "never_fires": [
+      "put0",
+      "put1",
+      "put2",
+      "takeL0",
+      "takeL1",
+      "takeL2",
+      "takeR0",
+      "takeR1",
+      "takeR2"
+    ]
+  }
+}
