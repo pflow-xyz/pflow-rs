@@ -1,0 +1,10 @@
+{
+ "arguments": {
+  "properties": [
+   "deadlock-free"
+  ]
+ },
+ "error": "properties: a non-empty list of {kind, …} (see the tool description)",
+ "net": "sir.jsonld",
+ "tool": "pflow_verify"
+}

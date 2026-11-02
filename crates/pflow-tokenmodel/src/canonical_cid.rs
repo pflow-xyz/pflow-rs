@@ -514,22 +514,18 @@ fn literal_for(v: &Value) -> Result<Term, CanonicalCidError> {
             datatype: XSD_INTEGER.to_string(),
         }),
         Value::Number(n) => {
-            // xsd:double canonical form: mantissa always carries a decimal
-            // point, exponent always present, uppercase E. Untested against
-            // go-pflow (see module doc) — no fixture has a fractional
-            // coordinate, kept for correctness rather than silently
-            // mishandling one if it appears.
             let f = n.as_f64().unwrap_or(0.0);
-            let mut s = format!("{f:E}").to_uppercase();
-            if !s.contains('.') {
-                if let Some(epos) = s.find('E') {
-                    s.insert_str(epos, ".0");
-                } else {
-                    s.push_str(".0");
-                }
+            // json-gold decodes every number to a float64 and calls one
+            // integral (`f == float64(int64(f))`) an xsd:integer, so `1.0`
+            // and `1` are the same literal.
+            if f.fract() == 0.0 && f.abs() < 9.223_372_036_854_775e18 {
+                return Ok(Term::Literal {
+                    value: (f as i64).to_string(),
+                    datatype: XSD_INTEGER.to_string(),
+                });
             }
             Ok(Term::Literal {
-                value: s,
+                value: canonical_double(f),
                 datatype: XSD_DOUBLE.to_string(),
             })
         }
@@ -539,6 +535,21 @@ fn literal_for(v: &Value) -> Result<Term, CanonicalCidError> {
         }),
         other => Err(CanonicalCidError::UnsupportedLiteral(other.to_string())),
     }
+}
+
+/// The xsd:double canonical form json-gold (`GetCanonicalDouble`) and
+/// jsonld.js write: `%1.15E` — sixteen significant digits, so a double that
+/// needs seventeen to round-trip (`0.1 + 0.2`) is rounded — then trailing
+/// mantissa zeros dropped down to one digit after the point and the
+/// exponent's sign and leading zeros dropped (`4.11E0`, `5.0E-1`).
+fn canonical_double(f: f64) -> String {
+    let s = format!("{f:.15E}");
+    let (mantissa, exponent) = s.split_once('E').unwrap_or((&s, "0"));
+    let mut mantissa = mantissa.trim_end_matches('0').to_string();
+    if mantissa.ends_with('.') {
+        mantissa.push('0');
+    }
+    format!("{mantissa}E{exponent}")
 }
 
 /// Build an RDF list (spec: `"@list"` expansion -> `rdf:first`/`rdf:rest`
@@ -749,6 +760,26 @@ mod tests {
         let (cid_null, _) = compute_cid(with_null).unwrap();
         let (cid_empty, _) = compute_cid(empty_list).unwrap();
         assert_eq!(cid_null, cid_empty);
+    }
+
+    #[test]
+    fn doubles_take_json_golds_canonical_form() {
+        // Sixteen significant digits, as Go's %1.15E: a double that needs
+        // seventeen to round-trip is rounded.
+        assert_eq!(canonical_double(0.1 + 0.2), "3.0E-1");
+        assert_eq!(canonical_double(4.109999999999999), "4.109999999999999E0");
+        assert_eq!(canonical_double(0.5), "5.0E-1");
+        assert_eq!(canonical_double(0.0201), "2.01E-2");
+        assert_eq!(canonical_double(123.456), "1.23456E2");
+        assert_eq!(canonical_double(-2.5e-7), "-2.5E-7");
+        assert_eq!(canonical_double(1.5e300), "1.5E300");
+    }
+
+    /// pflow-xyz's native/fixtures/tie.jsonld writes `"initial": [3.0]`.
+    #[test]
+    fn an_integral_double_is_an_integer_literal() {
+        let lit = literal_for(&serde_json::json!(1.0)).unwrap();
+        assert_eq!(lit, Term::Literal { value: "1".into(), datatype: XSD_INTEGER.into() });
     }
 
     #[test]

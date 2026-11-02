@@ -1,0 +1,11 @@
+{
+ "answer": {
+  "arcs": 5,
+  "ok": true,
+  "places": 3,
+  "transitions": 2
+ },
+ "arguments": {},
+ "net": "sir.jsonld",
+ "tool": "pflow_check"
+}

@@ -1,0 +1,141 @@
+{
+ "answer": {
+  "cid": "z4EBG9j88nsQD1bpvuSaKFNLmohCJbL22SoXzrBwQyyKLyJ2XSr",
+  "net": {
+   "@context": "https://pflow.xyz/schema",
+   "@type": "PetriNet",
+   "@version": "1.1",
+   "arcs": [
+    {
+     "@type": "Arrow",
+     "inhibitTransition": false,
+     "source": "Pool",
+     "target": "work",
+     "weight": [
+      1,
+      0
+     ]
+    },
+    {
+     "@type": "Arrow",
+     "inhibitTransition": false,
+     "source": "work",
+     "target": "Done",
+     "weight": [
+      1,
+      0
+     ]
+    },
+    {
+     "@type": "Arrow",
+     "inhibitTransition": false,
+     "source": "Pool",
+     "target": "convert",
+     "weight": [
+      0,
+      1
+     ]
+    },
+    {
+     "@type": "Arrow",
+     "inhibitTransition": false,
+     "source": "convert",
+     "target": "Pool",
+     "weight": [
+      1,
+      0
+     ]
+    },
+    {
+     "@type": "Arrow",
+     "inhibitTransition": false,
+     "source": "Done",
+     "target": "combine",
+     "weight": [
+      2,
+      0
+     ]
+    },
+    {
+     "@type": "Arrow",
+     "inhibitTransition": false,
+     "source": "combine",
+     "target": "Mix",
+     "weight": [
+      0,
+      1
+     ]
+    }
+   ],
+   "name": "Two-colour work pool",
+   "places": {
+    "Done": {
+     "@type": "Place",
+     "capacity": [
+      0,
+      0
+     ],
+     "initial": [
+      0,
+      0
+     ],
+     "x": 200,
+     "y": 100
+    },
+    "Mix": {
+     "@type": "Place",
+     "capacity": [
+      0,
+      0
+     ],
+     "initial": [
+      0,
+      0
+     ],
+     "x": 340,
+     "y": 100
+    },
+    "Pool": {
+     "@type": "Place",
+     "capacity": [
+      0,
+      0
+     ],
+     "initial": [
+      20,
+      10
+     ],
+     "x": 60,
+     "y": 100
+    }
+   },
+   "token": [
+    "https://pflow.xyz/tokens/red",
+    "https://pflow.xyz/tokens/blue"
+   ],
+   "transitions": {
+    "combine": {
+     "@type": "Transition",
+     "rate": 0.05,
+     "x": 270,
+     "y": 100
+    },
+    "convert": {
+     "@type": "Transition",
+     "rate": 0.15,
+     "x": 60,
+     "y": 220
+    },
+    "work": {
+     "@type": "Transition",
+     "rate": 0.4,
+     "x": 130,
+     "y": 100
+    }
+   }
+  }
+ },
+ "arguments": {},
+ "net": "colored.jsonld",
+ "tool": "pflow_export"
+}

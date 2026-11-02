@@ -1,0 +1,70 @@
+{
+ "answer": {
+  "conservative": false,
+  "p_invariants": [
+   {
+    "coefficients": {
+     "e.c1": 1
+    },
+    "equation": "e.c1 == 0",
+    "value": 0
+   },
+   {
+    "coefficients": {
+     "d.c1": 1
+    },
+    "equation": "d.c1 == 0",
+    "value": 0
+   },
+   {
+    "coefficients": {
+     "d.c0": 1
+    },
+    "equation": "d.c0 == 0",
+    "value": 0
+   },
+   {
+    "coefficients": {
+     "c.c1": 1
+    },
+    "equation": "c.c1 == 0",
+    "value": 0
+   },
+   {
+    "coefficients": {
+     "c.c0": 1
+    },
+    "equation": "c.c0 == -1",
+    "value": -1
+   },
+   {
+    "coefficients": {
+     "a.c1": 1
+    },
+    "equation": "a.c1 == 0",
+    "value": 0
+   },
+   {
+    "coefficients": {
+     "a.c0": 1
+    },
+    "equation": "a.c0 == 5",
+    "value": 5
+   }
+  ],
+  "p_truncated": false,
+  "structurally_bounded": false,
+  "t_invariants": [
+   {
+    "counts": {
+     "u": 1
+    },
+    "firing_multiset": "{u}"
+   }
+  ],
+  "t_truncated": false
+ },
+ "arguments": {},
+ "net": "local/edge.json",
+ "tool": "pflow_invariants"
+}

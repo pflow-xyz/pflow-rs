@@ -1,0 +1,63 @@
+{
+ "answer": {
+  "ok": false,
+  "proved": 0,
+  "refuted": 0,
+  "state_count": 5,
+  "truncated": true,
+  "unknown": 4,
+  "verdicts": [
+   {
+    "detail": "bounded across the 5 states explored, but the state space was truncated",
+    "method": "partial",
+    "property": {
+     "kind": "bounded"
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "no deadlock in the 5 states explored, but the state space was truncated",
+    "method": "partial",
+    "property": {
+     "kind": "deadlock-free"
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "did not observe a_lose, b_lose firing in the 5 states explored; state space truncated",
+    "method": "partial",
+    "property": {
+     "kind": "live"
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "no cycle among the 5 states explored, but the state space was truncated",
+    "method": "partial",
+    "property": {
+     "kind": "terminating"
+    },
+    "status": "unknown"
+   }
+  ]
+ },
+ "arguments": {
+  "max_states": 5,
+  "properties": [
+   {
+    "kind": "bounded"
+   },
+   {
+    "kind": "deadlock-free"
+   },
+   {
+    "kind": "live"
+   },
+   {
+    "kind": "terminating"
+   }
+  ]
+ },
+ "net": "game-nim.jsonld",
+ "tool": "pflow_verify"
+}

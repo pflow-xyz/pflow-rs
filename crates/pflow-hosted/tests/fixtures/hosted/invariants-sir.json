@@ -1,0 +1,23 @@
+{
+ "answer": {
+  "conservative": true,
+  "p_invariants": [
+   {
+    "coefficients": {
+     "I": 1,
+     "R": 1,
+     "S": 1
+    },
+    "equation": "I + R + S == 10",
+    "value": 10
+   }
+  ],
+  "p_truncated": false,
+  "structurally_bounded": true,
+  "t_invariants": null,
+  "t_truncated": false
+ },
+ "arguments": {},
+ "net": "sir.jsonld",
+ "tool": "pflow_invariants"
+}

@@ -1,0 +1,88 @@
+{
+ "answer": {
+  "info": [
+   {
+    "category": "conservation",
+    "location": [
+     "arrive",
+     "serve",
+     "unlock"
+    ],
+    "message": "Net does not conserve total tokens (transitions with unbalanced flow: [arrive serve unlock])",
+    "severity": "info"
+   }
+  ],
+  "summary": {
+   "arcs": 7,
+   "conserved": false,
+   "errors": 0,
+   "places": 3,
+   "transitions": 4,
+   "warnings": 6
+  },
+  "valid": true,
+  "warnings": [
+   {
+    "category": "connectivity",
+    "location": [
+     "arrive"
+    ],
+    "message": "Transition 'arrive' has no input places",
+    "severity": "warning",
+    "suggestion": "Add input arcs from places"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "unlock"
+    ],
+    "message": "Transition 'unlock' has no output places",
+    "severity": "warning",
+    "suggestion": "Add output arcs to places"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "serve",
+     "Queue",
+     "Lock"
+    ],
+    "message": "Transition 'serve' cannot fire with initial marking (insufficient tokens in: [Queue Lock])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "halt",
+     "Done"
+    ],
+    "message": "Transition 'halt' cannot fire with initial marking (insufficient tokens in: [Done])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "unlock",
+     "Lock"
+    ],
+    "message": "Transition 'unlock' cannot fire with initial marking (insufficient tokens in: [Lock])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "unbounded",
+    "location": [
+     "Lock"
+    ],
+    "message": "Place 'Lock' is not covered by any P-invariant, so nothing structurally bounds it",
+    "severity": "warning",
+    "suggestion": "Add a capacity, or balance the flow so the place participates in a conservation law"
+   }
+  ]
+ },
+ "arguments": {},
+ "net": "gated.jsonld",
+ "tool": "pflow_validate"
+}

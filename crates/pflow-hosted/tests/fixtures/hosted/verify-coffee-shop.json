@@ -1,0 +1,134 @@
+{
+ "answer": {
+  "ok": false,
+  "proved": 0,
+  "refuted": 2,
+  "state_count": 2001,
+  "truncated": true,
+  "unknown": 4,
+  "verdicts": [
+   {
+    "detail": "no deadlock in the 2001 states explored, but the state space was truncated",
+    "method": "partial",
+    "property": {
+     "kind": "deadlock-free"
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "bounded across the 2001 states explored, but the state space was truncated",
+    "method": "partial",
+    "property": {
+     "kind": "bounded"
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "all transitions fired within the 2001 states explored, but the state space was truncated",
+    "method": "partial",
+    "property": {
+     "kind": "live"
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "no transition ruled out in the 2001 states explored, but the state space was truncated",
+    "method": "partial",
+    "property": {
+     "kind": "l4-live"
+    },
+    "status": "unknown"
+   },
+   {
+    "counterexample": {
+     "explanation": "the firing sequence CustomerArrives → CustomerArrives → CustomerArrives → CustomerLeaves → CustomerLeaves → CustomerLeaves → RestockBeans → RestockCups → BrewCoffee → BrewCoffee → BrewCoffee returns to a previous marking and can repeat forever",
+     "marking": {
+      "CoffeeBeans.https://pflow.xyz/tokens/blue": 0,
+      "CoffeeBeans.https://pflow.xyz/tokens/brown": 5,
+      "CoffeeBeans.https://pflow.xyz/tokens/red": 0,
+      "EmptyCups.https://pflow.xyz/tokens/blue": 5,
+      "EmptyCups.https://pflow.xyz/tokens/brown": 0,
+      "EmptyCups.https://pflow.xyz/tokens/red": 0,
+      "ServedCoffee.https://pflow.xyz/tokens/blue": 0,
+      "ServedCoffee.https://pflow.xyz/tokens/brown": 0,
+      "ServedCoffee.https://pflow.xyz/tokens/red": 0,
+      "WaitingCustomers.https://pflow.xyz/tokens/blue": 0,
+      "WaitingCustomers.https://pflow.xyz/tokens/brown": 0,
+      "WaitingCustomers.https://pflow.xyz/tokens/red": 2
+     },
+     "trace": [
+      "CustomerArrives",
+      "CustomerArrives",
+      "CustomerArrives",
+      "CustomerLeaves",
+      "CustomerLeaves",
+      "CustomerLeaves",
+      "RestockBeans",
+      "RestockCups",
+      "BrewCoffee",
+      "BrewCoffee",
+      "BrewCoffee"
+     ]
+    },
+    "detail": "the net has a cyclic execution and so does not always terminate",
+    "method": "partial",
+    "property": {
+     "kind": "terminating"
+    },
+    "status": "refuted"
+   },
+   {
+    "counterexample": {
+     "explanation": "\"CoffeeBeans.https://pflow.xyz/tokens/blue\" + \"CoffeeBeans.https://pflow.xyz/tokens/brown\" + \"CoffeeBeans.https://pflow.xyz/tokens/red\" + \"EmptyCups.https://pflow.xyz/tokens/blue\" + \"EmptyCups.https://pflow.xyz/tokens/brown\" + \"EmptyCups.https://pflow.xyz/tokens/red\" + \"ServedCoffee.https://pflow.xyz/tokens/blue\" + \"ServedCoffee.https://pflow.xyz/tokens/brown\" + \"ServedCoffee.https://pflow.xyz/tokens/red\" + \"WaitingCustomers.https://pflow.xyz/tokens/blue\" + \"WaitingCustomers.https://pflow.xyz/tokens/brown\" + \"WaitingCustomers.https://pflow.xyz/tokens/red\" = 15 here, violating \"CoffeeBeans.https://pflow.xyz/tokens/blue\" + \"CoffeeBeans.https://pflow.xyz/tokens/brown\" + \"CoffeeBeans.https://pflow.xyz/tokens/red\" + \"EmptyCups.https://pflow.xyz/tokens/blue\" + \"EmptyCups.https://pflow.xyz/tokens/brown\" + \"EmptyCups.https://pflow.xyz/tokens/red\" + \"ServedCoffee.https://pflow.xyz/tokens/blue\" + \"ServedCoffee.https://pflow.xyz/tokens/brown\" + \"ServedCoffee.https://pflow.xyz/tokens/red\" + \"WaitingCustomers.https://pflow.xyz/tokens/blue\" + \"WaitingCustomers.https://pflow.xyz/tokens/brown\" + \"WaitingCustomers.https://pflow.xyz/tokens/red\" == 12",
+     "marking": {
+      "CoffeeBeans.https://pflow.xyz/tokens/blue": 0,
+      "CoffeeBeans.https://pflow.xyz/tokens/brown": 5,
+      "CoffeeBeans.https://pflow.xyz/tokens/red": 0,
+      "EmptyCups.https://pflow.xyz/tokens/blue": 8,
+      "EmptyCups.https://pflow.xyz/tokens/brown": 0,
+      "EmptyCups.https://pflow.xyz/tokens/red": 0,
+      "ServedCoffee.https://pflow.xyz/tokens/blue": 0,
+      "ServedCoffee.https://pflow.xyz/tokens/brown": 0,
+      "ServedCoffee.https://pflow.xyz/tokens/red": 0,
+      "WaitingCustomers.https://pflow.xyz/tokens/blue": 0,
+      "WaitingCustomers.https://pflow.xyz/tokens/brown": 0,
+      "WaitingCustomers.https://pflow.xyz/tokens/red": 2
+     },
+     "trace": [
+      "RestockCups"
+     ]
+    },
+    "detail": "\"CoffeeBeans.https://pflow.xyz/tokens/blue\" + \"CoffeeBeans.https://pflow.xyz/tokens/brown\" + \"CoffeeBeans.https://pflow.xyz/tokens/red\" + \"EmptyCups.https://pflow.xyz/tokens/blue\" + \"EmptyCups.https://pflow.xyz/tokens/brown\" + \"EmptyCups.https://pflow.xyz/tokens/red\" + \"ServedCoffee.https://pflow.xyz/tokens/blue\" + \"ServedCoffee.https://pflow.xyz/tokens/brown\" + \"ServedCoffee.https://pflow.xyz/tokens/red\" + \"WaitingCustomers.https://pflow.xyz/tokens/blue\" + \"WaitingCustomers.https://pflow.xyz/tokens/brown\" + \"WaitingCustomers.https://pflow.xyz/tokens/red\" == 12 fails: \"CoffeeBeans.https://pflow.xyz/tokens/blue\" + \"CoffeeBeans.https://pflow.xyz/tokens/brown\" + \"CoffeeBeans.https://pflow.xyz/tokens/red\" + \"EmptyCups.https://pflow.xyz/tokens/blue\" + \"EmptyCups.https://pflow.xyz/tokens/brown\" + \"EmptyCups.https://pflow.xyz/tokens/red\" + \"ServedCoffee.https://pflow.xyz/tokens/blue\" + \"ServedCoffee.https://pflow.xyz/tokens/brown\" + \"ServedCoffee.https://pflow.xyz/tokens/red\" + \"WaitingCustomers.https://pflow.xyz/tokens/blue\" + \"WaitingCustomers.https://pflow.xyz/tokens/brown\" + \"WaitingCustomers.https://pflow.xyz/tokens/red\" = 15 at a reachable marking",
+    "method": "partial",
+    "property": {
+     "kind": "conserves"
+    },
+    "status": "refuted"
+   }
+  ]
+ },
+ "arguments": {
+  "properties": [
+   {
+    "kind": "deadlock-free"
+   },
+   {
+    "kind": "bounded"
+   },
+   {
+    "kind": "live"
+   },
+   {
+    "kind": "l4-live"
+   },
+   {
+    "kind": "terminating"
+   },
+   {
+    "kind": "conserves"
+   }
+  ]
+ },
+ "net": "coffee-shop.jsonld",
+ "tool": "pflow_verify"
+}

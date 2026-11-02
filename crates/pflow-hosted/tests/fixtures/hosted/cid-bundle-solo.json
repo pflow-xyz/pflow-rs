@@ -1,0 +1,10 @@
+{
+ "answer": {
+  "cid": "z4EBG9j2ATRZNKkgK2AV9stxJSbttrLBKGLid8TfvfiXz4EV4pA",
+  "kind": "composition",
+  "reduced": false
+ },
+ "arguments": {},
+ "net": "bundle-solo.json",
+ "tool": "pflow_cid"
+}

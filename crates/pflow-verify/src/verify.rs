@@ -519,17 +519,20 @@ impl<'m> Verifier<'m> {
         // Deterministic counterexample selection: report the shallowest
         // violating state so the replayable trace is the shortest one
         // available.
-        let mut worst: Option<(&str, i64, &Marking)> = None;
+        // Ties break on go-pflow's `Marking.Hash`, as go-pflow's do, so both
+        // report the same marking.
+        let mut worst: Option<(String, i64, &Marking)> = None;
         for state in r.graph.states_list() {
             if expr.holds(&state.marking) {
                 continue;
             }
-            let better = match worst {
+            let hash = go_marking_hash(&state.marking);
+            let better = match &worst {
                 None => true,
-                Some((wk, wd, _)) => state.depth < wd || (state.depth == wd && state.key.as_str() < wk),
+                Some((wh, wd, _)) => state.depth < *wd || (state.depth == *wd && hash < *wh),
             };
             if better {
-                worst = Some((state.key.as_str(), state.depth, &state.marking));
+                worst = Some((hash, state.depth, &state.marking));
             }
         }
 
@@ -639,6 +642,20 @@ impl<'m> Verifier<'m> {
 /// absent from `target` are unconstrained.
 fn marking_matches(m: &Marking, target: &HashMap<String, i64>) -> bool {
     target.iter().all(|(place, &want)| m.get(place).copied().unwrap_or(0) == want)
+}
+
+/// go-pflow's `Marking.Hash`: sha-256 over each place (sorted) followed by
+/// its count as a big-endian `uint64`, the first 16 hex digits.
+fn go_marking_hash(m: &Marking) -> String {
+    use sha2::{Digest, Sha256};
+    let mut keys: Vec<&String> = m.keys().collect();
+    keys.sort();
+    let mut h = Sha256::new();
+    for k in keys {
+        h.update(k.as_bytes());
+        h.update((m[k] as u64).to_be_bytes());
+    }
+    h.finalize().iter().take(8).map(|b| format!("{b:02x}")).collect()
 }
 
 fn method_for(truncated: bool) -> Method {

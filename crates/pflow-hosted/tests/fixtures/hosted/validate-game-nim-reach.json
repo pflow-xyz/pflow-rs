@@ -1,0 +1,125 @@
+{
+ "answer": {
+  "info": [
+   {
+    "category": "unbounded",
+    "location": [
+     "pile"
+    ],
+    "message": "Place 'pile' is a source (only outputs, no inputs)",
+    "severity": "info"
+   },
+   {
+    "category": "unbounded",
+    "location": [
+     "win_a"
+    ],
+    "message": "Place 'win_a' is a sink (only inputs, no outputs)",
+    "severity": "info"
+   },
+   {
+    "category": "unbounded",
+    "location": [
+     "win_b"
+    ],
+    "message": "Place 'win_b' is a sink (only inputs, no outputs)",
+    "severity": "info"
+   },
+   {
+    "category": "conservation",
+    "location": [
+     "a_lose",
+     "a_take1",
+     "a_take2",
+     "b_lose",
+     "b_take1",
+     "b_take2"
+    ],
+    "message": "Net does not conserve total tokens (transitions with unbalanced flow: [a_lose a_take1 a_take2 b_lose b_take1 b_take2])",
+    "severity": "info"
+   },
+   {
+    "category": "conservation",
+    "message": "Found 1 conservation law(s): a_turn + b_turn + win_a + win_b == 1",
+    "severity": "info"
+   }
+  ],
+  "invariants": [
+   "a_turn + b_turn + win_a + win_b == 1"
+  ],
+  "reachability": {
+   "bounded": true,
+   "deadlockStates": [
+    "win_a:1",
+    "win_b:1"
+   ],
+   "hasCycles": false,
+   "maxDepth": 6,
+   "maxTokens": {
+    "a_turn": 1,
+    "b_turn": 1,
+    "pile": 7,
+    "win_a": 1,
+    "win_b": 1
+   },
+   "reachable": 16,
+   "terminalStates": [
+    "win_a:1",
+    "win_b:1"
+   ],
+   "truncated": false
+  },
+  "summary": {
+   "arcs": 18,
+   "conserved": false,
+   "errors": 0,
+   "places": 5,
+   "transitions": 6,
+   "warnings": 3
+  },
+  "valid": true,
+  "warnings": [
+   {
+    "category": "deadlock",
+    "location": [
+     "b_take1",
+     "b_turn"
+    ],
+    "message": "Transition 'b_take1' cannot fire with initial marking (insufficient tokens in: [b_turn])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "b_take2",
+     "b_turn"
+    ],
+    "message": "Transition 'b_take2' cannot fire with initial marking (insufficient tokens in: [b_turn])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "b_lose",
+     "b_turn"
+    ],
+    "message": "Transition 'b_lose' cannot fire with initial marking (insufficient tokens in: [b_turn])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "reachability",
+    "message": "Found 2 deadlock states (terminal states that are not goal states)",
+    "severity": "warning",
+    "suggestion": "Review model structure to ensure all terminal states are valid end states"
+   }
+  ]
+ },
+ "arguments": {
+  "reachability": true
+ },
+ "net": "game-nim.jsonld",
+ "tool": "pflow_validate"
+}

@@ -1,0 +1,8 @@
+{
+ "arguments": {
+  "format": "png"
+ },
+ "error": "format: json or svg",
+ "net": "sir.jsonld",
+ "tool": "pflow_export"
+}

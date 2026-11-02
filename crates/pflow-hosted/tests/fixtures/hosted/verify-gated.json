@@ -1,0 +1,110 @@
+{
+ "answer": {
+  "ok": false,
+  "proved": 4,
+  "refuted": 2,
+  "state_count": 60,
+  "truncated": false,
+  "unknown": 0,
+  "verdicts": [
+   {
+    "detail": "no deadlock among all 60 reachable states",
+    "method": "exhaustive",
+    "property": {
+     "kind": "deadlock-free"
+    },
+    "status": "proved"
+   },
+   {
+    "detail": "bounded across all 60 reachable states from this initial marking",
+    "method": "exhaustive",
+    "property": {
+     "kind": "bounded"
+    },
+    "status": "proved"
+   },
+   {
+    "detail": "all 4 transitions can fire from some reachable state",
+    "method": "exhaustive",
+    "property": {
+     "kind": "live"
+    },
+    "status": "proved"
+   },
+   {
+    "detail": "all 4 transitions stay fireable from all 60 reachable states",
+    "evidence": "every transition fires in each of the 1 terminal strongly connected component(s)",
+    "method": "exhaustive",
+    "property": {
+     "kind": "l4-live"
+    },
+    "status": "proved"
+   },
+   {
+    "counterexample": {
+     "explanation": "the firing sequence serve → arrive → halt → unlock returns to a previous marking and can repeat forever",
+     "marking": {
+      "Done": 0,
+      "Lock": 0,
+      "Queue": 0
+     },
+     "trace": [
+      "serve",
+      "arrive",
+      "halt",
+      "unlock"
+     ]
+    },
+    "detail": "the net has a cyclic execution and so does not always terminate",
+    "method": "exhaustive",
+    "property": {
+     "kind": "terminating"
+    },
+    "status": "refuted"
+   },
+   {
+    "counterexample": {
+     "explanation": "Done + Lock + Queue = 1 here, violating Done + Lock + Queue == 0",
+     "marking": {
+      "Done": 0,
+      "Lock": 0,
+      "Queue": 1
+     },
+     "trace": [
+      "arrive"
+     ]
+    },
+    "detail": "Done + Lock + Queue == 0 fails: Done + Lock + Queue = 1 at a reachable marking",
+    "method": "exhaustive",
+    "property": {
+     "kind": "conserves"
+    },
+    "status": "refuted"
+   }
+  ]
+ },
+ "arguments": {
+  "properties": [
+   {
+    "kind": "deadlock-free"
+   },
+   {
+    "kind": "bounded"
+   },
+   {
+    "kind": "live"
+   },
+   {
+    "kind": "l4-live"
+   },
+   {
+    "kind": "terminating"
+   },
+   {
+    "kind": "conserves"
+   }
+  ]
+ },
+ "net": "gated.jsonld",
+ "tool": "pflow_verify"
+}

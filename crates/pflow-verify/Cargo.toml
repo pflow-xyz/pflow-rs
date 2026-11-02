@@ -12,6 +12,9 @@ categories = ["simulation", "data-structures"]
 [dependencies]
 pflow-metamodel = { path = "../pflow-metamodel" }
 pflow-reachability = { path = "../pflow-reachability" }
+# go-pflow's Marking.Hash, the tie-break for which violating marking an
+# exhaustive refutation reports.
+sha2 = "0.10"
 
 [dev-dependencies]
 serde_json = "1"

@@ -1,0 +1,132 @@
+{
+ "answer": {
+  "ok": false,
+  "proved": 3,
+  "refuted": 3,
+  "state_count": 13,
+  "truncated": false,
+  "unknown": 0,
+  "verdicts": [
+   {
+    "counterexample": {
+     "explanation": "no transition is enabled in this marking",
+     "marking": {
+      "capacity": 0,
+      "item0": 1,
+      "item1": 1,
+      "item2": 0,
+      "item3": 0,
+      "value": 30,
+      "weight": 15
+     },
+     "trace": [
+      "txn2",
+      "txn3"
+     ]
+    },
+    "detail": "3 deadlock state(s) reachable",
+    "method": "exhaustive",
+    "property": {
+     "kind": "deadlock-free"
+    },
+    "status": "refuted"
+   },
+   {
+    "detail": "every place is covered by a P-invariant, so the net is bounded for any initial marking",
+    "evidence": "P-invariants: 10*item0 + 10*item1 + 12*item2 + 18*item3 + value == 50; 2*capacity + 6*item0 + 2*item1 + value == 38; 2*item0 + 4*item1 + 6*item2 + 9*item3 + weight == 21; capacity + weight == 15",
+    "method": "structural",
+    "property": {
+     "kind": "bounded"
+    },
+    "status": "proved"
+   },
+   {
+    "detail": "all 4 transitions can fire from some reachable state",
+    "method": "exhaustive",
+    "property": {
+     "kind": "live"
+    },
+    "status": "proved"
+   },
+   {
+    "counterexample": {
+     "explanation": "txn0, txn1, txn2, txn3 can never fire again once this marking is reached",
+     "marking": {
+      "capacity": 0,
+      "item0": 1,
+      "item1": 1,
+      "item2": 0,
+      "item3": 0,
+      "value": 30,
+      "weight": 15
+     },
+     "trace": [
+      "txn2",
+      "txn3"
+     ]
+    },
+    "detail": "not L4-live: txn0, txn1, txn2, txn3",
+    "method": "exhaustive",
+    "property": {
+     "kind": "l4-live"
+    },
+    "status": "refuted"
+   },
+   {
+    "detail": "the reachability graph is acyclic across all 13 states, so every execution terminates",
+    "method": "exhaustive",
+    "property": {
+     "kind": "terminating"
+    },
+    "status": "proved"
+   },
+   {
+    "counterexample": {
+     "explanation": "capacity + item0 + item1 + item2 + item3 + value + weight = 28 here, violating capacity + item0 + item1 + item2 + item3 + value + weight == 19",
+     "marking": {
+      "capacity": 11,
+      "item0": 1,
+      "item1": 0,
+      "item2": 1,
+      "item3": 1,
+      "value": 10,
+      "weight": 4
+     },
+     "trace": [
+      "txn1"
+     ]
+    },
+    "detail": "capacity + item0 + item1 + item2 + item3 + value + weight == 19 fails: capacity + item0 + item1 + item2 + item3 + value + weight = 28 at a reachable marking",
+    "method": "exhaustive",
+    "property": {
+     "kind": "conserves"
+    },
+    "status": "refuted"
+   }
+  ]
+ },
+ "arguments": {
+  "properties": [
+   {
+    "kind": "deadlock-free"
+   },
+   {
+    "kind": "bounded"
+   },
+   {
+    "kind": "live"
+   },
+   {
+    "kind": "l4-live"
+   },
+   {
+    "kind": "terminating"
+   },
+   {
+    "kind": "conserves"
+   }
+  ]
+ },
+ "net": "knapsack.jsonld",
+ "tool": "pflow_verify"
+}

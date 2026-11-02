@@ -1,0 +1,330 @@
+{
+ "answer": {
+  "info": [
+   {
+    "category": "unbounded",
+    "location": [
+     "Version"
+    ],
+    "message": "Place 'Version' is a sink (only inputs, no outputs)",
+    "severity": "info"
+   },
+   {
+    "category": "conservation",
+    "location": [
+     "FinishArc",
+     "Key1_Select",
+     "Key2_AddPlace",
+     "Key3_AddTransition",
+     "Key4_AddArc",
+     "Key5_AddToken",
+     "Key6_Delete",
+     "ModelSyncedAndVersioned"
+    ],
+    "message": "Net does not conserve total tokens (transitions with unbalanced flow: [FinishArc Key1_Select Key2_AddPlace Key3_AddTransition Key4_AddArc Key5_AddToken Key6_Delete ModelSyncedAndVersioned])",
+    "severity": "info"
+   },
+   {
+    "category": "conservation",
+    "message": "Found 2 conservation law(s): LayoutHorizontal == 0; TypingInEditor == 0",
+    "severity": "info"
+   }
+  ],
+  "invariants": [
+   "LayoutHorizontal == 0",
+   "TypingInEditor == 0"
+  ],
+  "summary": {
+   "arcs": 63,
+   "conserved": false,
+   "errors": 0,
+   "places": 17,
+   "transitions": 25,
+   "warnings": 28
+  },
+  "valid": true,
+  "warnings": [
+   {
+    "category": "connectivity",
+    "location": [
+     "ImportModel"
+    ],
+    "message": "Transition 'ImportModel' has no output places",
+    "severity": "warning",
+    "suggestion": "Add output arcs to places"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "ModelSyncedAndVersioned"
+    ],
+    "message": "Transition 'ModelSyncedAndVersioned' has no input places",
+    "severity": "warning",
+    "suggestion": "Add input arcs from places"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "SetMarking"
+    ],
+    "message": "Transition 'SetMarking' has no output places",
+    "severity": "warning",
+    "suggestion": "Add output arcs to places"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "AddPlace"
+    ],
+    "message": "Transition 'AddPlace' has no output places",
+    "severity": "warning",
+    "suggestion": "Add output arcs to places"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "AddToken"
+    ],
+    "message": "Transition 'AddToken' has no output places",
+    "severity": "warning",
+    "suggestion": "Add output arcs to places"
+   },
+   {
+    "category": "connectivity",
+    "location": [
+     "AddTransition"
+    ],
+    "message": "Transition 'AddTransition' has no output places",
+    "severity": "warning",
+    "suggestion": "Add output arcs to places"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "AddPlace",
+     "AddPlaceMode"
+    ],
+    "message": "Transition 'AddPlace' cannot fire with initial marking (insufficient tokens in: [AddPlaceMode])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "ImportModel",
+     "JsonEditorOpen"
+    ],
+    "message": "Transition 'ImportModel' cannot fire with initial marking (insufficient tokens in: [JsonEditorOpen])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "TypingInEditor",
+     "JsonEditorOpen"
+    ],
+    "message": "Transition 'TypingInEditor' cannot fire with initial marking (insufficient tokens in: [JsonEditorOpen])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "Key2_AddPlace",
+     "TypingInEditor"
+    ],
+    "message": "Transition 'Key2_AddPlace' cannot fire with initial marking (insufficient tokens in: [TypingInEditor])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "Key4_AddArc",
+     "AddTransitionMode",
+     "TypingInEditor"
+    ],
+    "message": "Transition 'Key4_AddArc' cannot fire with initial marking (insufficient tokens in: [AddTransitionMode TypingInEditor])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "PauseSim",
+     "SimRunning"
+    ],
+    "message": "Transition 'PauseSim' cannot fire with initial marking (insufficient tokens in: [SimRunning])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "CancelArcDraft",
+     "ArcDraftActive"
+    ],
+    "message": "Transition 'CancelArcDraft' cannot fire with initial marking (insufficient tokens in: [ArcDraftActive])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "AddToken",
+     "AddTokenMode"
+    ],
+    "message": "Transition 'AddToken' cannot fire with initial marking (insufficient tokens in: [AddTokenMode])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "Key6_Delete",
+     "AddTokenMode",
+     "TypingInEditor"
+    ],
+    "message": "Transition 'Key6_Delete' cannot fire with initial marking (insufficient tokens in: [AddTokenMode TypingInEditor])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "Key1_Select",
+     "DeleteMode",
+     "TypingInEditor"
+    ],
+    "message": "Transition 'Key1_Select' cannot fire with initial marking (insufficient tokens in: [DeleteMode TypingInEditor])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "EndPan",
+     "Panning"
+    ],
+    "message": "Transition 'EndPan' cannot fire with initial marking (insufficient tokens in: [Panning])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "ToggleLayout",
+     "LayoutHorizontal"
+    ],
+    "message": "Transition 'ToggleLayout' cannot fire with initial marking (insufficient tokens in: [LayoutHorizontal])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "AddTransition",
+     "AddTransitionMode"
+    ],
+    "message": "Transition 'AddTransition' cannot fire with initial marking (insufficient tokens in: [AddTransitionMode])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "CloseEditor",
+     "JsonEditorOpen"
+    ],
+    "message": "Transition 'CloseEditor' cannot fire with initial marking (insufficient tokens in: [JsonEditorOpen])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "JsonEditorOpen",
+     "TypingInEditor"
+    ],
+    "message": "Transition 'JsonEditorOpen' cannot fire with initial marking (insufficient tokens in: [TypingInEditor])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "DeleteSelected",
+     "HasSelection"
+    ],
+    "message": "Transition 'DeleteSelected' cannot fire with initial marking (insufficient tokens in: [HasSelection])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "Redo",
+     "RedoAvailable"
+    ],
+    "message": "Transition 'Redo' cannot fire with initial marking (insufficient tokens in: [RedoAvailable])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "Key3_AddTransition",
+     "AddPlaceMode",
+     "TypingInEditor"
+    ],
+    "message": "Transition 'Key3_AddTransition' cannot fire with initial marking (insufficient tokens in: [AddPlaceMode TypingInEditor])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "Key5_AddToken",
+     "AddArcMode",
+     "TypingInEditor"
+    ],
+    "message": "Transition 'Key5_AddToken' cannot fire with initial marking (insufficient tokens in: [AddArcMode TypingInEditor])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "StartArcDraft",
+     "AddArcMode"
+    ],
+    "message": "Transition 'StartArcDraft' cannot fire with initial marking (insufficient tokens in: [AddArcMode])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "FinishArc",
+     "ArcDraftActive"
+    ],
+    "message": "Transition 'FinishArc' cannot fire with initial marking (insufficient tokens in: [ArcDraftActive])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "unbounded",
+    "location": [
+     "Version"
+    ],
+    "message": "Place 'Version' is not covered by any P-invariant, so nothing structurally bounds it",
+    "severity": "warning",
+    "suggestion": "Add a capacity, or balance the flow so the place participates in a conservation law"
+   }
+  ]
+ },
+ "arguments": {},
+ "net": "net-a.jsonld",
+ "tool": "pflow_validate"
+}

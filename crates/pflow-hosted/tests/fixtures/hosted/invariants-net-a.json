@@ -1,0 +1,88 @@
+{
+ "answer": {
+  "conservative": false,
+  "p_invariants": [
+   {
+    "coefficients": {
+     "TypingInEditor": 1
+    },
+    "equation": "TypingInEditor == 0",
+    "value": 0
+   },
+   {
+    "coefficients": {
+     "LayoutHorizontal": 1
+    },
+    "equation": "LayoutHorizontal == 0",
+    "value": 0
+   }
+  ],
+  "p_truncated": false,
+  "structurally_bounded": false,
+  "t_invariants": [
+   {
+    "counts": {
+     "ToggleLayout": 1
+    },
+    "firing_multiset": "{ToggleLayout}"
+   },
+   {
+    "counts": {
+     "Redo": 1,
+     "Undo": 1
+    },
+    "firing_multiset": "{Redo, Undo}"
+   },
+   {
+    "counts": {
+     "PauseSim": 1,
+     "PlaySim": 1
+    },
+    "firing_multiset": "{PauseSim, PlaySim}"
+   },
+   {
+    "counts": {
+     "FinishArc": 1,
+     "StartArcDraft": 1
+    },
+    "firing_multiset": "{FinishArc, StartArcDraft}"
+   },
+   {
+    "counts": {
+     "EndPan": 1,
+     "StartPan": 1
+    },
+    "firing_multiset": "{EndPan, StartPan}"
+   },
+   {
+    "counts": {
+     "CloseEditor": 1,
+     "OpenEditor": 1
+    },
+    "firing_multiset": "{CloseEditor, OpenEditor}"
+   },
+   {
+    "counts": {
+     "CancelArcDraft": 1,
+     "StartArcDraft": 1
+    },
+    "firing_multiset": "{CancelArcDraft, StartArcDraft}"
+   },
+   {
+    "counts": {
+     "Key1_Select": 1,
+     "Key2_AddPlace": 1,
+     "Key3_AddTransition": 1,
+     "Key4_AddArc": 1,
+     "Key5_AddToken": 1,
+     "Key6_Delete": 1
+    },
+    "firing_multiset": "{Key1_Select, Key2_AddPlace, Key3_AddTransition, Key4_AddArc, Key5_AddToken, Key6_Delete}"
+   }
+  ],
+  "t_truncated": false
+ },
+ "arguments": {},
+ "net": "net-a.jsonld",
+ "tool": "pflow_invariants"
+}

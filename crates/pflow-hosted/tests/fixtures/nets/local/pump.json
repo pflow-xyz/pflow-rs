@@ -1,0 +1,1 @@
+{"@context":"https://pflow.xyz/schema","@type":"PetriNet","token":["https://pflow.xyz/tokens/black"],"places":{"a":{"initial":[1]},"b":{"initial":[0]}},"transitions":{"t":{"rate":2.5},"u":{}},"arcs":[{"source":"a","target":"t","weight":[1]},{"source":"t","target":"a","weight":[1]},{"source":"t","target":"b","weight":[1]},{"source":"b","target":"u","weight":[3]}]}

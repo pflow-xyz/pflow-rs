@@ -1,5 +1,5 @@
-//! `edit` against pflow.xyz/mcp's `pflow_edit`: `tests/fixtures/hosted/edit.json`
-//! holds the hosted answers (captured live, see that directory's README) for
+//! `edit` against pflow.xyz/mcp's `pflow_edit`: `tests/fixtures/edit/hosted.json`
+//! holds the hosted answers (captured live from https://pflow.xyz/mcp on 2026-11-02) for
 //! each case's arguments; the local answer must equal them, CID included.
 
 use serde_json::Value;
@@ -7,7 +7,7 @@ use serde_json::Value;
 #[test]
 fn edit_matches_hosted() {
     let cases: serde_json::Map<String, Value> =
-        serde_json::from_str(include_str!("fixtures/hosted/edit.json")).unwrap();
+        serde_json::from_str(include_str!("fixtures/edit/hosted.json")).unwrap();
     assert!(cases.len() >= 10);
     for (name, case) in &cases {
         let got = pflow_hosted::call("edit", &case["args"]);

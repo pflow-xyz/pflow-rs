@@ -1,0 +1,243 @@
+{
+ "answer": {
+  "ok": false,
+  "proved": 2,
+  "refuted": 4,
+  "state_count": 79,
+  "truncated": false,
+  "unknown": 0,
+  "verdicts": [
+   {
+    "counterexample": {
+     "explanation": "no transition is enabled in this marking",
+     "marking": {
+      "Next": 0,
+      "P00": 0,
+      "P01": 0,
+      "P02": 0,
+      "P10": 0,
+      "P11": 0,
+      "P12": 0,
+      "P20": 0,
+      "P21": 0,
+      "P22": 0,
+      "_O00": 1,
+      "_O01": 0,
+      "_O02": 0,
+      "_O10": 1,
+      "_O11": 0,
+      "_O12": 1,
+      "_O20": 0,
+      "_O21": 0,
+      "_O22": 1,
+      "_X00": 0,
+      "_X01": 1,
+      "_X02": 0,
+      "_X10": 0,
+      "_X11": 0,
+      "_X12": 0,
+      "_X20": 0,
+      "_X21": 1,
+      "_X22": 0,
+      "win_o": 0,
+      "win_x": 1
+     },
+     "trace": [
+      "X01",
+      "O12",
+      "X20_X11_X02",
+      "X21",
+      "O22"
+     ]
+    },
+    "detail": "9 deadlock state(s) reachable",
+    "method": "exhaustive",
+    "property": {
+     "kind": "deadlock-free"
+    },
+    "status": "refuted"
+   },
+   {
+    "detail": "every place is covered by a P-invariant, so the net is bounded for any initial marking",
+    "evidence": "P-invariants: 2*P00 + P02 + P11 + 2*P12 + P20 + 2*P21 + 2*_O00 + _O02 + _O11 + 2*_O12 + _O20 + 2*_O21 + 2*_X00 + _X02 + _X11 + 2*_X12 + _X20 + 2*_X21 + 3*win_o + 3*win_x == 9; 2*P01 + P02 + 2*P10 + P11 + P20 + 2*P22 + 2*_O01 + _O02 + 2*_O10 + _O11 + _O20 + 2*_O22 + 2*_X01 + _X02 + 2*_X10 + _X11 + _X20 + 2*_X22 + 3*win_o + 3*win_x == 9; Next + P00 + P01 + P02 + P10 + P11 + P12 + P20 + P21 + P22 + 2*_O00 + 2*_O01 + 2*_O02 + 2*_O10 + 2*_O11 + 2*_O12 + 2*_O20 + 2*_O21 + 2*_O22 + 6*win_o == 8; P00 + 2*P01 + P11 + 2*P12 + 2*P20 + P22 + _O00 + 2*_O01 + _O11 + 2*_O12 + 2*_O20 + _O22 + _X00 + 2*_X01 + _X11 + 2*_X12 + 2*_X20 + _X22 + 3*win_o + 3*win_x == 9; P00 + 2*P02 + 2*P10 + P11 + 2*P21 + P22 + _O00 + 2*_O02 + 2*_O10 + _O11 + 2*_O21 + _O22 + _X00 + 2*_X02 + 2*_X10 + _X11 + 2*_X21 + _X22 + 3*win_o + 3*win_x == 9",
+    "method": "structural",
+    "property": {
+     "kind": "bounded"
+    },
+    "status": "proved"
+   },
+   {
+    "counterexample": {
+     "explanation": "no firing sequence from the initial marking enables O00, O00_O01_O02, O00_O10_O20, O00_O11_O22, O01_O11_O21, O02, O02_O12_O22, O10, O10_O11_O12, O11, O20, O20_O11_O02, O20_O21_O22, X00, X00_X01_X02, X00_X10_X20, X00_X11_X22, X02, X10, X10_X11_X12, X11, X20",
+     "marking": {
+      "Next": 0,
+      "P00": 0,
+      "P01": 1,
+      "P02": 0,
+      "P10": 0,
+      "P11": 0,
+      "P12": 1,
+      "P20": 0,
+      "P21": 1,
+      "P22": 1,
+      "_O00": 1,
+      "_O01": 0,
+      "_O02": 0,
+      "_O10": 1,
+      "_O11": 0,
+      "_O12": 0,
+      "_O20": 0,
+      "_O21": 0,
+      "_O22": 0,
+      "_X00": 0,
+      "_X01": 0,
+      "_X02": 1,
+      "_X10": 0,
+      "_X11": 1,
+      "_X12": 0,
+      "_X20": 1,
+      "_X21": 0,
+      "_X22": 0,
+      "win_o": 0,
+      "win_x": 0
+     },
+     "trace": null
+    },
+    "detail": "transition(s) can never fire: O00, O00_O01_O02, O00_O10_O20, O00_O11_O22, O01_O11_O21, O02, O02_O12_O22, O10, O10_O11_O12, O11, O20, O20_O11_O02, O20_O21_O22, X00, X00_X01_X02, X00_X10_X20, X00_X11_X22, X02, X10, X10_X11_X12, X11, X20",
+    "method": "exhaustive",
+    "property": {
+     "kind": "live"
+    },
+    "status": "refuted"
+   },
+   {
+    "counterexample": {
+     "explanation": "O00, O00_O01_O02, O00_O10_O20, O00_O11_O22, O01, O01_O11_O21, O02, O02_O12_O22, O10, O10_O11_O12, O11, O12, O20, O20_O11_O02, O20_O21_O22, O21, O22, X00, X00_X01_X02, X00_X10_X20, X00_X11_X22, X01, X01_X11_X21, X02, X02_X12_X22, X10, X10_X11_X12, X11, X12, X20, X20_X11_X02, X20_X21_X22, X21, X22 can never fire again once this marking is reached",
+     "marking": {
+      "Next": 0,
+      "P00": 0,
+      "P01": 0,
+      "P02": 0,
+      "P10": 0,
+      "P11": 0,
+      "P12": 0,
+      "P20": 0,
+      "P21": 0,
+      "P22": 0,
+      "_O00": 1,
+      "_O01": 0,
+      "_O02": 0,
+      "_O10": 1,
+      "_O11": 0,
+      "_O12": 1,
+      "_O20": 0,
+      "_O21": 0,
+      "_O22": 1,
+      "_X00": 0,
+      "_X01": 1,
+      "_X02": 0,
+      "_X10": 0,
+      "_X11": 0,
+      "_X12": 0,
+      "_X20": 0,
+      "_X21": 1,
+      "_X22": 0,
+      "win_o": 0,
+      "win_x": 1
+     },
+     "trace": [
+      "X01",
+      "O12",
+      "X20_X11_X02",
+      "X21",
+      "O22"
+     ]
+    },
+    "detail": "not L4-live: O00, O00_O01_O02, O00_O10_O20, O00_O11_O22, O01, O01_O11_O21, O02, O02_O12_O22, O10, O10_O11_O12, O11, O12, O20, O20_O11_O02, O20_O21_O22, O21, O22, X00, X00_X01_X02, X00_X10_X20, X00_X11_X22, X01, X01_X11_X21, X02, X02_X12_X22, X10, X10_X11_X12, X11, X12, X20, X20_X11_X02, X20_X21_X22, X21, X22",
+    "method": "exhaustive",
+    "property": {
+     "kind": "l4-live"
+    },
+    "status": "refuted"
+   },
+   {
+    "detail": "the reachability graph is acyclic across all 79 states, so every execution terminates",
+    "method": "exhaustive",
+    "property": {
+     "kind": "terminating"
+    },
+    "status": "proved"
+   },
+   {
+    "counterexample": {
+     "explanation": "Next + P00 + P01 + P02 + P10 + P11 + P12 + P20 + P21 + P22 + _O00 + _O01 + _O02 + _O10 + _O11 + _O12 + _O20 + _O21 + _O22 + _X00 + _X01 + _X02 + _X10 + _X11 + _X12 + _X20 + _X21 + _X22 + win_o + win_x = 10 here, violating Next + P00 + P01 + P02 + P10 + P11 + P12 + P20 + P21 + P22 + _O00 + _O01 + _O02 + _O10 + _O11 + _O12 + _O20 + _O21 + _O22 + _X00 + _X01 + _X02 + _X10 + _X11 + _X12 + _X20 + _X21 + _X22 + win_o + win_x == 9",
+     "marking": {
+      "Next": 1,
+      "P00": 0,
+      "P01": 1,
+      "P02": 0,
+      "P10": 0,
+      "P11": 0,
+      "P12": 1,
+      "P20": 0,
+      "P21": 0,
+      "P22": 1,
+      "_O00": 1,
+      "_O01": 0,
+      "_O02": 0,
+      "_O10": 1,
+      "_O11": 0,
+      "_O12": 0,
+      "_O20": 0,
+      "_O21": 0,
+      "_O22": 0,
+      "_X00": 0,
+      "_X01": 0,
+      "_X02": 1,
+      "_X10": 0,
+      "_X11": 1,
+      "_X12": 0,
+      "_X20": 1,
+      "_X21": 1,
+      "_X22": 0,
+      "win_o": 0,
+      "win_x": 0
+     },
+     "trace": [
+      "X21"
+     ]
+    },
+    "detail": "Next + P00 + P01 + P02 + P10 + P11 + P12 + P20 + P21 + P22 + _O00 + _O01 + _O02 + _O10 + _O11 + _O12 + _O20 + _O21 + _O22 + _X00 + _X01 + _X02 + _X10 + _X11 + _X12 + _X20 + _X21 + _X22 + win_o + win_x == 9 fails: Next + P00 + P01 + P02 + P10 + P11 + P12 + P20 + P21 + P22 + _O00 + _O01 + _O02 + _O10 + _O11 + _O12 + _O20 + _O21 + _O22 + _X00 + _X01 + _X02 + _X10 + _X11 + _X12 + _X20 + _X21 + _X22 + win_o + win_x = 10 at a reachable marking",
+    "method": "exhaustive",
+    "property": {
+     "kind": "conserves"
+    },
+    "status": "refuted"
+   }
+  ]
+ },
+ "arguments": {
+  "properties": [
+   {
+    "kind": "deadlock-free"
+   },
+   {
+    "kind": "bounded"
+   },
+   {
+    "kind": "live"
+   },
+   {
+    "kind": "l4-live"
+   },
+   {
+    "kind": "terminating"
+   },
+   {
+    "kind": "conserves"
+   }
+  ]
+ },
+ "net": "net-b.jsonld",
+ "tool": "pflow_verify"
+}

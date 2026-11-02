@@ -1,0 +1,238 @@
+{
+ "answer": {
+  "arcs": [
+   {
+    "inhibit": false,
+    "source": "pile",
+    "target": "a_take1",
+    "weight": [
+     1
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "a_turn",
+    "target": "a_take1",
+    "weight": [
+     1
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "a_take1",
+    "target": "b_turn",
+    "weight": [
+     1
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "pile",
+    "target": "a_take2",
+    "weight": [
+     2
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "a_turn",
+    "target": "a_take2",
+    "weight": [
+     1
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "a_take2",
+    "target": "b_turn",
+    "weight": [
+     1
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "pile",
+    "target": "b_take1",
+    "weight": [
+     1
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "b_turn",
+    "target": "b_take1",
+    "weight": [
+     1
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "b_take1",
+    "target": "a_turn",
+    "weight": [
+     1
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "pile",
+    "target": "b_take2",
+    "weight": [
+     2
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "b_turn",
+    "target": "b_take2",
+    "weight": [
+     1
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "b_take2",
+    "target": "a_turn",
+    "weight": [
+     1
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "a_turn",
+    "target": "a_lose",
+    "weight": [
+     1
+    ]
+   },
+   {
+    "inhibit": true,
+    "source": "pile",
+    "target": "a_lose",
+    "weight": [
+     1
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "a_lose",
+    "target": "win_b",
+    "weight": [
+     1
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "b_turn",
+    "target": "b_lose",
+    "weight": [
+     1
+    ]
+   },
+   {
+    "inhibit": true,
+    "source": "pile",
+    "target": "b_lose",
+    "weight": [
+     1
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "b_lose",
+    "target": "win_a",
+    "weight": [
+     1
+    ]
+   }
+  ],
+  "colors": 1,
+  "enabled": [
+   "a_take1",
+   "a_take2"
+  ],
+  "marking": {
+   "a_turn": 1,
+   "b_turn": 0,
+   "pile": 7,
+   "win_a": 0,
+   "win_b": 0
+  },
+  "places": [
+   {
+    "capacity": [
+     null
+    ],
+    "id": "a_turn",
+    "initial": [
+     1
+    ]
+   },
+   {
+    "capacity": [
+     null
+    ],
+    "id": "b_turn",
+    "initial": [
+     0
+    ]
+   },
+   {
+    "capacity": [
+     null
+    ],
+    "id": "pile",
+    "initial": [
+     7
+    ]
+   },
+   {
+    "capacity": [
+     null
+    ],
+    "id": "win_a",
+    "initial": [
+     0
+    ]
+   },
+   {
+    "capacity": [
+     null
+    ],
+    "id": "win_b",
+    "initial": [
+     0
+    ]
+   }
+  ],
+  "transitions": [
+   {
+    "id": "a_lose",
+    "rate": 1
+   },
+   {
+    "id": "a_take1",
+    "rate": 1
+   },
+   {
+    "id": "a_take2",
+    "rate": 1
+   },
+   {
+    "id": "b_lose",
+    "rate": 1
+   },
+   {
+    "id": "b_take1",
+    "rate": 1
+   },
+   {
+    "id": "b_take2",
+    "rate": 1
+   }
+  ]
+ },
+ "arguments": {},
+ "net": "game-nim.jsonld",
+ "tool": "pflow_info"
+}
