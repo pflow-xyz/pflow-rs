@@ -1,0 +1,104 @@
+{
+ "answer": {
+  "ok": false,
+  "proved": 0,
+  "refuted": 2,
+  "state_count": 2000,
+  "truncated": true,
+  "unknown": 2,
+  "verdicts": [
+   {
+    "detail": "\"Done.https://pflow.xyz/tokens/blue\" + \"Done.https://pflow.xyz/tokens/red\" + \"Mix.https://pflow.xyz/tokens/blue\" + \"Mix.https://pflow.xyz/tokens/red\" + \"Pool.https://pflow.xyz/tokens/blue\" + \"Pool.https://pflow.xyz/tokens/red\" >= 0 holds across the 2000 states explored, but the state space was truncated",
+    "method": "partial",
+    "property": {
+     "expr": "Pool + Mix + Done >= 0",
+     "kind": "invariant"
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "\"Done.https://pflow.xyz/tokens/blue\" + \"Done.https://pflow.xyz/tokens/red\" + \"Mix.https://pflow.xyz/tokens/blue\" + \"Mix.https://pflow.xyz/tokens/red\" <= 40 holds across the 2000 states explored, but the state space was truncated",
+    "method": "partial",
+    "property": {
+     "bound": 40,
+     "kind": "mutual-exclusion",
+     "places": [
+      "Mix",
+      "Done"
+     ]
+    },
+    "status": "unknown"
+   },
+   {
+    "counterexample": {
+     "explanation": "\"Pool.https://pflow.xyz/tokens/blue\" + \"Pool.https://pflow.xyz/tokens/red\" = 30 here, violating \"Pool.https://pflow.xyz/tokens/blue\" + \"Pool.https://pflow.xyz/tokens/red\" <= 25",
+     "marking": {
+      "Done.https://pflow.xyz/tokens/blue": 0,
+      "Done.https://pflow.xyz/tokens/red": 0,
+      "Mix.https://pflow.xyz/tokens/blue": 0,
+      "Mix.https://pflow.xyz/tokens/red": 0,
+      "Pool.https://pflow.xyz/tokens/blue": 10,
+      "Pool.https://pflow.xyz/tokens/red": 20
+     },
+     "trace": null
+    },
+    "detail": "\"Pool.https://pflow.xyz/tokens/blue\" + \"Pool.https://pflow.xyz/tokens/red\" <= 25 fails: \"Pool.https://pflow.xyz/tokens/blue\" + \"Pool.https://pflow.xyz/tokens/red\" = 30 at a reachable marking",
+    "method": "partial",
+    "property": {
+     "expr": "Pool <= 25",
+     "kind": "invariant"
+    },
+    "status": "refuted"
+   },
+   {
+    "counterexample": {
+     "explanation": "\"Done.https://pflow.xyz/tokens/blue\" + \"Done.https://pflow.xyz/tokens/red\" + \"Mix.https://pflow.xyz/tokens/blue\" + \"Mix.https://pflow.xyz/tokens/red\" + \"Pool.https://pflow.xyz/tokens/blue\" + \"Pool.https://pflow.xyz/tokens/red\" = 29 here, violating \"Done.https://pflow.xyz/tokens/blue\" + \"Done.https://pflow.xyz/tokens/red\" + \"Mix.https://pflow.xyz/tokens/blue\" + \"Mix.https://pflow.xyz/tokens/red\" + \"Pool.https://pflow.xyz/tokens/blue\" + \"Pool.https://pflow.xyz/tokens/red\" == 30",
+     "marking": {
+      "Done.https://pflow.xyz/tokens/blue": 0,
+      "Done.https://pflow.xyz/tokens/red": 0,
+      "Mix.https://pflow.xyz/tokens/blue": 1,
+      "Mix.https://pflow.xyz/tokens/red": 0,
+      "Pool.https://pflow.xyz/tokens/blue": 10,
+      "Pool.https://pflow.xyz/tokens/red": 18
+     },
+     "trace": [
+      "work",
+      "work",
+      "combine"
+     ]
+    },
+    "detail": "\"Done.https://pflow.xyz/tokens/blue\" + \"Done.https://pflow.xyz/tokens/red\" + \"Mix.https://pflow.xyz/tokens/blue\" + \"Mix.https://pflow.xyz/tokens/red\" + \"Pool.https://pflow.xyz/tokens/blue\" + \"Pool.https://pflow.xyz/tokens/red\" == 30 fails: \"Done.https://pflow.xyz/tokens/blue\" + \"Done.https://pflow.xyz/tokens/red\" + \"Mix.https://pflow.xyz/tokens/blue\" + \"Mix.https://pflow.xyz/tokens/red\" + \"Pool.https://pflow.xyz/tokens/blue\" + \"Pool.https://pflow.xyz/tokens/red\" = 29 at a reachable marking",
+    "method": "partial",
+    "property": {
+     "kind": "conserves"
+    },
+    "status": "refuted"
+   }
+  ]
+ },
+ "arguments": {
+  "properties": [
+   {
+    "expr": "Pool + Mix + Done >= 0",
+    "kind": "invariant"
+   },
+   {
+    "bound": 40,
+    "kind": "mutual-exclusion",
+    "places": [
+     "Mix",
+     "Done"
+    ]
+   },
+   {
+    "expr": "Pool <= 25",
+    "kind": "invariant"
+   },
+   {
+    "kind": "conserves"
+   }
+  ]
+ },
+ "net": "colored.jsonld",
+ "tool": "pflow_verify"
+}

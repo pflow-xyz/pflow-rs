@@ -1,0 +1,126 @@
+{
+ "answer": {
+  "arcs": [
+   {
+    "inhibit": false,
+    "source": "Pool",
+    "target": "work",
+    "weight": [
+     1,
+     0
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "work",
+    "target": "Done",
+    "weight": [
+     1,
+     0
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "Pool",
+    "target": "convert",
+    "weight": [
+     0,
+     1
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "convert",
+    "target": "Pool",
+    "weight": [
+     1,
+     0
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "Done",
+    "target": "combine",
+    "weight": [
+     2,
+     0
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "combine",
+    "target": "Mix",
+    "weight": [
+     0,
+     1
+    ]
+   }
+  ],
+  "colors": 2,
+  "enabled": [
+   "convert",
+   "work"
+  ],
+  "marking": {
+   "Done.https://pflow.xyz/tokens/blue": 0,
+   "Done.https://pflow.xyz/tokens/red": 0,
+   "Mix.https://pflow.xyz/tokens/blue": 0,
+   "Mix.https://pflow.xyz/tokens/red": 0,
+   "Pool.https://pflow.xyz/tokens/blue": 10,
+   "Pool.https://pflow.xyz/tokens/red": 20
+  },
+  "name": "Two-colour work pool",
+  "places": [
+   {
+    "capacity": [
+     0,
+     0
+    ],
+    "id": "Done",
+    "initial": [
+     0,
+     0
+    ]
+   },
+   {
+    "capacity": [
+     0,
+     0
+    ],
+    "id": "Mix",
+    "initial": [
+     0,
+     0
+    ]
+   },
+   {
+    "capacity": [
+     0,
+     0
+    ],
+    "id": "Pool",
+    "initial": [
+     20,
+     10
+    ]
+   }
+  ],
+  "transitions": [
+   {
+    "id": "combine",
+    "rate": 0.05
+   },
+   {
+    "id": "convert",
+    "rate": 0.15
+   },
+   {
+    "id": "work",
+    "rate": 0.4
+   }
+  ]
+ },
+ "arguments": {},
+ "net": "colored.jsonld",
+ "tool": "pflow_info"
+}

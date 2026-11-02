@@ -1,0 +1,86 @@
+{
+ "answer": {
+  "ok": false,
+  "proved": 0,
+  "refuted": 2,
+  "state_count": 5,
+  "truncated": true,
+  "unknown": 2,
+  "verdicts": [
+   {
+    "counterexample": {
+     "explanation": "after the prefix [(already satisfied at the initial marking)], repeating [t] returns to a marking that strictly covers map[a:1 b:0], adding tokens to b each time — so the count is unbounded",
+     "marking": {
+      "a": 1,
+      "b": 1
+     },
+     "trace": [
+      "t"
+     ]
+    },
+    "detail": "place(s) b grow without bound",
+    "method": "witness",
+    "property": {
+     "kind": "bounded"
+    },
+    "status": "refuted"
+   },
+   {
+    "detail": "no deadlock in the 5 states explored, but the state space was truncated",
+    "method": "partial",
+    "property": {
+     "kind": "deadlock-free"
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "all transitions fired within the 5 states explored, but the state space was truncated",
+    "method": "partial",
+    "property": {
+     "kind": "live"
+    },
+    "status": "unknown"
+   },
+   {
+    "counterexample": {
+     "explanation": "the firing sequence t → t → t → u returns to a previous marking and can repeat forever",
+     "marking": {
+      "a": 1,
+      "b": 0
+     },
+     "trace": [
+      "t",
+      "t",
+      "t",
+      "u"
+     ]
+    },
+    "detail": "the net has a cyclic execution and so does not always terminate",
+    "method": "partial",
+    "property": {
+     "kind": "terminating"
+    },
+    "status": "refuted"
+   }
+  ]
+ },
+ "arguments": {
+  "max_states": 5,
+  "properties": [
+   {
+    "kind": "bounded"
+   },
+   {
+    "kind": "deadlock-free"
+   },
+   {
+    "kind": "live"
+   },
+   {
+    "kind": "terminating"
+   }
+  ]
+ },
+ "net": "local/pump.json",
+ "tool": "pflow_verify"
+}

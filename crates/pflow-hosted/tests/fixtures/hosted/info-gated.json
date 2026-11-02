@@ -1,0 +1,122 @@
+{
+ "answer": {
+  "arcs": [
+   {
+    "inhibit": false,
+    "source": "arrive",
+    "target": "Queue",
+    "weight": [
+     1
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "Queue",
+    "target": "serve",
+    "weight": [
+     1
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "serve",
+    "target": "Done",
+    "weight": [
+     1
+    ]
+   },
+   {
+    "inhibit": true,
+    "source": "Lock",
+    "target": "serve",
+    "weight": [
+     1
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "Done",
+    "target": "halt",
+    "weight": [
+     1
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "halt",
+    "target": "Lock",
+    "weight": [
+     1
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "Lock",
+    "target": "unlock",
+    "weight": [
+     1
+    ]
+   }
+  ],
+  "colors": 1,
+  "enabled": [
+   "arrive"
+  ],
+  "marking": {
+   "Done": 0,
+   "Lock": 0,
+   "Queue": 0
+  },
+  "name": "Gated queue",
+  "places": [
+   {
+    "capacity": [
+     4
+    ],
+    "id": "Done",
+    "initial": [
+     0
+    ]
+   },
+   {
+    "capacity": [
+     0
+    ],
+    "id": "Lock",
+    "initial": [
+     0
+    ]
+   },
+   {
+    "capacity": [
+     3
+    ],
+    "id": "Queue",
+    "initial": [
+     0
+    ]
+   }
+  ],
+  "transitions": [
+   {
+    "id": "arrive",
+    "rate": 2
+   },
+   {
+    "id": "halt",
+    "rate": 0.5
+   },
+   {
+    "id": "serve",
+    "rate": 3
+   },
+   {
+    "id": "unlock",
+    "rate": 1
+   }
+  ]
+ },
+ "arguments": {},
+ "net": "gated.jsonld",
+ "tool": "pflow_info"
+}

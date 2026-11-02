@@ -1,0 +1,47 @@
+{
+ "answer": {
+  "info": [
+   {
+    "category": "unbounded",
+    "location": [
+     "R"
+    ],
+    "message": "Place 'R' is a sink (only inputs, no outputs)",
+    "severity": "info"
+   },
+   {
+    "category": "unbounded",
+    "location": [
+     "S"
+    ],
+    "message": "Place 'S' is a source (only outputs, no inputs)",
+    "severity": "info"
+   },
+   {
+    "category": "conservation",
+    "message": "Net conserves tokens (all transitions have balanced input/output)",
+    "severity": "info"
+   },
+   {
+    "category": "conservation",
+    "message": "Found 1 conservation law(s): I + R + S == 10",
+    "severity": "info"
+   }
+  ],
+  "invariants": [
+   "I + R + S == 10"
+  ],
+  "summary": {
+   "arcs": 5,
+   "conserved": true,
+   "errors": 0,
+   "places": 3,
+   "transitions": 2,
+   "warnings": 0
+  },
+  "valid": true
+ },
+ "arguments": {},
+ "net": "sir.jsonld",
+ "tool": "pflow_validate"
+}

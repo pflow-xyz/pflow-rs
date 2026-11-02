@@ -1,0 +1,81 @@
+{
+ "answer": {
+  "conservative": false,
+  "p_invariants": [
+   {
+    "coefficients": {
+     "WaitingCustomers.https://pflow.xyz/tokens/brown": 1
+    },
+    "equation": "WaitingCustomers.https://pflow.xyz/tokens/brown == 0",
+    "value": 0
+   },
+   {
+    "coefficients": {
+     "WaitingCustomers.https://pflow.xyz/tokens/blue": 1
+    },
+    "equation": "WaitingCustomers.https://pflow.xyz/tokens/blue == 0",
+    "value": 0
+   },
+   {
+    "coefficients": {
+     "ServedCoffee.https://pflow.xyz/tokens/brown": 1
+    },
+    "equation": "ServedCoffee.https://pflow.xyz/tokens/brown == 0",
+    "value": 0
+   },
+   {
+    "coefficients": {
+     "ServedCoffee.https://pflow.xyz/tokens/blue": 1
+    },
+    "equation": "ServedCoffee.https://pflow.xyz/tokens/blue == 0",
+    "value": 0
+   },
+   {
+    "coefficients": {
+     "EmptyCups.https://pflow.xyz/tokens/red": 1
+    },
+    "equation": "EmptyCups.https://pflow.xyz/tokens/red == 0",
+    "value": 0
+   },
+   {
+    "coefficients": {
+     "EmptyCups.https://pflow.xyz/tokens/brown": 1
+    },
+    "equation": "EmptyCups.https://pflow.xyz/tokens/brown == 0",
+    "value": 0
+   },
+   {
+    "coefficients": {
+     "CoffeeBeans.https://pflow.xyz/tokens/red": 1
+    },
+    "equation": "CoffeeBeans.https://pflow.xyz/tokens/red == 0",
+    "value": 0
+   },
+   {
+    "coefficients": {
+     "CoffeeBeans.https://pflow.xyz/tokens/blue": 1
+    },
+    "equation": "CoffeeBeans.https://pflow.xyz/tokens/blue == 0",
+    "value": 0
+   }
+  ],
+  "p_truncated": false,
+  "structurally_bounded": false,
+  "t_invariants": [
+   {
+    "counts": {
+     "BrewCoffee": 3,
+     "CustomerArrives": 3,
+     "CustomerLeaves": 3,
+     "RestockBeans": 1,
+     "RestockCups": 1
+    },
+    "firing_multiset": "{3*BrewCoffee, 3*CustomerArrives, 3*CustomerLeaves, RestockBeans, RestockCups}"
+   }
+  ],
+  "t_truncated": false
+ },
+ "arguments": {},
+ "net": "coffee-shop.jsonld",
+ "tool": "pflow_invariants"
+}

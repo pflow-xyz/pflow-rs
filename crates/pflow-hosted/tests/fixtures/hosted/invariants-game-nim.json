@@ -1,0 +1,24 @@
+{
+ "answer": {
+  "conservative": false,
+  "p_invariants": [
+   {
+    "coefficients": {
+     "a_turn": 1,
+     "b_turn": 1,
+     "win_a": 1,
+     "win_b": 1
+    },
+    "equation": "a_turn + b_turn + win_a + win_b == 1",
+    "value": 1
+   }
+  ],
+  "p_truncated": false,
+  "structurally_bounded": false,
+  "t_invariants": null,
+  "t_truncated": false
+ },
+ "arguments": {},
+ "net": "game-nim.jsonld",
+ "tool": "pflow_invariants"
+}

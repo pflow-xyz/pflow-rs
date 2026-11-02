@@ -26,3 +26,9 @@ serde_json = { version = "1", features = ["float_roundtrip"] }
 # Exactly the wasm-bindgen CLI's version (WASM_BINDGEN_VERSION in the Makefile):
 # the CLI refuses a module built against any other.
 wasm-bindgen = "=0.2.129"
+# The pflow.xyz/mcp tools, for @pflow-xyz/pflow-mcp's build only (make
+# wasm-mcp); the browser package (make wasm-npm) leaves them out.
+pflow-hosted = { path = "../pflow-hosted", optional = true }
+
+[features]
+hosted = ["dep:pflow-hosted"]

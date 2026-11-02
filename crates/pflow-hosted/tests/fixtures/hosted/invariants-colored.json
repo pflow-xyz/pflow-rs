@@ -1,0 +1,38 @@
+{
+ "answer": {
+  "conservative": false,
+  "p_invariants": [
+   {
+    "coefficients": {
+     "Mix.https://pflow.xyz/tokens/red": 1
+    },
+    "equation": "Mix.https://pflow.xyz/tokens/red == 0",
+    "value": 0
+   },
+   {
+    "coefficients": {
+     "Done.https://pflow.xyz/tokens/blue": 1
+    },
+    "equation": "Done.https://pflow.xyz/tokens/blue == 0",
+    "value": 0
+   },
+   {
+    "coefficients": {
+     "Done.https://pflow.xyz/tokens/red": 1,
+     "Mix.https://pflow.xyz/tokens/blue": 2,
+     "Pool.https://pflow.xyz/tokens/blue": 1,
+     "Pool.https://pflow.xyz/tokens/red": 1
+    },
+    "equation": "Done.https://pflow.xyz/tokens/red + 2*Mix.https://pflow.xyz/tokens/blue + Pool.https://pflow.xyz/tokens/blue + Pool.https://pflow.xyz/tokens/red == 30",
+    "value": 30
+   }
+  ],
+  "p_truncated": false,
+  "structurally_bounded": true,
+  "t_invariants": null,
+  "t_truncated": false
+ },
+ "arguments": {},
+ "net": "colored.jsonld",
+ "tool": "pflow_invariants"
+}

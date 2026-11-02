@@ -1,0 +1,97 @@
+{
+ "answer": {
+  "errors": [
+   {
+    "category": "structure",
+    "location": [
+     "R",
+     "infect"
+    ],
+    "message": "Arc 5 (R → infect) has non-positive weight",
+    "severity": "error",
+    "suggestion": "Set arc weight to positive value"
+   }
+  ],
+  "info": [
+   {
+    "category": "unbounded",
+    "location": [
+     "S"
+    ],
+    "message": "Place 'S' is a source (only outputs, no inputs)",
+    "severity": "info"
+   },
+   {
+    "category": "conservation",
+    "message": "Net conserves tokens (all transitions have balanced input/output)",
+    "severity": "info"
+   },
+   {
+    "category": "conservation",
+    "message": "Found 1 conservation law(s): I + R + S == 10",
+    "severity": "info"
+   }
+  ],
+  "invariants": [
+   "I + R + S == 10"
+  ],
+  "reachability": {
+   "bounded": true,
+   "deadlockStates": [
+    "R:1, S:9",
+    "R:10",
+    "R:2, S:8",
+    "R:3, S:7",
+    "R:4, S:6",
+    "R:5, S:5",
+    "R:6, S:4",
+    "R:7, S:3",
+    "R:8, S:2",
+    "R:9, S:1"
+   ],
+   "hasCycles": false,
+   "maxDepth": 19,
+   "maxTokens": {
+    "I": 10,
+    "R": 10,
+    "S": 9
+   },
+   "reachable": 65,
+   "terminalStates": [
+    "R:1, S:9",
+    "R:10",
+    "R:2, S:8",
+    "R:3, S:7",
+    "R:4, S:6",
+    "R:5, S:5",
+    "R:6, S:4",
+    "R:7, S:3",
+    "R:8, S:2",
+    "R:9, S:1"
+   ],
+   "truncated": false
+  },
+  "summary": {
+   "arcs": 6,
+   "conserved": true,
+   "errors": 1,
+   "places": 3,
+   "transitions": 2,
+   "warnings": 0
+  },
+  "valid": false,
+  "warnings": [
+   {
+    "category": "reachability",
+    "message": "Found 10 deadlock states (terminal states that are not goal states)",
+    "severity": "warning",
+    "suggestion": "Review model structure to ensure all terminal states are valid end states"
+   }
+  ]
+ },
+ "arguments": {
+  "reachability": true
+ },
+ "net": "inert.jsonld",
+ "tool": "pflow_validate"
+}

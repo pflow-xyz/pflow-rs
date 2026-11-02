@@ -37,7 +37,8 @@ held to go-pflow's goldens, and runs in the browser as
 | `pflow-zk-arkworks` | Groth16 prover over BN254 with Poseidon hashing (structural R1CS) |
 | `pflow-cli` | `pflow` command-line binary, modelled on go-pflow's `cmd/pflow` |
 | `pflow-mcp` | MCP server exposing Petri net tools (`petri_*`, plus `pflow_*` extras) |
-| `pflow-wasm` | The browser build, on npm as [`@pflow-xyz/pflow-wasm`](crates/pflow-wasm/npm/README.md): fire a net, run the ODE and the portable SSA, explore its reachable states, from one self-contained ES module. The same engine is a local MCP server, [`@pflow-xyz/pflow-mcp`](crates/pflow-wasm/mcp/README.md) (`npx -y @pflow-xyz/pflow-mcp`) |
+| `pflow-wasm` | The browser build, on npm as [`@pflow-xyz/pflow-wasm`](crates/pflow-wasm/npm/README.md): fire a net, run the ODE and the portable SSA, explore its reachable states, from one self-contained ES module. The same engine is a local MCP server, [`@pflow-xyz/pflow-mcp`](crates/pflow-wasm/mcp/README.md) (`npx -y @pflow-xyz/pflow-mcp`), which also answers the pflow.xyz/mcp tools offline |
+| `pflow-hosted` | The pflow.xyz/mcp tools (check, cid, edit, export, info, incidence, invariants, validate, verify, sde, what_if, bundle_*) with the hosted names, arguments and answer shapes, over pflow-rs engines; built into `@pflow-xyz/pflow-mcp`, not on crates.io |
 | `pflow` | Umbrella crate: re-exports `pflow-core`, `pflow-dsl`, `pflow-solver` and `pflow-tokenmodel` as modules, a few common items (`PetriNet`, `solve`, `simulate_ssa`, `schema!`, ...), and `pflow-zk`/`pflow-zk-arkworks` behind the `zk`/`zk-arkworks` features. The other crates are used directly |
 
 How far each crate is from go-pflow parity is tracked in `ROADMAP.md`'s

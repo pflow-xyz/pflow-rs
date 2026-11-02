@@ -238,6 +238,29 @@ impl Bundle {
         res
     }
 
+    /// Judges one link `l` against this bundle's subnets, as if it were the
+    /// only link: [`Bundle::validate`] on a bundle of the subnets `l` names
+    /// (every subnet with either end's id, so a repeated id is still
+    /// reported) and `l` alone. The bundle's own links are not consulted.
+    ///
+    /// This is how a composition editor asks "may I add this link?" without
+    /// the verdict on the links already there: the result's errors are every
+    /// error of that one-link bundle (a fault in one of the two subnets
+    /// refuses the link too); its messages label the link `links[0]`, the
+    /// label [`Bundle::validate`] gives the first link. Subnet-level warnings
+    /// (an untyped subnet, an unbounded queue) are included; keep the ones
+    /// whose element is `links[0]` for the link's own.
+    pub fn validate_one_link(&self, l: &Link) -> ValidationResult {
+        let mut one = Bundle::new("link");
+        for s in &self.subnets {
+            if s.id == l.from.subnet || s.id == l.to.subnet {
+                one.add_subnet(s.clone());
+            }
+        }
+        one.add_link(l.clone());
+        one.validate()
+    }
+
     /// Reports the first error, or `Ok(())` when the bundle is valid.
     pub fn must_validate(&self) -> Result<(), String> {
         let res = self.validate();

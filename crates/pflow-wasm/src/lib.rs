@@ -733,6 +733,30 @@ pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+/// Runs one pflow.xyz/mcp tool locally (`pflow_hosted::call`): `tool` is the
+/// hosted name without `pflow_`, `args` the tool's arguments as JSON text or an
+/// object. Returns the answer as an object; throws the tool's refusal. Only in
+/// the `hosted` build, which @pflow-xyz/pflow-mcp ships.
+#[cfg(feature = "hosted")]
+#[wasm_bindgen]
+pub fn hosted(tool: &str, args: JsValue) -> Result<JsValue, JsError> {
+    let text = to_text(&args)?;
+    let args: serde_json::Value = if text.is_empty() {
+        serde_json::Value::Object(Default::default())
+    } else {
+        serde_json::from_str(&text).map_err(|e| JsError::new(&format!("arguments: {e}")))?
+    };
+    let out = pflow_hosted::call(tool, &args).map_err(|e| JsError::new(&e))?;
+    to_js(&out.to_string())
+}
+
+/// The tools `hosted` answers.
+#[cfg(feature = "hosted")]
+#[wasm_bindgen(js_name = hostedTools, unchecked_return_type = "string[]")]
+pub fn hosted_tools() -> Result<JsValue, JsError> {
+    to_js(&serde_json::to_string(pflow_hosted::TOOLS).unwrap_or_default())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,0 +1,104 @@
+{
+ "answer": {
+  "errors": [
+   {
+    "category": "unbounded",
+    "location": [
+     "b"
+    ],
+    "message": "Place 'b' is unbounded: repeating [t] adds tokens indefinitely",
+    "severity": "error",
+    "suggestion": "Add a capacity, or consume the accumulated tokens on the cycle"
+   },
+   {
+    "category": "reachability",
+    "message": "Model is unbounded (some places can accumulate tokens indefinitely)",
+    "severity": "error",
+    "suggestion": "Add capacity constraints or fix structural issues causing unbounded growth"
+   }
+  ],
+  "info": [
+   {
+    "category": "conservation",
+    "location": [
+     "t",
+     "u"
+    ],
+    "message": "Net does not conserve total tokens (transitions with unbalanced flow: [t u])",
+    "severity": "info"
+   },
+   {
+    "category": "conservation",
+    "message": "Found 1 conservation law(s): a == 1",
+    "severity": "info"
+   }
+  ],
+  "invariants": [
+   "a == 1"
+  ],
+  "reachability": {
+   "bounded": false,
+   "deadlockStates": null,
+   "hasCycles": true,
+   "maxDepth": 1000,
+   "maxTokens": {
+    "a": 1,
+    "b": 1000
+   },
+   "reachable": 1001,
+   "terminalStates": null,
+   "truncated": true,
+   "truncatedReason": "unbounded: token count exceeded limit"
+  },
+  "summary": {
+   "arcs": 4,
+   "conserved": false,
+   "errors": 1,
+   "places": 2,
+   "transitions": 2,
+   "warnings": 3
+  },
+  "valid": false,
+  "warnings": [
+   {
+    "category": "connectivity",
+    "location": [
+     "u"
+    ],
+    "message": "Transition 'u' has no output places",
+    "severity": "warning",
+    "suggestion": "Add output arcs to places"
+   },
+   {
+    "category": "deadlock",
+    "location": [
+     "u",
+     "b"
+    ],
+    "message": "Transition 'u' cannot fire with initial marking (insufficient tokens in: [b])",
+    "severity": "warning",
+    "suggestion": "Increase initial tokens in input places or adjust arc weights"
+   },
+   {
+    "category": "unbounded",
+    "location": [
+     "b"
+    ],
+    "message": "Place 'b' is not covered by any P-invariant, so nothing structurally bounds it",
+    "severity": "warning",
+    "suggestion": "Add a capacity, or balance the flow so the place participates in a conservation law"
+   },
+   {
+    "category": "reachability",
+    "message": "Reachability analysis truncated: unbounded: token count exceeded limit",
+    "severity": "warning",
+    "suggestion": "Consider simplifying model or increasing state limit"
+   }
+  ]
+ },
+ "arguments": {
+  "reachability": true
+ },
+ "net": "local/pump.json",
+ "tool": "pflow_validate"
+}

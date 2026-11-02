@@ -1,0 +1,27 @@
+[package]
+name = "pflow-hosted"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "The pflow.xyz/mcp tools' semantics and answer shapes over pflow-rs engines: what @pflow-xyz/pflow-mcp runs locally"
+# Built into @pflow-xyz/pflow-mcp through pflow-wasm's `hosted` feature, not on crates.io.
+publish = false
+
+[dependencies]
+pflow-compose = { path = "../pflow-compose" }
+pflow-core = { path = "../pflow-core" }
+pflow-metamodel = { path = "../pflow-metamodel" }
+pflow-parser = { path = "../pflow-parser" }
+pflow-reachability = { path = "../pflow-reachability" }
+pflow-solver = { path = "../pflow-solver" }
+pflow-tokenmodel = { path = "../pflow-tokenmodel" }
+pflow-verify = { path = "../pflow-verify" }
+pflow-visualization = { path = "../pflow-visualization" }
+serde = { version = "1", features = ["derive"] }
+# float_roundtrip: rates and markings arrive as JSON text; the stochastic
+# engines' byte-exact contract needs them read exactly.
+serde_json = { version = "1", features = ["float_roundtrip"] }
+
+[dev-dependencies]

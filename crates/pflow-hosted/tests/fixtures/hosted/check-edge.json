@@ -1,0 +1,11 @@
+{
+ "answer": {
+  "arcs": 6,
+  "ok": true,
+  "places": 5,
+  "transitions": 3
+ },
+ "arguments": {},
+ "net": "local/edge.json",
+ "tool": "pflow_check"
+}

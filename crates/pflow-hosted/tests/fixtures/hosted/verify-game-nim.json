@@ -1,0 +1,131 @@
+{
+ "answer": {
+  "ok": false,
+  "proved": 3,
+  "refuted": 3,
+  "state_count": 16,
+  "truncated": false,
+  "unknown": 0,
+  "verdicts": [
+   {
+    "counterexample": {
+     "explanation": "no transition is enabled in this marking",
+     "marking": {
+      "a_turn": 0,
+      "b_turn": 0,
+      "pile": 0,
+      "win_a": 0,
+      "win_b": 1
+     },
+     "trace": [
+      "a_take1",
+      "b_take2",
+      "a_take2",
+      "b_take2",
+      "a_lose"
+     ]
+    },
+    "detail": "2 deadlock state(s) reachable",
+    "method": "exhaustive",
+    "property": {
+     "kind": "deadlock-free"
+    },
+    "status": "refuted"
+   },
+   {
+    "detail": "bounded across all 16 reachable states from this initial marking",
+    "method": "exhaustive",
+    "property": {
+     "kind": "bounded"
+    },
+    "status": "proved"
+   },
+   {
+    "detail": "all 6 transitions can fire from some reachable state",
+    "method": "exhaustive",
+    "property": {
+     "kind": "live"
+    },
+    "status": "proved"
+   },
+   {
+    "counterexample": {
+     "explanation": "a_lose, a_take1, a_take2, b_lose, b_take1, b_take2 can never fire again once this marking is reached",
+     "marking": {
+      "a_turn": 0,
+      "b_turn": 0,
+      "pile": 0,
+      "win_a": 0,
+      "win_b": 1
+     },
+     "trace": [
+      "a_take1",
+      "b_take2",
+      "a_take2",
+      "b_take2",
+      "a_lose"
+     ]
+    },
+    "detail": "not L4-live: a_lose, a_take1, a_take2, b_lose, b_take1, b_take2",
+    "method": "exhaustive",
+    "property": {
+     "kind": "l4-live"
+    },
+    "status": "refuted"
+   },
+   {
+    "detail": "the reachability graph is acyclic across all 16 states, so every execution terminates",
+    "method": "exhaustive",
+    "property": {
+     "kind": "terminating"
+    },
+    "status": "proved"
+   },
+   {
+    "counterexample": {
+     "explanation": "a_turn + b_turn + pile + win_a + win_b = 7 here, violating a_turn + b_turn + pile + win_a + win_b == 8",
+     "marking": {
+      "a_turn": 0,
+      "b_turn": 1,
+      "pile": 6,
+      "win_a": 0,
+      "win_b": 0
+     },
+     "trace": [
+      "a_take1"
+     ]
+    },
+    "detail": "a_turn + b_turn + pile + win_a + win_b == 8 fails: a_turn + b_turn + pile + win_a + win_b = 7 at a reachable marking",
+    "method": "exhaustive",
+    "property": {
+     "kind": "conserves"
+    },
+    "status": "refuted"
+   }
+  ]
+ },
+ "arguments": {
+  "properties": [
+   {
+    "kind": "deadlock-free"
+   },
+   {
+    "kind": "bounded"
+   },
+   {
+    "kind": "live"
+   },
+   {
+    "kind": "l4-live"
+   },
+   {
+    "kind": "terminating"
+   },
+   {
+    "kind": "conserves"
+   }
+  ]
+ },
+ "net": "game-nim.jsonld",
+ "tool": "pflow_verify"
+}

@@ -1,0 +1,181 @@
+{
+ "answer": {
+  "ok": false,
+  "proved": 3,
+  "refuted": 2,
+  "state_count": 65,
+  "truncated": false,
+  "unknown": 5,
+  "verdicts": [
+   {
+    "detail": "target reachable in 19 firing(s)",
+    "evidence": "firing sequence: infect → infect → infect → infect → infect → infect → infect → infect → infect → recover → recover → recover → recover → recover → recover → recover → recover → recover → recover",
+    "method": "exhaustive",
+    "property": {
+     "kind": "reachable",
+     "target": {
+      "R": 10
+     }
+    },
+    "status": "proved"
+   },
+   {
+    "detail": "target reachable in 14 firing(s)",
+    "evidence": "firing sequence: infect → infect → infect → infect → infect → infect → infect → infect → infect → recover → recover → recover → recover → recover",
+    "method": "exhaustive",
+    "property": {
+     "kind": "reachable",
+     "target": {
+      "R": 5,
+      "S": 0
+     }
+    },
+    "status": "proved"
+   },
+   {
+    "detail": "I + R + S is a P-invariant of the net and holds at the initial marking",
+    "evidence": "y*C = 0 for y = I + R + S; value at initial marking = 10",
+    "method": "structural",
+    "property": {
+     "expr": "S + I + R == 10",
+     "kind": "invariant"
+    },
+    "status": "proved"
+   },
+   {
+    "counterexample": {
+     "explanation": "S = 9 here, violating S <= 5",
+     "marking": {
+      "I": 1,
+      "R": 0,
+      "S": 9
+     },
+     "trace": null
+    },
+    "detail": "S <= 5 fails: S = 9 at a reachable marking",
+    "method": "exhaustive",
+    "property": {
+     "expr": "S <= 5",
+     "kind": "invariant"
+    },
+    "status": "refuted"
+   },
+   {
+    "counterexample": {
+     "explanation": "I + S = 10 here, violating I + S <= 2",
+     "marking": {
+      "I": 1,
+      "R": 0,
+      "S": 9
+     },
+     "trace": null
+    },
+    "detail": "I + S <= 2 fails: I + S = 10 at a reachable marking",
+    "method": "exhaustive",
+    "property": {
+     "bound": 2,
+     "kind": "mutual-exclusion",
+     "name": "mx",
+     "places": [
+      "S",
+      "I"
+     ]
+    },
+    "status": "refuted"
+   },
+   {
+    "detail": "unknown property kind \"bogus\"",
+    "method": "",
+    "property": {
+     "kind": "bogus"
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "could not parse expression: expression has no comparison operator (expected one of ==, !=, <=, >=, <, >): \"S +\"",
+    "method": "",
+    "property": {
+     "expr": "S +",
+     "kind": "invariant"
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "expression references places not in the net: Q",
+    "method": "",
+    "property": {
+     "expr": "Q >= 1",
+     "kind": "invariant"
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "property requires a target marking",
+    "method": "",
+    "property": {
+     "kind": "reachable"
+    },
+    "status": "unknown"
+   },
+   {
+    "detail": "unknown property kind \"\"",
+    "method": "",
+    "property": {
+     "kind": ""
+    },
+    "status": "unknown"
+   }
+  ]
+ },
+ "arguments": {
+  "properties": [
+   {
+    "kind": "reachable",
+    "target": {
+     "R": 10
+    }
+   },
+   {
+    "kind": "reachable",
+    "target": {
+     "R": 5,
+     "S": 0
+    }
+   },
+   {
+    "expr": "S + I + R == 10",
+    "kind": "invariant"
+   },
+   {
+    "expr": "S <= 5",
+    "kind": "invariant"
+   },
+   {
+    "bound": 2,
+    "kind": "mutual-exclusion",
+    "name": "mx",
+    "places": [
+     "S",
+     "I"
+    ]
+   },
+   {
+    "kind": "bogus"
+   },
+   {
+    "expr": "S +",
+    "kind": "invariant"
+   },
+   {
+    "expr": "Q >= 1",
+    "kind": "invariant"
+   },
+   {
+    "kind": "reachable"
+   },
+   null
+  ]
+ },
+ "net": "sir.jsonld",
+ "tool": "pflow_verify"
+}

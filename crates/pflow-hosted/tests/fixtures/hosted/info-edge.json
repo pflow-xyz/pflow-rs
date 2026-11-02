@@ -1,0 +1,122 @@
+{
+ "answer": {
+  "arcs": [
+   {
+    "inhibit": false,
+    "source": "a",
+    "target": "t",
+    "weight": [
+     0
+    ]
+   },
+   {
+    "inhibit": false,
+    "source": "t",
+    "target": "b",
+    "weight": [
+     1,
+     2
+    ]
+   },
+   {
+    "inhibit": true,
+    "source": "b",
+    "target": "u",
+    "weight": null
+   },
+   {
+    "inhibit": true,
+    "source": "u",
+    "target": "c",
+    "weight": null
+   },
+   {
+    "inhibit": false,
+    "source": "zz",
+    "target": "t",
+    "weight": null
+   },
+   {
+    "inhibit": false,
+    "source": "e",
+    "target": "v",
+    "weight": 2.7
+   }
+  ],
+  "colors": 1,
+  "enabled": [
+   "t"
+  ],
+  "marking": {
+   "a.c0": 5,
+   "a.c1": 0,
+   "b.c0": 1,
+   "b.c1": 2,
+   "c.c0": -1,
+   "c.c1": 0,
+   "d.c0": 0,
+   "d.c1": 0,
+   "e.c0": 0,
+   "e.c1": 0
+  },
+  "name": "edge",
+  "places": [
+   {
+    "capacity": [
+     2
+    ],
+    "id": "a",
+    "initial": [
+     5
+    ],
+    "label": 7
+   },
+   {
+    "capacity": [
+     0,
+     null
+    ],
+    "id": "b",
+    "initial": [
+     1.5,
+     "2"
+    ]
+   },
+   {
+    "capacity": null,
+    "id": "c",
+    "initial": -1
+   },
+   {
+    "capacity": null,
+    "id": "d",
+    "initial": null
+   },
+   {
+    "capacity": [
+     0
+    ],
+    "id": "e",
+    "initial": null
+   }
+  ],
+  "transitions": [
+   {
+    "id": "t",
+    "label": "T",
+    "rate": 1
+   },
+   {
+    "id": "u",
+    "rate": 1
+   },
+   {
+    "id": "v",
+    "rate": 1
+   }
+  ]
+ },
+ "arguments": {},
+ "net": "local/edge.json",
+ "tool": "pflow_info"
+}

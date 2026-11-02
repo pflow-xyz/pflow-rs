@@ -1,14 +1,17 @@
 #!/usr/bin/env node
-// Assemble @pflow-xyz/pflow-mcp: server.mjs + the wasm package's inline entry.
-//   node crates/pflow-wasm/mcp/build.mjs <built pflow-wasm package dir> <out dir>
-// `make wasm-mcp` runs wasm-npm first.
+// Assemble @pflow-xyz/pflow-mcp: server.mjs + two builds of the wasm engine's
+// inline entry: the browser package's (pflow-wasm.inline.js, embedded in
+// artifact_html's pages) and the `hosted` one (pflow-wasm-hosted.inline.js, the
+// pflow.xyz/mcp tools as well, which the server runs).
+//   node crates/pflow-wasm/mcp/build.mjs <pflow-wasm package dir> <out dir> <hosted engine package dir>
+// `make wasm-mcp` builds both first.
 import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const [wasmPkg, outDir] = process.argv.slice(2);
-if (!wasmPkg || !outDir) { console.error('usage: build.mjs <pflow-wasm package dir> <out dir>  (CHYP_PKG, ONTOLOGY_DIR override the sibling checkouts)'); process.exit(2); }
+const [wasmPkg, outDir, hostedPkg] = process.argv.slice(2);
+if (!wasmPkg || !outDir || !hostedPkg) { console.error('usage: build.mjs <pflow-wasm package dir> <out dir> <hosted engine package dir>  (CHYP_PKG, ONTOLOGY_DIR override the sibling checkouts)'); process.exit(2); }
 const here = dirname(fileURLToPath(import.meta.url));
 // The package's own version, independent of the workspace (pflow-wasm's) one:
 // the MCP surface changes on its own schedule. Bump it here; npm refuses a
@@ -18,7 +21,7 @@ const engineVersion = JSON.parse(readFileSync(join(wasmPkg, 'package.json'), 'ut
 
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
-for (const f of ['server.mjs', 'ontology.mjs', 'chyp.mjs']) copyFileSync(join(here, f), join(outDir, f));
+for (const f of ['server.mjs', 'ontology.mjs', 'chyp.mjs', 'hosted.mjs', 'hosted-tools.json']) copyFileSync(join(here, f), join(outDir, f));
 
 // chyp-rs: `make wasm` in the chyp-rs checkout builds pkg/. Apache-2.0, so its
 // LICENSE, NOTICE and THIRD-PARTY-NOTICES travel with it.
@@ -43,6 +46,7 @@ writeFileSync(join(outDir, 'ontology', 'meta.json'), JSON.stringify({
   license: 'CC0-1.0', source: 'https://ontology.pflow.xyz/ns#', snapshot: true,
 }, null, 2) + '\n');
 copyFileSync(join(wasmPkg, 'pflow-wasm.inline.js'), join(outDir, 'pflow-wasm.inline.js'));
+copyFileSync(join(hostedPkg, 'pflow-wasm.inline.js'), join(outDir, 'pflow-wasm-hosted.inline.js'));
 copyFileSync(join(wasmPkg, 'LICENSE'), join(outDir, 'LICENSE'));
 copyFileSync(join(here, 'README.md'), join(outDir, 'README.md'));
 writeFileSync(join(outDir, 'package.json'), JSON.stringify({
@@ -53,7 +57,7 @@ writeFileSync(join(outDir, 'package.json'), JSON.stringify({
   repository: { type: 'git', url: 'git+https://github.com/pflow-xyz/pflow-rs.git', directory: 'crates/pflow-wasm/mcp' },
   type: 'module',
   bin: { 'pflow-mcp': 'server.mjs' },
-  files: ['server.mjs', 'ontology.mjs', 'chyp.mjs', 'pflow-wasm.inline.js', 'chyp/', 'ontology/', 'LICENSE', 'README.md'],
+  files: ['server.mjs', 'ontology.mjs', 'chyp.mjs', 'hosted.mjs', 'hosted-tools.json', 'pflow-wasm.inline.js', 'pflow-wasm-hosted.inline.js', 'chyp/', 'ontology/', 'LICENSE', 'README.md'],
   engines: { node: '>=18' },
   dependencies: { '@modelcontextprotocol/sdk': '^1.0.0', n3: '^1.17.0', zod: '^3.23.0' },
   publishConfig: { access: 'public' },
