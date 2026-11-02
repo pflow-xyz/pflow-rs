@@ -90,6 +90,14 @@ fn run_sde(n: &WbNet, a: &Args) -> Result<Value, String> {
     let samples_for = |p: usize| if dt_samples > 0 { dt_samples } else { p };
     let start = n.start();
     check_tokens(&start, false)?;
+    if n.places.is_empty() {
+        // go-pflow's engine refuses a net with nothing to simulate (a
+        // composition passed as a net, say) rather than answer with no series.
+        let name = n.doc.get("name").and_then(Value::as_str).unwrap_or("");
+        return Err(format!(
+            "sde: model {name:?} has no token places to simulate"
+        ));
+    }
     let model = ssa_model(n, &start);
     // The refusal is the engine's: it reports a gated net as diverged with
     // no series, before running anything.

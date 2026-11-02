@@ -35,6 +35,20 @@ const CALLS = {
 const client = new Client({ name: 'crosscheck', version: '0' });
 await client.connect(new StdioClientTransport({ command: process.execPath, args: [join(dir, 'server.mjs')] }));
 
+// The hosted validate lists its issues in an order that varies between calls,
+// so its issue lists are compared as sets.
+const stable = (x) => (x && typeof x === 'object' && !Array.isArray(x)
+  ? `{${Object.keys(x).sort().map((k) => JSON.stringify(k) + ':' + stable(x[k])).join(',')}}`
+  : Array.isArray(x) ? `[${x.map(stable).join(',')}]` : JSON.stringify(x));
+const canon = (name, a) => {
+  if (name !== 'validate' || a.error) return a;
+  const v = { ...a.value };
+  for (const k of ['errors', 'warnings', 'info']) if (Array.isArray(v[k])) v[k] = v[k].map(stable).sort();
+  return { ...a, value: v };
+};
+// Documented differences (crates/pflow-hosted): a composition's CID is not
+// computed locally (cid refuses, export leaves cid out).
+const documented = (name, f) => /^bundle-/.test(f) && (name === 'cid' || name === 'export');
 const answer = (r) => ({ error: !!r.isError, value: r.isError ? r.content[0].text : JSON.parse(r.content[0].text) });
 const hosted = async (name, args) => {
   const res = await fetch(endpoint, {
@@ -49,7 +63,8 @@ const hosted = async (name, args) => {
 const local = async (name, args) => answer(await client.callTool({ name, arguments: args }));
 
 let failed = 0, passed = 0;
-for (const f of readdirSync(netsDir).filter((f) => /\.json(ld)?$/.test(f)).sort()) {
+// golden.json there is the CID contract, not a net.
+for (const f of readdirSync(netsDir).filter((f) => /\.json(ld)?$/.test(f) && f !== 'golden.json').sort()) {
   const net = JSON.parse(readFileSync(join(netsDir, f), 'utf8'));
   for (const [name, variants] of Object.entries(CALLS)) {
     for (const extra of variants) {
@@ -57,7 +72,8 @@ for (const f of readdirSync(netsDir).filter((f) => /\.json(ld)?$/.test(f)).sort(
       const [h, l] = await Promise.all([hosted(name, args), local(name, args)]);
       const label = `${name}${Object.keys(extra).length ? ' ' + JSON.stringify(extra) : ''} on ${f}`;
       if (h.error && l.error) { passed++; console.log(`ok   ${label}: both refuse`); continue; }
-      if (isDeepStrictEqual(h, l)) { passed++; console.log(`ok   ${label}`); continue; }
+      if (documented(name, f)) { console.log(`skip ${label}: documented difference`); continue; }
+      if (isDeepStrictEqual(canon(name, h), canon(name, l))) { passed++; console.log(`ok   ${label}`); continue; }
       failed++;
       console.log(`DIFF ${label}\n  hosted: ${JSON.stringify(h).slice(0, 400)}\n  local:  ${JSON.stringify(l).slice(0, 400)}`);
     }

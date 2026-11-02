@@ -1,5 +1,5 @@
 # The npm package @pflow-xyz/pflow-wasm. Everything else here is plain cargo.
-.PHONY: wasm-npm wasm-npm-test wasm-npm-publish wasm-mcp-engine wasm-mcp wasm-mcp-test wasm-mcp-crosscheck wasm-mcp-publish
+.PHONY: wasm-npm wasm-npm-test wasm-npm-publish wasm-mcp-engine wasm-mcp wasm-mcp-test wasm-mcp-crosscheck wasm-mcp-crosscheck-tools wasm-mcp-publish
 
 # Must equal the wasm-bindgen dependency in crates/pflow-wasm/Cargo.toml.
 WASM_BINDGEN_VERSION := 0.2.129
@@ -76,6 +76,13 @@ wasm-mcp-test: wasm-mcp
 wasm-mcp-crosscheck: wasm-mcp
 	cp crates/pflow-wasm/mcp/crosscheck-hosted.mjs $(MCP_OUT)/crosscheck.mjs
 	node $(MCP_OUT)/crosscheck.mjs $(MCP_OUT) crates/pflow-wasm/tests/reachability/nets; rc=$$?; rm -f $(MCP_OUT)/crosscheck.mjs; exit $$rc
+
+# Network: the hosted-tool ports (crates/pflow-hosted) against pflow.xyz/mcp, same
+# arguments, on crates/pflow-hosted/tests/fixtures/nets. Offline guard:
+# `cargo test -p pflow-hosted` (captured hosted answers and pflow-native goldens).
+wasm-mcp-crosscheck-tools: wasm-mcp
+	cp crates/pflow-wasm/mcp/crosscheck-tools.mjs $(MCP_OUT)/crosscheck-tools.mjs
+	node $(MCP_OUT)/crosscheck-tools.mjs $(MCP_OUT) crates/pflow-hosted/tests/fixtures/nets; rc=$$?; rm -f $(MCP_OUT)/crosscheck-tools.mjs; exit $$rc
 
 # Needs `npm login` as an owner of the @pflow-xyz scope. The package has its own
 # version (crates/pflow-wasm/mcp/build.mjs), and versions cannot be republished.

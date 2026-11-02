@@ -114,3 +114,10 @@ fn every_tool_is_listed() {
         assert!(pflow_hosted::TOOLS.contains(&tool));
     }
 }
+
+#[test]
+fn sde_refuses_a_net_with_no_token_places() {
+    let net = serde_json::json!({"@context": "https://pflow.xyz/schema", "@type": "PetriNetBundle", "name": "solo", "subnets": []});
+    let err = pflow_hosted::call("sde", &serde_json::json!({ "net": net })).unwrap_err();
+    assert_eq!(err, "sde: model \"solo\" has no token places to simulate");
+}
