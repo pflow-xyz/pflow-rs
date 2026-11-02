@@ -13,6 +13,8 @@
 //! goldens under `tests/fixtures/`); pflow-wasm's `hosted` feature exposes it
 //! to JavaScript as one function.
 
+mod bundle;
+
 use serde_json::Value;
 
 pub mod edit;
@@ -22,7 +24,18 @@ pub mod what_if;
 
 /// The tools [`call`] answers, by their local name (the hosted name without
 /// `pflow_`).
-pub const TOOLS: &[&str] = &["edit", "sde", "what_if"];
+pub const TOOLS: &[&str] = &[
+    "edit",
+    "sde",
+    "what_if",
+    "bundle_example",
+    "bundle_validate",
+    "bundle_add_link",
+    "bundle_candidates",
+    "bundle_flatten",
+    "bundle_run",
+    "bundle_incidence",
+];
 
 /// Runs one tool. `Err` is the tool's refusal, worded as the hosted tool's.
 pub fn call(tool: &str, args: &Value) -> Result<Value, String> {
@@ -30,6 +43,8 @@ pub fn call(tool: &str, args: &Value) -> Result<Value, String> {
         "edit" => edit::edit(args),
         "sde" => sde::run(args),
         "what_if" => what_if::run(args),
+        "bundle_example" | "bundle_validate" | "bundle_add_link" | "bundle_candidates"
+        | "bundle_flatten" | "bundle_run" | "bundle_incidence" => bundle::call(tool, args),
         _ => Err(format!("unknown tool {tool:?}")),
     }
 }

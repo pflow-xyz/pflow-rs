@@ -10,6 +10,7 @@ description = "The pflow.xyz/mcp tools' semantics and answer shapes over pflow-r
 publish = false
 
 [dependencies]
+pflow-compose = { path = "../pflow-compose" }
 pflow-core = { path = "../pflow-core" }
 pflow-metamodel = { path = "../pflow-metamodel" }
 pflow-parser = { path = "../pflow-parser" }
