@@ -15,12 +15,16 @@
 
 use serde_json::Value;
 
+pub mod edit;
+
 /// The tools [`call`] answers, by their local name (the hosted name without
 /// `pflow_`).
-pub const TOOLS: &[&str] = &[];
+pub const TOOLS: &[&str] = &["edit"];
 
 /// Runs one tool. `Err` is the tool's refusal, worded as the hosted tool's.
 pub fn call(tool: &str, args: &Value) -> Result<Value, String> {
-    let _ = args;
-    Err(format!("unknown tool {tool:?}"))
+    match tool {
+        "edit" => edit::edit(args),
+        _ => Err(format!("unknown tool {tool:?}")),
+    }
 }

@@ -1,0 +1,801 @@
+{
+ "build": {
+  "args": {
+   "ops": [
+    {
+     "op": "add_place",
+     "initial": 3,
+     "label": "beans"
+    },
+    {
+     "op": "add_place",
+     "id": "cups",
+     "capacity": 5
+    },
+    {
+     "op": "add_transition",
+     "id": "brew",
+     "rate": 0.5
+    },
+    {
+     "op": "add_transition"
+    },
+    {
+     "op": "add_arc",
+     "source": "p0",
+     "target": "brew"
+    },
+    {
+     "op": "add_arc",
+     "source": "brew",
+     "target": "cups",
+     "weight": 2
+    },
+    {
+     "op": "add_arc",
+     "source": "cups",
+     "target": "t0",
+     "inhibit": true
+    },
+    {
+     "op": "set_arc",
+     "source": "brew",
+     "target": "cups",
+     "weight": 1
+    },
+    {
+     "op": "add_tokens",
+     "id": "p0",
+     "delta": 2
+    },
+    {
+     "op": "set_rate",
+     "id": "t0",
+     "rate": 3
+    },
+    {
+     "op": "set_label",
+     "id": "t0",
+     "label": "drink"
+    },
+    {
+     "op": "rename",
+     "id": "t0",
+     "new_id": "drink"
+    },
+    {
+     "op": "move",
+     "id": "cups",
+     "x": 420.6,
+     "y": 99.4
+    },
+    {
+     "op": "set_details",
+     "name": "coffee",
+     "description": " a net "
+    },
+    {
+     "op": "set_place",
+     "id": "cups",
+     "initial": 1
+    }
+   ]
+  },
+  "expect": {
+   "applied": 15,
+   "cid": "z4EBG9jDt514CarZ5uW6RfqyGjXR94V62iKr3HQHRZW9ahnzWhJ",
+   "net": {
+    "@context": "https://pflow.xyz/schema",
+    "@type": "PetriNet",
+    "@version": "1.1",
+    "arcs": [
+     {
+      "@type": "Arrow",
+      "inhibitTransition": false,
+      "source": "p0",
+      "target": "brew",
+      "weight": [
+       1
+      ]
+     },
+     {
+      "@type": "Arrow",
+      "inhibitTransition": false,
+      "source": "brew",
+      "target": "cups",
+      "weight": [
+       1
+      ]
+     },
+     {
+      "@type": "Arrow",
+      "inhibitTransition": true,
+      "source": "cups",
+      "target": "drink",
+      "weight": [
+       1
+      ]
+     }
+    ],
+    "description": "a net",
+    "name": "coffee",
+    "places": {
+     "cups": {
+      "@type": "Place",
+      "capacity": [
+       5
+      ],
+      "initial": [
+       1
+      ],
+      "offset": 0,
+      "x": 421,
+      "y": 99
+     },
+     "p0": {
+      "@type": "Place",
+      "capacity": [
+       0
+      ],
+      "initial": [
+       5
+      ],
+      "label": "beans",
+      "offset": 0,
+      "x": 100,
+      "y": 100
+     }
+    },
+    "token": [
+     "https://pflow.xyz/tokens/black"
+    ],
+    "transitions": {
+     "brew": {
+      "@type": "Transition",
+      "rate": 0.5,
+      "x": 100,
+      "y": 250
+     },
+     "drink": {
+      "@type": "Transition",
+      "label": "drink",
+      "rate": 3,
+      "x": 250,
+      "y": 250
+     }
+    }
+   },
+   "results": [
+    {
+     "id": "p0"
+    },
+    {
+     "id": "cups"
+    },
+    {
+     "id": "brew"
+    },
+    {
+     "id": "t0"
+    },
+    {},
+    {},
+    {},
+    {},
+    {
+     "initial": [
+      5
+     ]
+    },
+    {},
+    {},
+    {
+     "id": "drink"
+    },
+    {},
+    {},
+    {}
+   ],
+   "summary": {
+    "arcs": 3,
+    "places": 2,
+    "transitions": 2
+   }
+  }
+ },
+ "delete": {
+  "args": {
+   "ops": [
+    {
+     "op": "add_place"
+    },
+    {
+     "op": "add_place"
+    },
+    {
+     "op": "add_transition"
+    },
+    {
+     "op": "add_arc",
+     "source": "p0",
+     "target": "t0"
+    },
+    {
+     "op": "add_arc",
+     "source": "t0",
+     "target": "p1"
+    },
+    {
+     "op": "delete",
+     "ids": [
+      "p1"
+     ]
+    },
+    {
+     "op": "delete_arc",
+     "source": "p0",
+     "target": "t0"
+    }
+   ]
+  },
+  "expect": {
+   "applied": 7,
+   "cid": "z4EBG9jGsF338pDb3LyouhsgP2X8mcvmVT3Xe232owqoHv5HwpM",
+   "net": {
+    "@context": "https://pflow.xyz/schema",
+    "@type": "PetriNet",
+    "@version": "1.1",
+    "arcs": [],
+    "places": {
+     "p0": {
+      "@type": "Place",
+      "capacity": [
+       0
+      ],
+      "initial": [
+       0
+      ],
+      "offset": 0,
+      "x": 100,
+      "y": 100
+     }
+    },
+    "token": [
+     "https://pflow.xyz/tokens/black"
+    ],
+    "transitions": {
+     "t0": {
+      "@type": "Transition",
+      "x": 100,
+      "y": 250
+     }
+    }
+   },
+   "results": [
+    {
+     "id": "p0"
+    },
+    {
+     "id": "p1"
+    },
+    {
+     "id": "t0"
+    },
+    {},
+    {},
+    {
+     "deleted": [
+      "p1"
+     ]
+    },
+    {}
+   ],
+   "summary": {
+    "arcs": 0,
+    "places": 1,
+    "transitions": 1
+   }
+  }
+ },
+ "grid": {
+  "args": {
+   "ops": [
+    {
+     "op": "add_place"
+    },
+    {
+     "op": "add_place"
+    },
+    {
+     "op": "add_place"
+    },
+    {
+     "op": "add_place"
+    },
+    {
+     "op": "add_place"
+    },
+    {
+     "op": "add_place"
+    },
+    {
+     "op": "add_place"
+    },
+    {
+     "op": "add_place"
+    },
+    {
+     "op": "add_transition"
+    },
+    {
+     "op": "add_transition"
+    },
+    {
+     "op": "add_transition"
+    },
+    {
+     "op": "add_transition"
+    },
+    {
+     "op": "add_transition"
+    },
+    {
+     "op": "add_transition"
+    },
+    {
+     "op": "add_transition"
+    }
+   ]
+  },
+  "expect": {
+   "applied": 15,
+   "cid": "z4EBG9jGboje5bqg7NE1wmjwS8EvZFeRg7bG2ouLmbs9wfvVoQ9",
+   "net": {
+    "@context": "https://pflow.xyz/schema",
+    "@type": "PetriNet",
+    "@version": "1.1",
+    "arcs": [],
+    "places": {
+     "p0": {
+      "@type": "Place",
+      "capacity": [
+       0
+      ],
+      "initial": [
+       0
+      ],
+      "offset": 0,
+      "x": 100,
+      "y": 100
+     },
+     "p1": {
+      "@type": "Place",
+      "capacity": [
+       0
+      ],
+      "initial": [
+       0
+      ],
+      "offset": 0,
+      "x": 250,
+      "y": 100
+     },
+     "p2": {
+      "@type": "Place",
+      "capacity": [
+       0
+      ],
+      "initial": [
+       0
+      ],
+      "offset": 0,
+      "x": 400,
+      "y": 100
+     },
+     "p3": {
+      "@type": "Place",
+      "capacity": [
+       0
+      ],
+      "initial": [
+       0
+      ],
+      "offset": 0,
+      "x": 550,
+      "y": 100
+     },
+     "p4": {
+      "@type": "Place",
+      "capacity": [
+       0
+      ],
+      "initial": [
+       0
+      ],
+      "offset": 0,
+      "x": 700,
+      "y": 100
+     },
+     "p5": {
+      "@type": "Place",
+      "capacity": [
+       0
+      ],
+      "initial": [
+       0
+      ],
+      "offset": 0,
+      "x": 850,
+      "y": 100
+     },
+     "p6": {
+      "@type": "Place",
+      "capacity": [
+       0
+      ],
+      "initial": [
+       0
+      ],
+      "offset": 0,
+      "x": 100,
+      "y": 400
+     },
+     "p7": {
+      "@type": "Place",
+      "capacity": [
+       0
+      ],
+      "initial": [
+       0
+      ],
+      "offset": 0,
+      "x": 250,
+      "y": 400
+     }
+    },
+    "token": [
+     "https://pflow.xyz/tokens/black"
+    ],
+    "transitions": {
+     "t0": {
+      "@type": "Transition",
+      "x": 100,
+      "y": 250
+     },
+     "t1": {
+      "@type": "Transition",
+      "x": 250,
+      "y": 250
+     },
+     "t2": {
+      "@type": "Transition",
+      "x": 400,
+      "y": 250
+     },
+     "t3": {
+      "@type": "Transition",
+      "x": 550,
+      "y": 250
+     },
+     "t4": {
+      "@type": "Transition",
+      "x": 700,
+      "y": 250
+     },
+     "t5": {
+      "@type": "Transition",
+      "x": 850,
+      "y": 250
+     },
+     "t6": {
+      "@type": "Transition",
+      "x": 100,
+      "y": 550
+     }
+    }
+   },
+   "results": [
+    {
+     "id": "p0"
+    },
+    {
+     "id": "p1"
+    },
+    {
+     "id": "p2"
+    },
+    {
+     "id": "p3"
+    },
+    {
+     "id": "p4"
+    },
+    {
+     "id": "p5"
+    },
+    {
+     "id": "p6"
+    },
+    {
+     "id": "p7"
+    },
+    {
+     "id": "t0"
+    },
+    {
+     "id": "t1"
+    },
+    {
+     "id": "t2"
+    },
+    {
+     "id": "t3"
+    },
+    {
+     "id": "t4"
+    },
+    {
+     "id": "t5"
+    },
+    {
+     "id": "t6"
+    }
+   ],
+   "summary": {
+    "arcs": 0,
+    "places": 8,
+    "transitions": 7
+   }
+  }
+ },
+ "err-dup-arc": {
+  "args": {
+   "ops": [
+    {
+     "op": "add_place"
+    },
+    {
+     "op": "add_transition"
+    },
+    {
+     "op": "add_arc",
+     "source": "p0",
+     "target": "t0"
+    },
+    {
+     "op": "add_arc",
+     "source": "p0",
+     "target": "t0"
+    }
+   ]
+  },
+  "error": "ops[3] (add_arc): there is already an arc p0 → t0; use set_arc"
+ },
+ "err-same-kind": {
+  "args": {
+   "ops": [
+    {
+     "op": "add_place"
+    },
+    {
+     "op": "add_place"
+    },
+    {
+     "op": "add_arc",
+     "source": "p0",
+     "target": "p1"
+    }
+   ]
+  },
+  "error": "ops[2] (add_arc): an arc joins a place and a transition; p0 and p1 are both places"
+ },
+ "err-capacity": {
+  "args": {
+   "ops": [
+    {
+     "op": "add_place",
+     "initial": 4,
+     "capacity": 3
+    }
+   ]
+  },
+  "error": "ops[0] (add_place): places.p0: 4 tokens exceed capacity 3"
+ },
+ "err-unknown-op": {
+  "args": {
+   "ops": [
+    {
+     "op": "explode"
+    }
+   ]
+  },
+  "error": "ops[0] (explode): unknown op \"explode\" (add_place, add_transition, add_arc, set_arc, delete_arc, set_place, add_tokens, set_rate, set_label, rename, move, delete, set_details)"
+ },
+ "err-rename-missing": {
+  "args": {
+   "ops": [
+    {
+     "op": "add_place"
+    },
+    {
+     "op": "rename",
+     "id": "p0"
+    }
+   ]
+  },
+  "error": "ops[1] (rename):  is not a usable id (non-empty, no spaces)"
+ },
+ "err-remove-too-many": {
+  "args": {
+   "ops": [
+    {
+     "op": "add_place",
+     "initial": 1
+    },
+    {
+     "op": "add_tokens",
+     "id": "p0",
+     "delta": -2
+    }
+   ]
+  },
+  "error": "ops[1] (add_tokens): p0 has 1 token(s); cannot remove 2"
+ },
+ "err-bad-id": {
+  "args": {
+   "ops": [
+    {
+     "op": "add_place",
+     "id": "a b"
+    }
+   ]
+  },
+  "error": "ops[0] (add_place): a b is not a usable id (non-empty, no spaces)"
+ },
+ "err-label": {
+  "args": {
+   "ops": [
+    {
+     "op": "add_transition",
+     "label": ""
+    }
+   ]
+  },
+  "error": "ops[0] (add_transition): label cannot be empty"
+ },
+ "err-initial": {
+  "args": {
+   "ops": [
+    {
+     "op": "add_place",
+     "initial": 1.5
+    }
+   ]
+  },
+  "error": "ops[0] (add_place): initial[0]: a whole number ≥ 0"
+ },
+ "err-wrong-kind": {
+  "args": {
+   "ops": [
+    {
+     "op": "add_place"
+    },
+    {
+     "op": "set_rate",
+     "id": "p0",
+     "rate": 1
+    }
+   ]
+  },
+  "error": "ops[1] (set_rate): \"p0\" is a place, not a transition"
+ },
+ "colored": {
+  "args": {
+   "net": {
+    "@context": "https://pflow.xyz/schema",
+    "@type": "PetriNet",
+    "token": [
+     "https://pflow.xyz/tokens/black",
+     "https://pflow.xyz/tokens/red"
+    ],
+    "places": {},
+    "transitions": {},
+    "arcs": []
+   },
+   "ops": [
+    {
+     "op": "add_place",
+     "initial": [
+      1
+     ]
+    },
+    {
+     "op": "add_transition"
+    },
+    {
+     "op": "add_arc",
+     "source": "p0",
+     "target": "t0",
+     "weight": [
+      0,
+      2
+     ]
+    },
+    {
+     "op": "add_tokens",
+     "id": "p0",
+     "color": 1,
+     "delta": 3
+    }
+   ]
+  },
+  "expect": {
+   "applied": 4,
+   "cid": "z4EBG9j9onFBza9oUEnfEFqMR5hMsGbPmkr491N8BjePQRBQf6L",
+   "net": {
+    "@context": "https://pflow.xyz/schema",
+    "@type": "PetriNet",
+    "@version": "1.1",
+    "arcs": [
+     {
+      "@type": "Arrow",
+      "inhibitTransition": false,
+      "source": "p0",
+      "target": "t0",
+      "weight": [
+       0,
+       2
+      ]
+     }
+    ],
+    "places": {
+     "p0": {
+      "@type": "Place",
+      "capacity": [
+       0,
+       0
+      ],
+      "initial": [
+       1,
+       3
+      ],
+      "offset": 0,
+      "x": 100,
+      "y": 100
+     }
+    },
+    "token": [
+     "https://pflow.xyz/tokens/black",
+     "https://pflow.xyz/tokens/red"
+    ],
+    "transitions": {
+     "t0": {
+      "@type": "Transition",
+      "x": 100,
+      "y": 250
+     }
+    }
+   },
+   "results": [
+    {
+     "id": "p0"
+    },
+    {
+     "id": "t0"
+    },
+    {},
+    {
+     "initial": [
+      1,
+      3
+     ]
+    }
+   ],
+   "summary": {
+    "arcs": 1,
+    "places": 1,
+    "transitions": 1
+   }
+  }
+ }
+}

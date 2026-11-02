@@ -14,6 +14,7 @@ pflow-core = { path = "../pflow-core" }
 pflow-metamodel = { path = "../pflow-metamodel" }
 pflow-parser = { path = "../pflow-parser" }
 pflow-solver = { path = "../pflow-solver" }
+pflow-tokenmodel = { path = "../pflow-tokenmodel" }
 serde = { version = "1", features = ["derive"] }
 # float_roundtrip: rates and markings arrive as JSON text; the stochastic
 # engines' byte-exact contract needs them read exactly.
