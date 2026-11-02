@@ -1,5 +1,5 @@
 # The npm package @pflow-xyz/pflow-wasm. Everything else here is plain cargo.
-.PHONY: wasm-npm wasm-npm-test wasm-npm-publish wasm-mcp wasm-mcp-test wasm-mcp-crosscheck wasm-mcp-publish
+.PHONY: wasm-npm wasm-npm-test wasm-npm-publish wasm-mcp-engine wasm-mcp wasm-mcp-test wasm-mcp-crosscheck wasm-mcp-publish
 
 # Must equal the wasm-bindgen dependency in crates/pflow-wasm/Cargo.toml.
 WASM_BINDGEN_VERSION := 0.2.129
@@ -42,9 +42,27 @@ wasm-npm-publish: wasm-npm-test
 	cd $(NPM_OUT) && npm publish --access public
 
 # @pflow-xyz/pflow-mcp: the wasm engine as a stdio MCP server, `npx`-able.
+# It ships two builds of the engine: the browser package's (embedded in the
+# pages artifact_html writes, so they stay small) and one with the `hosted`
+# feature (the pflow.xyz/mcp tools, crates/pflow-hosted), which the server runs.
+# The hosted build has its own target dir so the two do not rebuild each other.
 MCP_OUT := target/npm/pflow-mcp
-wasm-mcp: wasm-npm
-	node crates/pflow-wasm/mcp/build.mjs $(NPM_OUT) $(MCP_OUT)
+MCP_TARGET_DIR := target/wasm-mcp-build
+MCP_WASM_BUILD := $(MCP_TARGET_DIR)/wasm32-unknown-unknown/wasm-release/pflow_wasm.wasm
+MCP_BINDGEN_OUT := target/wasm-bindgen-mcp
+MCP_ENGINE_OUT := target/npm/pflow-wasm-hosted
+wasm-mcp-engine:
+	@wasm-bindgen --version | grep -qx 'wasm-bindgen $(WASM_BINDGEN_VERSION)' || { \
+	  echo 'need: cargo install wasm-bindgen-cli --version $(WASM_BINDGEN_VERSION) --locked'; exit 1; }
+	cargo build --profile wasm-release -p pflow-wasm --features hosted --target wasm32-unknown-unknown --target-dir $(MCP_TARGET_DIR)
+	wasm-bindgen --target web --out-dir $(MCP_BINDGEN_OUT) --out-name pflow-wasm $(MCP_WASM_BUILD)
+	npx --yes --package=binaryen@$(BINARYEN_VERSION) -- wasm-opt -O1 $(WASM_FEATURES) \
+	  --strip-debug --strip-producers \
+	  -o $(MCP_BINDGEN_OUT)/pflow-wasm_bg.opt.wasm $(MCP_BINDGEN_OUT)/pflow-wasm_bg.wasm
+	node crates/pflow-wasm/npm/build.mjs $(MCP_BINDGEN_OUT) $(MCP_BINDGEN_OUT)/pflow-wasm_bg.opt.wasm $(MCP_ENGINE_OUT)
+
+wasm-mcp: wasm-npm wasm-mcp-engine
+	node crates/pflow-wasm/mcp/build.mjs $(NPM_OUT) $(MCP_OUT) $(MCP_ENGINE_OUT)
 	cd $(MCP_OUT) && npm install --omit=dev --no-audit --no-fund --package-lock=false
 
 wasm-mcp-test: wasm-mcp

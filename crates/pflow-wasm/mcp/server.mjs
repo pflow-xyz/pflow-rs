@@ -11,7 +11,9 @@ import { z } from 'zod';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import init, { Net } from './pflow-wasm.inline.js';
+// The engine with the pflow.xyz/mcp tools built in (make wasm-mcp-engine). The
+// browser build, ./pflow-wasm.inline.js, is only read as text for artifact_html.
+import init, { Net, hosted } from './pflow-wasm-hosted.inline.js';
 
 await init();
 
@@ -63,8 +65,13 @@ tool('load_net',
 tool('list_nets', 'List loaded nets.', {},
   () => ({ current: last, nets: [...nets.keys()] }));
 
-tool('state', 'Places, transitions, current marking and enabled transitions.',
-  { net: netName }, ({ net }) => snapshot(get(net)));
+tool('state',
+  'Places, transitions, current marking and enabled transitions. For a pflow.xyz (JSON-LD) net, `info` adds the hosted pflow_info summary: name, colours, each place (initial, capacity, label), transition (rate, label) and arc; its marking and enabled are the initial ones.',
+  { net: netName }, ({ net }) => {
+    const out = snapshot(get(net));
+    try { out.info = hosted('info', { net: models.get(net ?? last) }); } catch { /* not a JSON-LD net: no summary */ }
+    return out;
+  });
 
 tool('fire', 'Fire one enabled transition and return the new marking. Errors say why it is not enabled.',
   { transition: z.string(), net: netName },
@@ -218,7 +225,9 @@ tool('artifact_html',
 
 import { register as registerOntology } from './ontology.mjs';
 import { register as registerChyp } from './chyp.mjs';
+import { register as registerHosted } from './hosted.mjs';
 registerOntology(tool);
 registerChyp(tool);
+registerHosted(tool, { hosted, models, last: () => last });
 
 await server.connect(new StdioServerTransport());
