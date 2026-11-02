@@ -24,6 +24,7 @@ members = [
     "crates/pflow-results",
     "crates/pflow-visualization",
     "crates/pflow-wasm",
+    "crates/pflow-hosted",
 ]
 
 [workspace.package]
