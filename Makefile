@@ -1,5 +1,5 @@
 # The npm package @pflow-xyz/pflow-wasm. Everything else here is plain cargo.
-.PHONY: wasm-npm wasm-npm-test wasm-npm-publish
+.PHONY: wasm-npm wasm-npm-test wasm-npm-publish wasm-mcp wasm-mcp-test wasm-mcp-publish
 
 # Must equal the wasm-bindgen dependency in crates/pflow-wasm/Cargo.toml.
 WASM_BINDGEN_VERSION := 0.2.129
@@ -40,3 +40,19 @@ wasm-npm-test: wasm-npm
 # republished: bump [workspace.package] version in Cargo.toml first.
 wasm-npm-publish: wasm-npm-test
 	cd $(NPM_OUT) && npm publish --access public
+
+# @pflow-xyz/pflow-mcp: the wasm engine as a stdio MCP server, `npx`-able.
+MCP_OUT := target/npm/pflow-mcp
+wasm-mcp: wasm-npm
+	node crates/pflow-wasm/mcp/build.mjs $(NPM_OUT) $(MCP_OUT)
+	cd $(MCP_OUT) && npm install --omit=dev --no-audit --no-fund --package-lock=false
+
+wasm-mcp-test: wasm-mcp
+	cp crates/pflow-wasm/mcp/test.mjs $(MCP_OUT)/test.mjs   # resolves the SDK from the package's node_modules
+	node $(MCP_OUT)/test.mjs $(MCP_OUT); rc=$$?; rm -f $(MCP_OUT)/test.mjs; exit $$rc
+	cd $(MCP_OUT) && npm pack --dry-run 2>&1 | grep -E 'total files|package size|unpacked'
+
+# Needs `npm login` as an owner of the @pflow-xyz scope. Publish wasm-npm first or together:
+# the version is the workspace version, and versions cannot be republished.
+wasm-mcp-publish: wasm-mcp-test
+	cd $(MCP_OUT) && npm publish --access public
