@@ -134,7 +134,7 @@ const net=new Net(MODEL);
 const places=net.places();
 function render(){
   const m=net.marking(), en=new Set(net.enabled());
-  $('marks').innerHTML=places.map(p=>'<div class="mark"><b>'+m[p]+'</b><span>'+p+'</span></div>').join('');
+  $('marks').innerHTML=places.map(p=>'<div class="mark"><b>'+m[p]+'</b><span>'+esc(p)+'</span></div>').join('');
   $('tx').innerHTML='';
   for(const t of net.transitions()){const b=document.createElement('button');b.textContent=t;b.disabled=!en.has(t);
     b.onclick=()=>{try{net.fire(t);$('log').textContent='fired '+t}catch(e){$('log').textContent=String(e.message||e)}render()};$('tx').appendChild(b)}
