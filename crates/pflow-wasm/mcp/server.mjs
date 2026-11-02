@@ -1,0 +1,203 @@
+#!/usr/bin/env node
+// pflow-mcp: the pflow-rs Petri net engine (compiled to WebAssembly) as a local
+// MCP server over stdio. No native build, no network after install.
+//
+//   npx @pflow-xyz/pflow-mcp
+//
+// Nets live in memory for the life of the process, keyed by name.
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { z } from 'zod';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import init, { Net, version } from './pflow-wasm.inline.js';
+
+await init();
+
+const nets = new Map();
+const models = new Map(); // name -> model object, for artifact_html
+let last = null;
+
+const server = new McpServer({ name: 'pflow-mcp', version: version() });
+
+const ok = (value) => ({ content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] });
+const fail = (e) => ({ isError: true, content: [{ type: 'text', text: String(e?.message ?? e) }] });
+const get = (name) => {
+  const key = name ?? last;
+  if (key == null) throw new Error('no net loaded: call load_net first');
+  const net = nets.get(key);
+  if (!net) throw new Error(`no net named "${key}"; loaded: ${[...nets.keys()].join(', ') || 'none'}`);
+  return net;
+};
+const tool = (name, description, shape, fn) =>
+  server.registerTool(name, { description, inputSchema: shape }, async (args) => {
+    try { return ok(await fn(args)); } catch (e) { return fail(e); }
+  });
+
+const netName = z.string().optional().describe('Net name; defaults to the most recently loaded');
+const rates = z.record(z.string(), z.number()).optional().describe('Per-transition rate overrides');
+
+const snapshot = (net) => ({
+  places: net.places(), transitions: net.transitions(),
+  marking: net.marking(), enabled: net.enabled(),
+});
+
+tool('load_net',
+  'Load a Petri net (pflow.xyz JSON). Replaces any net with the same name. Nets with guards, stages or rate schedules are refused.',
+  { model: z.union([z.string(), z.record(z.string(), z.any())]).describe('The net as a JSON object or JSON text'),
+    name: z.string().optional().describe('Name to keep it under; defaults to the model name, else "net"') },
+  ({ model, name }) => {
+    const net = new Net(model);
+    const obj = typeof model === 'string' ? JSON.parse(model) : model;
+    const key = name ?? obj?.name ?? 'net';
+    nets.get(key)?.free?.();
+    nets.set(key, net);
+    models.set(key, obj);
+    last = key;
+    return { name: key, ...snapshot(net) };
+  });
+
+tool('list_nets', 'List loaded nets.', {},
+  () => ({ current: last, nets: [...nets.keys()] }));
+
+tool('state', 'Places, transitions, current marking and enabled transitions.',
+  { net: netName }, ({ net }) => snapshot(get(net)));
+
+tool('fire', 'Fire one enabled transition and return the new marking. Errors say why it is not enabled.',
+  { transition: z.string(), net: netName },
+  ({ transition, net }) => {
+    const n = get(net);
+    const marking = n.fire(transition);
+    return { marking, enabled: n.enabled() };
+  });
+
+tool('reset', 'Return a net to its initial marking.', { net: netName },
+  ({ net }) => { const n = get(net); n.reset(); return snapshot(n); });
+
+tool('simulate',
+  'Deterministic mass-action ODE (Tsit5) from the current marking. Does not move the marking.',
+  { net: netName,
+    tEnd: z.number().optional().describe('End time (default 100)'),
+    maxPoints: z.number().int().optional().describe('Max samples (default 200)'),
+    rates,
+    contextual: z.enum(['refuse', 'selfloop', 'drop']).optional()
+      .describe('How read and inhibitor arcs are treated (default refuse)') },
+  ({ net, ...options }) => get(net).simulate(options));
+
+tool('stochastic',
+  'Gillespie SSA from the current marking; byte-exact with go-pflow at the same seed. Does not move the marking.',
+  { net: netName,
+    horizon: z.number().optional().describe('End time (default 10)'),
+    samples: z.number().int().optional().describe('Time samples (default 101)'),
+    realizations: z.number().int().optional().describe('Ensemble size (default 1)'),
+    seed: z.number().int().optional().describe('RNG seed (default 1)'),
+    rates },
+  ({ net, ...options }) => get(net).stochastic(options));
+
+
+// ---- artifact_html -------------------------------------------------------
+
+// The wasm package's inline entry is an ES module; strip its exports so it can
+// sit in a page's own <script type="module"> with no import and no fetch.
+const engineSource = () =>
+  readFileSync(new URL('./pflow-wasm.inline.js', import.meta.url), 'utf8')
+    .replace(/^export default function init/m, 'function init')
+    .replace(/^export class Net/m, 'class Net')
+    .replace(/^export function version/m, 'function version')
+    .replace(/^export \{ syncInit as initSync \};\s*$/m, '')
+    .replace(/<\/script/gi, '<\\/script');
+
+const PAGE_CSS = `
+:root{--bg:#fff;--fg:#1c1c1e;--mut:#6b6b70;--line:#d8d8dc;--acc:#2563eb;--card:#f6f6f8}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#16161a;--fg:#ececf0;--mut:#9a9aa3;--line:#33333a;--acc:#6ea0ff;--card:#202026}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}
+main{max-width:860px;margin:0 auto;padding:20px 16px}h1{font-size:20px;margin:0 0 12px}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin:0 0 14px}
+h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:0 0 10px}
+.marks{display:flex;flex-wrap:wrap;gap:8px}.mark{border:1px solid var(--line);border-radius:8px;padding:6px 12px;background:var(--bg)}
+.mark b{font-size:20px;display:block;line-height:1.1}.mark span{color:var(--mut);font-size:12px}
+button{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;margin:0 6px 6px 0}
+button:hover:not(:disabled){border-color:var(--acc);color:var(--acc)}button:disabled{opacity:.4;cursor:default}
+label{margin-right:12px;color:var(--mut);font-size:13px}input{font:inherit;width:70px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:3px 6px}
+svg{width:100%;height:auto;display:block}.leg{display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:var(--mut);margin-top:6px}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px}#log{color:var(--mut);font-size:13px;min-height:1.4em}
+`;
+
+const PAGE_JS = `
+const COLORS=['#2563eb','#dc2626','#16a34a','#d97706','#9333ea','#0891b2','#be185d','#65a30d'];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const num=(id,d)=>{const v=$(id).value;return v===''||isNaN(+v)?d:+v};
+await init();
+const net=new Net(MODEL);
+const places=net.places();
+function render(){
+  const m=net.marking(), en=new Set(net.enabled());
+  $('marks').innerHTML=places.map(p=>'<div class="mark"><b>'+m[p]+'</b><span>'+p+'</span></div>').join('');
+  $('tx').innerHTML='';
+  for(const t of net.transitions()){const b=document.createElement('button');b.textContent=t;b.disabled=!en.has(t);
+    b.onclick=()=>{try{net.fire(t);$('log').textContent='fired '+t}catch(e){$('log').textContent=String(e.message||e)}render()};$('tx').appendChild(b)}
+}
+function chart(res){
+  const W=800,H=300,L=44,B=28,T=8,R=8,ts=res.times;
+  let max=0;for(const p of places)for(const v of (res.series[p].values||res.series[p]))max=Math.max(max,v);max=max||1;
+  const x=t=>L+(t-ts[0])/((ts[ts.length-1]-ts[0])||1)*(W-L-R), y=v=>T+(1-v/max)*(H-T-B);
+  let s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="token counts over time">';
+  for(let i=0;i<=4;i++){const v=max*i/4,yy=y(v);s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+yy+'" y2="'+yy+'" stroke="var(--line)"/><text x="'+(L-6)+'" y="'+(yy+4)+'" text-anchor="end" font-size="11" fill="var(--mut)">'+(+v.toFixed(2))+'</text>'}
+  for(const i of [0,.5,1]){const t=ts[0]+(ts[ts.length-1]-ts[0])*i;s+='<text x="'+x(t)+'" y="'+(H-8)+'" text-anchor="middle" font-size="11" fill="var(--mut)">'+(+t.toFixed(2))+'</text>'}
+  places.forEach((p,k)=>{const vals=res.series[p].values||res.series[p];
+    s+='<polyline fill="none" stroke="'+COLORS[k%8]+'" stroke-width="2" points="'+vals.map((v,i)=>x(ts[i]).toFixed(1)+','+y(v).toFixed(1)).join(' ')+'"/>'});
+  $('chart').innerHTML=s+'</svg>';
+  $('legend').innerHTML=places.map((p,k)=>'<span><i class="sw" style="background:'+COLORS[k%8]+'"></i>'+esc(p)+'</span>').join('');
+}
+function run(kind){
+  const t=num('t',10);
+  try{chart(kind==='ode'?net.simulate({tEnd:t,maxPoints:120}):net.stochastic({horizon:t,samples:120,realizations:num('n',1),seed:num('seed',1)}));$('log').textContent=kind==='ode'?'ODE from current marking':'SSA from current marking'}
+  catch(e){$('log').textContent=String(e.message||e)}
+}
+$('reset').onclick=()=>{net.reset();render();run('ode')};
+$('ode').onclick=()=>run('ode');$('ssa').onclick=()=>run('ssa');
+render();run('ode');
+`;
+
+const buildPage = (title, model) => `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${title.replace(/[<&]/g, '')}</title><style>${PAGE_CSS}</style></head><body><main>
+<h1>${title.replace(/[<&]/g, '')}</h1>
+<section><h2>Marking</h2><div class="marks" id="marks"></div></section>
+<section><h2>Fire</h2><div id="tx"></div><button id="reset">Reset</button><div id="log"></div></section>
+<section><h2>Over time</h2>
+<label>t <input id="t" type="number" value="10"></label><label>runs <input id="n" type="number" value="20"></label><label>seed <input id="seed" type="number" value="1"></label>
+<div style="margin-top:8px"><button id="ode">Run ODE</button><button id="ssa">Run SSA</button></div>
+<div id="chart"></div><div class="leg" id="legend"></div></section>
+</main>
+<script type="module">
+${engineSource()}
+const MODEL=${JSON.stringify(model).replace(/</g, '\\u003c')};
+${PAGE_JS}
+</script></body></html>
+`;
+
+tool('artifact_html',
+  'Write a self-contained interactive HTML page for a loaded net: click-to-fire token game plus ODE/SSA charts. The pflow WebAssembly engine is embedded, so the page makes no network requests and runs inside a sandboxed artifact. Returns the file path; publish that file as an artifact (the HTML is not returned inline: it is ~250 KB).',
+  { net: netName,
+    title: z.string().optional().describe('Page title (default: the net name)'),
+    path: z.string().optional().describe('Where to write it (default: a temp file)'),
+    inline: z.boolean().optional().describe('Also return the HTML text. Large; off by default.') },
+  ({ net, title, path, inline }) => {
+    const key = net ?? last;
+    get(net);
+    const model = models.get(key);
+    const html = buildPage(title ?? model?.name ?? key, model);
+    const file = path ?? join(tmpdir(), `pflow-${String(key).replace(/[^\w.-]+/g, '_')}.html`);
+    writeFileSync(file, html);
+    return { path: file, bytes: html.length, ...(inline ? { html } : {}) };
+  });
+
+import { register as registerOntology } from './ontology.mjs';
+import { register as registerChyp } from './chyp.mjs';
+registerOntology(tool);
+registerChyp(tool);
+
+await server.connect(new StdioServerTransport());
