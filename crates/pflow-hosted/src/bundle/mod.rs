@@ -21,6 +21,7 @@
 
 mod catalog;
 mod flatnet;
+mod parts;
 mod proof;
 mod read;
 mod rules;
@@ -81,6 +82,7 @@ pub fn call(tool: &str, args: &Value) -> Result<Value, String> {
         "bundle_run" => run,
         "bundle_incidence" => incidence,
         "bundle_net" => net,
+        "bundle_parts" => parts_tool,
         "bundle_prove" => prove,
         "bundle_check_proof" => check_proof,
         _ => return Err(format!("unknown tool {tool:?}")),
@@ -168,6 +170,32 @@ fn net(a: &Map<String, Value>) -> Result<Value, String> {
             }))
         }
     }
+}
+
+const PARTS_KINDS: &[(&str, Kind)] = &[("instances", Kind::Any), ("links", Kind::Any)];
+
+/// `bundle_parts`: the larger catalog, and a composition built from it.
+fn parts_tool(a: &Map<String, Value>) -> Result<Value, String> {
+    const TOOL: &str = "pflow_bundle_parts";
+    read::check_args(TOOL, a, PARTS_KINDS)?;
+    let list = |k: &str| -> Result<Vec<Value>, String> {
+        match a.get(k) {
+            None | Some(Value::Null) => Ok(vec![]),
+            Some(Value::Array(l)) => Ok(l.clone()),
+            Some(other) => Err(format!("{TOOL}: {k} must be an array, got {}", text::json(other))),
+        }
+    };
+    let (instances, links) = (list("instances")?, list("links")?);
+    if instances.len() > MAX_SUBNETS {
+        return Err(format!("{TOOL}: {} instances; at most {MAX_SUBNETS}", instances.len()));
+    }
+    if links.len() > MAX_LINKS {
+        return Err(format!("{TOOL}: {} links; at most {MAX_LINKS}", links.len()));
+    }
+    if instances.is_empty() && !a.contains_key("instances") {
+        return Ok(parts::catalog_view());
+    }
+    parts::open(&instances, &links).map_err(|e| refuse(TOOL, e))
 }
 
 const PROVE_KINDS: &[(&str, Kind)] = &[

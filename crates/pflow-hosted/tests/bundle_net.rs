@@ -103,8 +103,9 @@ fn the_default_composite_is_consistent_and_its_record_checks() {
 fn fusing_two_queues_breaks_a_declared_law_with_a_counterexample() {
     let b = example(json!(["orders", "orders2"]), json!([tok("orders", "out", "orders2", "in")]));
     let p = prove(&b);
-    assert_eq!(p["verdict"]["status"], "inconsistent");
-    assert_eq!(p["links"][0]["verdict"], "fail");
+    // the law is false as stated, but the composite conserves the larger sum: a warning, explained
+    assert_eq!(p["verdict"]["status"], "needs_attention");
+    assert_eq!(p["links"][0]["verdict"], "warn");
     let broken: Vec<&Value> = p["laws"].as_array().unwrap().iter().filter(|l| l["holds_on_reachable"] == "refuted").collect();
     assert_eq!(broken.len(), 2);
     // the law is explained: it is half of a larger conserved sum
@@ -112,6 +113,36 @@ fn fusing_two_queues_breaks_a_declared_law_with_a_counterexample() {
     assert!(broken[0]["extended_by"]["z"].is_object());
     assert!(broken[0]["counterexample"]["trace"].is_array());
     assert_eq!(check(&b, &p)["valid"], true);
+}
+
+#[test]
+fn a_law_nothing_accounts_for_is_a_failure() {
+    // a bucket refills from nowhere and admits to nowhere: the pool's sum is not part of any larger one
+    let b = call(
+        "bundle_parts",
+        &json!({"instances": [{"id": "pool", "part": "resource-pool"}, {"id": "limiter", "part": "token_bucket"}],
+                "links": [tok("limiter", "tokens", "pool", "available")]}),
+    )
+    .unwrap()["bundle"]
+        .clone();
+    let p = prove(&b);
+    assert_eq!(p["verdict"]["status"], "inconsistent", "{}", p["says"]);
+    assert_eq!(p["links"][0]["verdict"], "fail");
+    assert_eq!(check(&b, &p)["valid"], true);
+}
+
+#[test]
+fn a_finishing_part_explains_the_dead_marking_it_brings() {
+    let b = call(
+        "bundle_parts",
+        &json!({"instances": [{"id": "q", "part": "queue"}, {"id": "pay", "part": "saga"}],
+                "links": [{"kind":"event","from":{"subnet":"q","port":"dequeue"},"to":{"subnet":"pay","port":"do:reserve"}}]}),
+    )
+    .unwrap()["bundle"]
+        .clone();
+    let p = prove(&b);
+    assert_eq!(p["links"][0]["effect"]["introduces_deadlock"], true);
+    assert_eq!(p["links"][0]["verdict"], "explained", "{}", p["links"][0]["findings"]);
 }
 
 #[test]
@@ -173,4 +204,34 @@ fn arguments_are_checked() {
     assert!(call("bundle_prove", &json!({"bundle": b, "max_states": 0})).unwrap_err().contains("max_states"));
     assert!(call("bundle_prove", &json!({"bundle": b, "nope": 1})).unwrap_err().contains("unknown argument"));
     assert!(call("bundle_check_proof", &json!({"bundle": b})).unwrap_err().contains("proof"));
+}
+
+#[test]
+fn the_catalog_lists_every_part_and_its_joins_prove_and_recheck() {
+    let cat = call("bundle_parts", &json!({})).unwrap();
+    let parts = cat["parts"].as_array().unwrap();
+    assert_eq!(parts.len(), 13);
+    let mut joins = 0;
+    for p in parts {
+        assert_eq!(p["available"], true, "{p}");
+        for j in p["joins"].as_array().unwrap() {
+            joins += 1;
+            let (op, oport) = j["with"].as_str().unwrap().split_once('.').unwrap();
+            let this = p["part"].as_str().unwrap();
+            let (from, to) = if j["direction"] == "this → other" {
+                ((this, j["this"].as_str().unwrap()), (op, oport))
+            } else {
+                ((op, oport), (this, j["this"].as_str().unwrap()))
+            };
+            let (a, b) = if this == op { ("x", "y") } else { (this, op) };
+            let link = json!({"kind": j["kind"], "from": {"subnet": if from.0 == this { a } else { b }, "port": from.1}, "to": {"subnet": if to.0 == this { a } else { b }, "port": to.1}});
+            let r = call("bundle_parts", &json!({"instances": [{"id": a, "part": this}, {"id": b, "part": op}], "links": [link]})).unwrap_or_else(|e| panic!("{this} {j}: {e}"));
+            let bundle = r["bundle"].clone();
+            let pr = prove(&bundle);
+            println!("{this}.{} ~ {} [{}] -> {} | {}", j["this"], j["with"], j["kind"], pr["verdict"]["status"], pr["links"][0]["findings"].as_array().unwrap().iter().map(|f| f["says"].as_str().unwrap().to_string()).collect::<Vec<_>>().join(" / "));
+            let c = check(&bundle, &pr);
+            assert_eq!(c["valid"], true, "{this} {j}: {}", c["failed"]);
+        }
+    }
+    assert!(joins >= 15, "{joins}");
 }

@@ -456,6 +456,12 @@ pub fn prove(b: &Bundle, o: &Opts, tool: &str) -> Result<Value, String> {
     claims.push(live_claim(&whole));
 
     // ---- links
+    // which parts end on their own (a saga completes): their dead markings are intended
+    let terminating: HashMap<&str, bool> = b
+        .subnets
+        .iter()
+        .map(|sn| (sn.id.as_str(), search(&sn.model, o).deadlock_free == Verdict::False))
+        .collect();
     let mut link_views = vec![];
     let ablate = o.ablate && b.links.len() <= MAX_ABLATED;
     for (i, l) in b.links.iter().enumerate() {
@@ -521,9 +527,11 @@ pub fn prove(b: &Bundle, o: &Opts, tool: &str) -> Result<Value, String> {
                 continue;
             }
             if holds == "refuted" {
-                bump(&mut level, 3);
+                // a falsified declared law is a failure unless the composite
+                // conserves a larger law of which it is the part's share
+                bump(&mut level, if status == "extended" { 2 } else { 3 });
                 let ts: Vec<&str> = v["residual"].as_object().map(|o| o.keys().map(String::as_str).collect()).unwrap_or_default();
-                let tail = if status == "extended" { ", though the composite does conserve the larger law the record names" } else { "" };
+                let tail = if status == "extended" { ", though the composite does conserve the larger law the record names (the token link shares the place, so each part's sum is only part of the whole)" } else { "" };
                 findings.push(json!({"code": "law_broken", "law": v["id"], "says": format!("{part}'s declared law {law} is false in a reachable marking of the composite (moved by {}){tail}; the record has a replayable counterexample", ts.join(", "))}));
             } else if status == "extended" {
                 bump(&mut level, 1);
@@ -551,8 +559,19 @@ pub fn prove(b: &Bundle, o: &Opts, tool: &str) -> Result<Value, String> {
                 e.insert("deadlock_free_with".into(), json!(verdict_str(whole.deadlock_free)));
                 let intro_dead = whole.deadlock_free == Verdict::False && s0.deadlock_free == Verdict::True;
                 if intro_dead {
-                    bump(&mut level, 3);
-                    findings.push(json!({"code": "introduces_deadlock", "says": "the composite can reach a dead marking and, without this link, it cannot; the witness is in the deadlock claim"}));
+                    // a part that finishes on its own (a saga) ends the composite on purpose
+                    let finishing: Vec<&str> = [&l.from.subnet, &l.to.subnet]
+                        .into_iter()
+                        .filter(|id| terminating.get(id.as_str()).copied().unwrap_or(false))
+                        .map(String::as_str)
+                        .collect();
+                    if finishing.is_empty() {
+                        bump(&mut level, 3);
+                        findings.push(json!({"code": "introduces_deadlock", "says": "the composite can reach a dead marking and, without this link, it cannot; neither joined part ends on its own, so this is a stuck state; the witness is in the deadlock claim"}));
+                    } else {
+                        bump(&mut level, 1);
+                        findings.push(json!({"code": "deadlock_explained", "says": format!("the composite can reach a dead marking and, without this link, it cannot; {} reaches a dead marking on its own (it finishes), so the composite finishes with it", finishing.join(" and "))}));
+                    }
                 }
                 let heals = whole.deadlock_free == Verdict::True && s0.deadlock_free == Verdict::False;
                 if heals {
@@ -630,7 +649,9 @@ pub fn prove(b: &Bundle, o: &Opts, tool: &str) -> Result<Value, String> {
         "inconsistent"
     } else if unknowns > 0 && !whole.complete {
         "inconclusive"
-    } else if count("warn") + count("explained") > 0 {
+    } else if count("warn") > 0 {
+        "needs_attention"
+    } else if count("explained") > 0 {
         "consistent_with_notes"
     } else {
         "consistent"

@@ -47,6 +47,7 @@ pub const TOOLS: &[&str] = &[
     "bundle_run",
     "bundle_incidence",
     "bundle_net",
+    "bundle_parts",
     "bundle_prove",
     "bundle_check_proof",
     "check",
@@ -66,7 +67,7 @@ pub fn call(tool: &str, args: &Value) -> Result<Value, String> {
         "sde" => sde::run(args),
         "what_if" => what_if::run(args),
         "bundle_example" | "bundle_validate" | "bundle_add_link" | "bundle_candidates"
-        | "bundle_flatten" | "bundle_run" | "bundle_incidence" | "bundle_net" | "bundle_prove" | "bundle_check_proof" => bundle::call(tool, args),
+        | "bundle_flatten" | "bundle_run" | "bundle_incidence" | "bundle_net" | "bundle_parts" | "bundle_prove" | "bundle_check_proof" => bundle::call(tool, args),
         "check" => check::run(args),
         "cid" => cid::run(args),
         "incidence" => incidence::run(args),
