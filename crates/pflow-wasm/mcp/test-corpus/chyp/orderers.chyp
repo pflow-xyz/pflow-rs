@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 the chyp-rs contributors. New in chyp-rs.
+#
+# Orderers form a monoid under chaining.
+#
+# Source: ontology-pflow-xyz ROADMAP.md, Phase 6 "Search composition":
+#   "Orderers: a monoid under chaining (the empty chain [] is the identity,
+#    concatenation is associative, and the composite is lexicographic)."
+#
+# In pflow-rs the monoid is partial: chains over 8 pieces and repeated pieces
+# are refused (order.rs MAX_PIECES, plan.rs), and decisive pieces form a top
+# tier. This theory is the total monoid those chains sit in. The ROADMAP's
+# contract law (every composite keeps ct:order-only) is not an equation and
+# is not stated here.
+#
+# A wire carries one move orderer. `chain` composes two orderers
+# lexicographically (left one first); `nil` is the empty chain [].
+
+gen chain : 2 -> 1
+gen nil : 0 -> 1
+
+rule chain_assoc : chain * id ; chain = id * chain ; chain
+rule chain_unitL : nil * id ; chain = id
+rule chain_unitR : id * nil ; chain = id
+
+# The four orderers of plan:connect4-exact, in plan order.
+gen tt_best : 0 -> 1
+gen immediate_win : 0 -> 1
+gen centrality : 0 -> 1
+gen history : 0 -> 1
+
+# Any two bracketings of a four-piece chain are equal: walk round the
+# pentagon from ((ab)(cd)) to (((ab)c)d) through all five bracketings.
+rewrite chain4_bracketing :
+  chain * chain ; chain
+  = id * id * chain ; id * chain ; chain by chain_assoc
+  = id * chain * id ; id * chain ; chain by -chain_assoc
+  = id * chain * id ; chain * id ; chain by -chain_assoc
+  = chain * id * id ; chain * id ; chain by -chain_assoc
+
+# ...so the connect4 plan's order chain has one meaning however it is grouped.
+rewrite connect4_chain :
+  tt_best * immediate_win * centrality * history ; chain * chain ; chain
+  = tt_best * immediate_win * centrality * history ; chain * id * id ; chain * id ; chain by chain4_bracketing
+
+# The empty chain can be dropped anywhere in a chain.
+rewrite nil_middle :
+  id * nil * id ; chain * id ; chain
+  = chain by chain_unitR
+
+theorem nil_padding :
+  tt_best * nil * immediate_win ; chain * id ; chain
+  = tt_best * immediate_win ; chain
+proof
+  rewrite LHS
+    = tt_best * immediate_win ; chain by chain_unitR
+qed
+
+# Chaining is lexicographic, so it is not commutative, and no rule here
+# equates the two orders.
+# A rejected step shows only that the cited rule does not turn its left side
+# into its right side, or, with `by refl`, that the two sides are different
+# diagrams. Chyp cannot show that an equation does not follow from the rules.
+# The steps below are rejected: the two orders are different diagrams, and
+# cancelling `nil` leaves the swapped chain, not the plain one.
+rewrite chain_not_comm :
+  sw ; chain
+  = chain by refl
+
+rewrite chain_not_comm_concrete :
+  tt_best * history ; chain
+  = history * tt_best ; chain by refl
+
+rewrite nil_keeps_order :
+  nil * (sw ; chain) ; chain
+  = sw ; chain by chain_unitL
+
+rewrite nil_does_not_unswap :
+  nil * (sw ; chain) ; chain
+  = chain by chain_unitL

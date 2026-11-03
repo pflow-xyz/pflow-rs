@@ -1,0 +1,85 @@
+{
+ "name": "seir-open",
+ "places": [
+  {
+   "id": "S",
+   "initial": 50
+  },
+  {
+   "id": "E",
+   "initial": 0
+  },
+  {
+   "id": "I",
+   "initial": 2
+  },
+  {
+   "id": "R",
+   "initial": 0
+  }
+ ],
+ "transitions": [
+  {
+   "id": "birth",
+   "rate": 1
+  },
+  {
+   "id": "expose",
+   "rate": 0.02
+  },
+  {
+   "id": "incubate",
+   "rate": 0.5
+  },
+  {
+   "id": "recover",
+   "rate": 0.2
+  },
+  {
+   "id": "die_S",
+   "rate": 0.01
+  }
+ ],
+ "arcs": [
+  {
+   "from": "birth",
+   "to": "S"
+  },
+  {
+   "from": "S",
+   "to": "expose"
+  },
+  {
+   "from": "I",
+   "to": "expose"
+  },
+  {
+   "from": "expose",
+   "to": "E"
+  },
+  {
+   "from": "expose",
+   "to": "I"
+  },
+  {
+   "from": "E",
+   "to": "incubate"
+  },
+  {
+   "from": "incubate",
+   "to": "I"
+  },
+  {
+   "from": "I",
+   "to": "recover"
+  },
+  {
+   "from": "recover",
+   "to": "R"
+  },
+  {
+   "from": "S",
+   "to": "die_S"
+  }
+ ]
+}

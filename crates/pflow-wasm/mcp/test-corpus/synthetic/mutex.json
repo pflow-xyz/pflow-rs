@@ -1,0 +1,125 @@
+{
+ "name": "mutex",
+ "places": [
+  {
+   "id": "idle1",
+   "initial": 1
+  },
+  {
+   "id": "wait1",
+   "initial": 0
+  },
+  {
+   "id": "crit1",
+   "initial": 0
+  },
+  {
+   "id": "idle2",
+   "initial": 1
+  },
+  {
+   "id": "wait2",
+   "initial": 0
+  },
+  {
+   "id": "crit2",
+   "initial": 0
+  },
+  {
+   "id": "lock",
+   "initial": 1
+  }
+ ],
+ "transitions": [
+  {
+   "id": "req1",
+   "rate": 1
+  },
+  {
+   "id": "enter1",
+   "rate": 5
+  },
+  {
+   "id": "exit1",
+   "rate": 2
+  },
+  {
+   "id": "req2",
+   "rate": 1
+  },
+  {
+   "id": "enter2",
+   "rate": 5
+  },
+  {
+   "id": "exit2",
+   "rate": 2
+  }
+ ],
+ "arcs": [
+  {
+   "from": "idle1",
+   "to": "req1"
+  },
+  {
+   "from": "req1",
+   "to": "wait1"
+  },
+  {
+   "from": "wait1",
+   "to": "enter1"
+  },
+  {
+   "from": "lock",
+   "to": "enter1"
+  },
+  {
+   "from": "enter1",
+   "to": "crit1"
+  },
+  {
+   "from": "crit1",
+   "to": "exit1"
+  },
+  {
+   "from": "exit1",
+   "to": "idle1"
+  },
+  {
+   "from": "exit1",
+   "to": "lock"
+  },
+  {
+   "from": "idle2",
+   "to": "req2"
+  },
+  {
+   "from": "req2",
+   "to": "wait2"
+  },
+  {
+   "from": "wait2",
+   "to": "enter2"
+  },
+  {
+   "from": "lock",
+   "to": "enter2"
+  },
+  {
+   "from": "enter2",
+   "to": "crit2"
+  },
+  {
+   "from": "crit2",
+   "to": "exit2"
+  },
+  {
+   "from": "exit2",
+   "to": "idle2"
+  },
+  {
+   "from": "exit2",
+   "to": "lock"
+  }
+ ]
+}

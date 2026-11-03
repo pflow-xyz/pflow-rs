@@ -1,0 +1,105 @@
+{
+ "name": "deadlock-two-locks",
+ "places": [
+  {
+   "id": "a",
+   "initial": 1
+  },
+  {
+   "id": "b",
+   "initial": 1
+  },
+  {
+   "id": "p1",
+   "initial": 1
+  },
+  {
+   "id": "p1a",
+   "initial": 0
+  },
+  {
+   "id": "p1done",
+   "initial": 0
+  },
+  {
+   "id": "p2",
+   "initial": 1
+  },
+  {
+   "id": "p2b",
+   "initial": 0
+  },
+  {
+   "id": "p2done",
+   "initial": 0
+  }
+ ],
+ "transitions": [
+  {
+   "id": "p1_take_a",
+   "rate": 1
+  },
+  {
+   "id": "p1_take_b",
+   "rate": 1
+  },
+  {
+   "id": "p2_take_b",
+   "rate": 1
+  },
+  {
+   "id": "p2_take_a",
+   "rate": 1
+  }
+ ],
+ "arcs": [
+  {
+   "from": "p1",
+   "to": "p1_take_a"
+  },
+  {
+   "from": "a",
+   "to": "p1_take_a"
+  },
+  {
+   "from": "p1_take_a",
+   "to": "p1a"
+  },
+  {
+   "from": "p1a",
+   "to": "p1_take_b"
+  },
+  {
+   "from": "b",
+   "to": "p1_take_b"
+  },
+  {
+   "from": "p1_take_b",
+   "to": "p1done"
+  },
+  {
+   "from": "p2",
+   "to": "p2_take_b"
+  },
+  {
+   "from": "b",
+   "to": "p2_take_b"
+  },
+  {
+   "from": "p2_take_b",
+   "to": "p2b"
+  },
+  {
+   "from": "p2b",
+   "to": "p2_take_a"
+  },
+  {
+   "from": "a",
+   "to": "p2_take_a"
+  },
+  {
+   "from": "p2_take_a",
+   "to": "p2done"
+  }
+ ]
+}

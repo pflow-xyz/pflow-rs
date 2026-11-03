@@ -1,0 +1,25 @@
+{
+ "name": "dup",
+ "places": [
+  {
+   "id": "a",
+   "initial": 1
+  },
+  {
+   "id": "a",
+   "initial": 2
+  }
+ ],
+ "transitions": [
+  {
+   "id": "t",
+   "rate": 1
+  }
+ ],
+ "arcs": [
+  {
+   "from": "a",
+   "to": "t"
+  }
+ ]
+}

@@ -1,0 +1,46 @@
+{
+ "name": "capacity",
+ "places": [
+  {
+   "id": "src",
+   "initial": 5
+  },
+  {
+   "id": "buf",
+   "initial": 0,
+   "capacity": 2
+  },
+  {
+   "id": "out",
+   "initial": 0
+  }
+ ],
+ "transitions": [
+  {
+   "id": "fill",
+   "rate": 1
+  },
+  {
+   "id": "drain",
+   "rate": 0.2
+  }
+ ],
+ "arcs": [
+  {
+   "from": "src",
+   "to": "fill"
+  },
+  {
+   "from": "fill",
+   "to": "buf"
+  },
+  {
+   "from": "buf",
+   "to": "drain"
+  },
+  {
+   "from": "drain",
+   "to": "out"
+  }
+ ]
+}

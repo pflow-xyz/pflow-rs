@@ -1,0 +1,153 @@
+{
+ "name": "spread-6x8",
+ "places": [
+  {
+   "id": "p0",
+   "initial": 8
+  },
+  {
+   "id": "p1",
+   "initial": 0
+  },
+  {
+   "id": "p2",
+   "initial": 0
+  },
+  {
+   "id": "p3",
+   "initial": 0
+  },
+  {
+   "id": "p4",
+   "initial": 0
+  },
+  {
+   "id": "p5",
+   "initial": 0
+  }
+ ],
+ "transitions": [
+  {
+   "id": "f0",
+   "rate": 1
+  },
+  {
+   "id": "b0",
+   "rate": 1
+  },
+  {
+   "id": "f1",
+   "rate": 1
+  },
+  {
+   "id": "b1",
+   "rate": 1
+  },
+  {
+   "id": "f2",
+   "rate": 1
+  },
+  {
+   "id": "b2",
+   "rate": 1
+  },
+  {
+   "id": "f3",
+   "rate": 1
+  },
+  {
+   "id": "b3",
+   "rate": 1
+  },
+  {
+   "id": "f4",
+   "rate": 1
+  },
+  {
+   "id": "b4",
+   "rate": 1
+  }
+ ],
+ "arcs": [
+  {
+   "from": "p0",
+   "to": "f0"
+  },
+  {
+   "from": "f0",
+   "to": "p1"
+  },
+  {
+   "from": "p1",
+   "to": "b0"
+  },
+  {
+   "from": "b0",
+   "to": "p0"
+  },
+  {
+   "from": "p1",
+   "to": "f1"
+  },
+  {
+   "from": "f1",
+   "to": "p2"
+  },
+  {
+   "from": "p2",
+   "to": "b1"
+  },
+  {
+   "from": "b1",
+   "to": "p1"
+  },
+  {
+   "from": "p2",
+   "to": "f2"
+  },
+  {
+   "from": "f2",
+   "to": "p3"
+  },
+  {
+   "from": "p3",
+   "to": "b2"
+  },
+  {
+   "from": "b2",
+   "to": "p2"
+  },
+  {
+   "from": "p3",
+   "to": "f3"
+  },
+  {
+   "from": "f3",
+   "to": "p4"
+  },
+  {
+   "from": "p4",
+   "to": "b3"
+  },
+  {
+   "from": "b3",
+   "to": "p3"
+  },
+  {
+   "from": "p4",
+   "to": "f4"
+  },
+  {
+   "from": "f4",
+   "to": "p5"
+  },
+  {
+   "from": "p5",
+   "to": "b4"
+  },
+  {
+   "from": "b4",
+   "to": "p4"
+  }
+ ]
+}

@@ -1,0 +1,128 @@
+{
+  "name": "dining-philosophers",
+  "description": "Classic dining philosophers problem demonstrating concurrency and deadlock in Petri nets",
+  "debug": {
+    "enabled": true
+  },
+  "graphql": {
+    "enabled": true,
+    "playground": true
+  },
+  "places": [
+    {"id": "thinking_0", "description": "Philosopher 0 is thinking", "initial": 1, "x": 500, "y": 60},
+    {"id": "thinking_1", "description": "Philosopher 1 is thinking", "initial": 1, "x": 918, "y": 364},
+    {"id": "thinking_2", "description": "Philosopher 2 is thinking", "initial": 1, "x": 759, "y": 856},
+    {"id": "thinking_3", "description": "Philosopher 3 is thinking", "initial": 1, "x": 241, "y": 856},
+    {"id": "thinking_4", "description": "Philosopher 4 is thinking", "initial": 1, "x": 82, "y": 364},
+
+    {"id": "fork_0", "description": "Fork between philosopher 0 and 1", "initial": 1, "x": 712, "y": 209},
+    {"id": "fork_1", "description": "Fork between philosopher 1 and 2", "initial": 1, "x": 842, "y": 611},
+    {"id": "fork_2", "description": "Fork between philosopher 2 and 3", "initial": 1, "x": 500, "y": 860},
+    {"id": "fork_3", "description": "Fork between philosopher 3 and 4", "initial": 1, "x": 158, "y": 611},
+    {"id": "fork_4", "description": "Fork between philosopher 4 and 0", "initial": 1, "x": 288, "y": 209},
+
+    {"id": "has_left_0", "description": "Philosopher 0 has left fork", "initial": 0, "x": 500, "y": 220},
+    {"id": "has_left_1", "description": "Philosopher 1 has left fork", "initial": 0, "x": 766, "y": 413},
+    {"id": "has_left_2", "description": "Philosopher 2 has left fork", "initial": 0, "x": 665, "y": 727},
+    {"id": "has_left_3", "description": "Philosopher 3 has left fork", "initial": 0, "x": 335, "y": 727},
+    {"id": "has_left_4", "description": "Philosopher 4 has left fork", "initial": 0, "x": 234, "y": 413},
+
+    {"id": "eating_0", "description": "Philosopher 0 is eating", "initial": 0, "x": 500, "y": 350},
+    {"id": "eating_1", "description": "Philosopher 1 is eating", "initial": 0, "x": 643, "y": 454},
+    {"id": "eating_2", "description": "Philosopher 2 is eating", "initial": 0, "x": 588, "y": 621},
+    {"id": "eating_3", "description": "Philosopher 3 is eating", "initial": 0, "x": 412, "y": 621},
+    {"id": "eating_4", "description": "Philosopher 4 is eating", "initial": 0, "x": 357, "y": 454}
+  ],
+  "transitions": [
+    {"id": "pickup_left_0", "description": "Philosopher 0 picks up left fork (fork 4)", "x": 392, "y": 167},
+    {"id": "pickup_left_1", "description": "Philosopher 1 picks up left fork (fork 0)", "x": 783, "y": 294},
+    {"id": "pickup_left_2", "description": "Philosopher 2 picks up left fork (fork 1)", "x": 783, "y": 706},
+    {"id": "pickup_left_3", "description": "Philosopher 3 picks up left fork (fork 2)", "x": 392, "y": 833},
+    {"id": "pickup_left_4", "description": "Philosopher 4 picks up left fork (fork 3)", "x": 150, "y": 500},
+
+    {"id": "pickup_right_0", "description": "Philosopher 0 picks up right fork (fork 0)", "x": 566, "y": 296},
+    {"id": "pickup_right_1", "description": "Philosopher 1 picks up right fork (fork 1)", "x": 715, "y": 500},
+    {"id": "pickup_right_2", "description": "Philosopher 2 picks up right fork (fork 2)", "x": 566, "y": 704},
+    {"id": "pickup_right_3", "description": "Philosopher 3 picks up right fork (fork 3)", "x": 326, "y": 626},
+    {"id": "pickup_right_4", "description": "Philosopher 4 picks up right fork (fork 4)", "x": 326, "y": 374},
+
+    {"id": "release_0", "description": "Philosopher 0 releases both forks and goes back to thinking", "x": 500, "y": 420},
+    {"id": "release_1", "description": "Philosopher 1 releases both forks and goes back to thinking", "x": 576, "y": 475},
+    {"id": "release_2", "description": "Philosopher 2 releases both forks and goes back to thinking", "x": 547, "y": 565},
+    {"id": "release_3", "description": "Philosopher 3 releases both forks and goes back to thinking", "x": 453, "y": 565},
+    {"id": "release_4", "description": "Philosopher 4 releases both forks and goes back to thinking", "x": 424, "y": 475}
+  ],
+  "arcs": [
+    {"from": "thinking_0", "to": "pickup_left_0"},
+    {"from": "fork_4", "to": "pickup_left_0"},
+    {"from": "pickup_left_0", "to": "has_left_0"},
+
+    {"from": "has_left_0", "to": "pickup_right_0"},
+    {"from": "fork_0", "to": "pickup_right_0"},
+    {"from": "pickup_right_0", "to": "eating_0"},
+
+    {"from": "eating_0", "to": "release_0"},
+    {"from": "release_0", "to": "thinking_0"},
+    {"from": "release_0", "to": "fork_4"},
+    {"from": "release_0", "to": "fork_0"},
+
+    {"from": "thinking_1", "to": "pickup_left_1"},
+    {"from": "fork_0", "to": "pickup_left_1"},
+    {"from": "pickup_left_1", "to": "has_left_1"},
+
+    {"from": "has_left_1", "to": "pickup_right_1"},
+    {"from": "fork_1", "to": "pickup_right_1"},
+    {"from": "pickup_right_1", "to": "eating_1"},
+
+    {"from": "eating_1", "to": "release_1"},
+    {"from": "release_1", "to": "thinking_1"},
+    {"from": "release_1", "to": "fork_0"},
+    {"from": "release_1", "to": "fork_1"},
+
+    {"from": "thinking_2", "to": "pickup_left_2"},
+    {"from": "fork_1", "to": "pickup_left_2"},
+    {"from": "pickup_left_2", "to": "has_left_2"},
+
+    {"from": "has_left_2", "to": "pickup_right_2"},
+    {"from": "fork_2", "to": "pickup_right_2"},
+    {"from": "pickup_right_2", "to": "eating_2"},
+
+    {"from": "eating_2", "to": "release_2"},
+    {"from": "release_2", "to": "thinking_2"},
+    {"from": "release_2", "to": "fork_1"},
+    {"from": "release_2", "to": "fork_2"},
+
+    {"from": "thinking_3", "to": "pickup_left_3"},
+    {"from": "fork_2", "to": "pickup_left_3"},
+    {"from": "pickup_left_3", "to": "has_left_3"},
+
+    {"from": "has_left_3", "to": "pickup_right_3"},
+    {"from": "fork_3", "to": "pickup_right_3"},
+    {"from": "pickup_right_3", "to": "eating_3"},
+
+    {"from": "eating_3", "to": "release_3"},
+    {"from": "release_3", "to": "thinking_3"},
+    {"from": "release_3", "to": "fork_2"},
+    {"from": "release_3", "to": "fork_3"},
+
+    {"from": "thinking_4", "to": "pickup_left_4"},
+    {"from": "fork_3", "to": "pickup_left_4"},
+    {"from": "pickup_left_4", "to": "has_left_4"},
+
+    {"from": "has_left_4", "to": "pickup_right_4"},
+    {"from": "fork_4", "to": "pickup_right_4"},
+    {"from": "pickup_right_4", "to": "eating_4"},
+
+    {"from": "eating_4", "to": "release_4"},
+    {"from": "release_4", "to": "thinking_4"},
+    {"from": "release_4", "to": "fork_3"},
+    {"from": "release_4", "to": "fork_4"}
+  ],
+  "metadata": {
+    "problem": {
+      "description": "Dining Philosophers Problem - 5 philosophers around a circular table with 5 shared forks",
+      "deadlock_condition": "All philosophers simultaneously pick up their left fork, then all block waiting for right fork",
+      "concepts": ["mutual exclusion", "circular wait", "resource allocation", "deadlock detection"]
+    }
+  }
+}

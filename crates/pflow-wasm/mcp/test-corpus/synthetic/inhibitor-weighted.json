@@ -1,0 +1,51 @@
+{
+ "name": "inhibitor-weighted",
+ "places": [
+  {
+   "id": "src",
+   "initial": 5
+  },
+  {
+   "id": "cap",
+   "initial": 0
+  },
+  {
+   "id": "sink",
+   "initial": 0
+  }
+ ],
+ "transitions": [
+  {
+   "id": "move",
+   "rate": 1
+  },
+  {
+   "id": "drain",
+   "rate": 0.1
+  }
+ ],
+ "arcs": [
+  {
+   "from": "src",
+   "to": "move"
+  },
+  {
+   "from": "move",
+   "to": "cap"
+  },
+  {
+   "from": "cap",
+   "to": "move",
+   "weight": 2,
+   "type": "inhibitor"
+  },
+  {
+   "from": "cap",
+   "to": "drain"
+  },
+  {
+   "from": "drain",
+   "to": "sink"
+  }
+ ]
+}

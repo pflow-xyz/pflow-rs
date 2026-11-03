@@ -1,0 +1,21 @@
+{
+ "name": "unbounded-source",
+ "places": [
+  {
+   "id": "p",
+   "initial": 0
+  }
+ ],
+ "transitions": [
+  {
+   "id": "t",
+   "rate": 1
+  }
+ ],
+ "arcs": [
+  {
+   "from": "t",
+   "to": "p"
+  }
+ ]
+}

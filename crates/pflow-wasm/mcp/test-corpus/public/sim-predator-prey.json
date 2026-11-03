@@ -1,0 +1,48 @@
+{
+  "name": "predator-prey",
+  "description": "Lotka-Volterra predator-prey dynamics modeled as a Petri net with ODE simulation",
+  "prediction": {
+    "enabled": true,
+    "timeHours": 1,
+    "rateScale": 1.0
+  },
+  "debug": {
+    "enabled": true
+  },
+  "graphql": {
+    "enabled": true,
+    "playground": true
+  },
+  "places": [
+    {"id": "prey", "description": "Prey population (rabbits)", "initial": 100, "x": 200, "y": 200},
+    {"id": "predator", "description": "Predator population (foxes)", "initial": 20, "x": 600, "y": 200}
+  ],
+  "transitions": [
+    {"id": "prey_reproduce", "description": "Prey natural reproduction (birth rate)", "rate": 1.0, "x": 200, "y": 50},
+    {"id": "predation", "description": "Predator eats prey (predation rate)", "rate": 0.01, "x": 400, "y": 200},
+    {"id": "predator_death", "description": "Predator natural death (death rate)", "rate": 0.5, "x": 600, "y": 50}
+  ],
+  "arcs": [
+    {"from": "prey", "to": "prey_reproduce", "weight": 1},
+    {"from": "prey_reproduce", "to": "prey", "weight": 2},
+
+    {"from": "prey", "to": "predation", "weight": 1},
+    {"from": "predator", "to": "predation", "weight": 1},
+    {"from": "predation", "to": "predator", "weight": 2},
+
+    {"from": "predator", "to": "predator_death", "weight": 1}
+  ],
+  "metadata": {
+    "equations": {
+      "description": "Lotka-Volterra equations via mass-action kinetics",
+      "prey": "d(prey)/dt = alpha*prey - beta*prey*predator",
+      "predator": "d(predator)/dt = delta*prey*predator - gamma*predator",
+      "parameters": {
+        "alpha": 1.0,
+        "beta": 0.01,
+        "delta": 0.01,
+        "gamma": 0.5
+      }
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+ "name": "weighted",
+ "places": [
+  {
+   "id": "A",
+   "initial": 6
+  },
+  {
+   "id": "B",
+   "initial": 3
+  },
+  {
+   "id": "C",
+   "initial": 0
+  }
+ ],
+ "transitions": [
+  {
+   "id": "synth",
+   "rate": 0.5
+  },
+  {
+   "id": "decay",
+   "rate": 0.2
+  }
+ ],
+ "arcs": [
+  {
+   "from": "A",
+   "to": "synth",
+   "weight": 2
+  },
+  {
+   "from": "B",
+   "to": "synth",
+   "weight": 1
+  },
+  {
+   "from": "synth",
+   "to": "C",
+   "weight": 3
+  },
+  {
+   "from": "C",
+   "to": "decay",
+   "weight": 3
+  },
+  {
+   "from": "decay",
+   "to": "A",
+   "weight": 2
+  },
+  {
+   "from": "decay",
+   "to": "B",
+   "weight": 1
+  }
+ ]
+}

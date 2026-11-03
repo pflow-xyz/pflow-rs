@@ -1,0 +1,45 @@
+{
+ "name": "pipeline-terminates",
+ "places": [
+  {
+   "id": "in",
+   "initial": 4
+  },
+  {
+   "id": "mid",
+   "initial": 0
+  },
+  {
+   "id": "out",
+   "initial": 0
+  }
+ ],
+ "transitions": [
+  {
+   "id": "stage1",
+   "rate": 2
+  },
+  {
+   "id": "stage2",
+   "rate": 1
+  }
+ ],
+ "arcs": [
+  {
+   "from": "in",
+   "to": "stage1"
+  },
+  {
+   "from": "stage1",
+   "to": "mid"
+  },
+  {
+   "from": "mid",
+   "to": "stage2"
+  },
+  {
+   "from": "stage2",
+   "to": "out"
+  }
+ ]
+}

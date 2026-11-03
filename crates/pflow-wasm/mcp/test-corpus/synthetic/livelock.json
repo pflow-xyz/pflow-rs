@@ -1,0 +1,80 @@
+{
+ "name": "livelock",
+ "places": [
+  {
+   "id": "p",
+   "initial": 1
+  },
+  {
+   "id": "q",
+   "initial": 0
+  },
+  {
+   "id": "r",
+   "initial": 0
+  },
+  {
+   "id": "s",
+   "initial": 0
+  }
+ ],
+ "transitions": [
+  {
+   "id": "t"
+  },
+  {
+   "id": "u"
+  },
+  {
+   "id": "x"
+  },
+  {
+   "id": "v"
+  },
+  {
+   "id": "w"
+  }
+ ],
+ "arcs": [
+  {
+   "from": "p",
+   "to": "t"
+  },
+  {
+   "from": "t",
+   "to": "q"
+  },
+  {
+   "from": "q",
+   "to": "u"
+  },
+  {
+   "from": "u",
+   "to": "p"
+  },
+  {
+   "from": "p",
+   "to": "x"
+  },
+  {
+   "from": "x",
+   "to": "r"
+  },
+  {
+   "from": "r",
+   "to": "v"
+  },
+  {
+   "from": "v",
+   "to": "s"
+  },
+  {
+   "from": "s",
+   "to": "w"
+  },
+  {
+   "from": "w",
+   "to": "r"
+  }
+ ]
+}

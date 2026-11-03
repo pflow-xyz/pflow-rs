@@ -1,0 +1,73 @@
+{
+ "name": "enzyme",
+ "places": [
+  {
+   "id": "E",
+   "initial": 10
+  },
+  {
+   "id": "S",
+   "initial": 40
+  },
+  {
+   "id": "ES",
+   "initial": 0
+  },
+  {
+   "id": "P",
+   "initial": 0
+  }
+ ],
+ "transitions": [
+  {
+   "id": "bind",
+   "rate": 0.05
+  },
+  {
+   "id": "unbind",
+   "rate": 0.2
+  },
+  {
+   "id": "catalyze",
+   "rate": 0.3
+  }
+ ],
+ "arcs": [
+  {
+   "from": "E",
+   "to": "bind"
+  },
+  {
+   "from": "S",
+   "to": "bind"
+  },
+  {
+   "from": "bind",
+   "to": "ES"
+  },
+  {
+   "from": "ES",
+   "to": "unbind"
+  },
+  {
+   "from": "unbind",
+   "to": "E"
+  },
+  {
+   "from": "unbind",
+   "to": "S"
+  },
+  {
+   "from": "ES",
+   "to": "catalyze"
+  },
+  {
+   "from": "catalyze",
+   "to": "E"
+  },
+  {
+   "from": "catalyze",
+   "to": "P"
+  }
+ ]
+}
