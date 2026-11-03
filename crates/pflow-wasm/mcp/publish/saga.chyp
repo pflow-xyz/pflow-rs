@@ -1,0 +1,30 @@
+# The payment saga: forward steps and their compensations, named as in the composition above.
+gen reserve : 1 -> 1
+gen charge : 1 -> 1
+gen commit : 1 -> 1
+gen undo_charge : 1 -> 1
+gen undo_reserve : 1 -> 1
+gen paid : 1 -> 1
+
+# What each pair of steps amounts to.
+rule charge_undone : charge ; undo_charge = id
+rule reserve_undone : reserve ; undo_reserve = id
+rule commit_pays : charge ; commit = paid
+
+# If the charge is refunded and the reservation released, nothing is left behind.
+theorem failure_leaves_nothing :
+  reserve ; charge ; undo_charge ; undo_reserve = id
+proof
+  rewrite LHS
+    = reserve ; id ; undo_reserve by charge_undone
+    = reserve ; undo_reserve by refl
+    = id by reserve_undone
+qed
+
+# If the charge is committed, the order is paid exactly once.
+theorem success_pays_once :
+  reserve ; charge ; commit = reserve ; paid
+proof
+  rewrite LHS
+    = reserve ; paid by commit_pays
+qed

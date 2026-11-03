@@ -1,0 +1,52 @@
+[
+ {
+  "page": "artifact-html-0.4.0-baseline",
+  "raw_kb": 248,
+  "gzip_kb": 177,
+  "brotli_kb": 174,
+  "load_ms_median": 97,
+  "load_ms_min": 89,
+  "load_ms_max": 113,
+  "js_heap_mb": 9.5
+ },
+ {
+  "page": "explorer-small",
+  "raw_kb": 278,
+  "gzip_kb": 184,
+  "brotli_kb": 180,
+  "load_ms_median": 128,
+  "load_ms_min": 120,
+  "load_ms_max": 145,
+  "js_heap_mb": 9.5
+ },
+ {
+  "page": "explorer-full",
+  "raw_kb": 981,
+  "gzip_kb": 711,
+  "brotli_kb": 702,
+  "load_ms_median": 180,
+  "load_ms_min": 175,
+  "load_ms_max": 201,
+  "js_heap_mb": 12.1
+ },
+ {
+  "page": "explorer-both",
+  "raw_kb": 1223,
+  "gzip_kb": 885,
+  "brotli_kb": 871,
+  "load_ms_median": 221,
+  "load_ms_min": 203,
+  "load_ms_max": 543,
+  "js_heap_mb": 14.5
+ },
+ {
+  "page": "saga-proof",
+  "raw_kb": 1097,
+  "gzip_kb": 802,
+  "brotli_kb": 791,
+  "load_ms_median": 236,
+  "load_ms_min": 207,
+  "load_ms_max": 269,
+  "js_heap_mb": 12.8
+ }
+]
