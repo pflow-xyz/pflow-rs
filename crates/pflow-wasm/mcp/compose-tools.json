@@ -1,0 +1,175 @@
+{
+ "_comment": "Tools this package answers that pflow.xyz/mcp does not have yet (composite nets, glue proofs, the larger parts catalog). Same shape as hosted-tools.json; `hosted` is null: there is nothing to cross-check them against.",
+ "tools": [
+  {
+   "name": "bundle_net",
+   "hosted": null,
+   "title": "A composition as an ordinary pflow.xyz net",
+   "description": "Write the flattened composition (bundle_flatten's net) in the editor's JSON-LD, so every net tool reads it: fire, simulate, stochastic, reachability, invariants, verify, check, cid, export all work on a composite exactly as on any net. Returns `net` (places and transitions keyed by id, source/target arcs; a read arc is a transition->place arc with inhibitTransition, an inhibitor a place->transition one; a `:` in an id is written `~`, so the CID can be computed; an arc with no weight is written weight 1), `members` (which \"<subnet>/<element>\" each flat place and transition came from, and the declared constraints) and counts. Refuses, naming it, what the editor's format cannot say (a transition guard, a data place) instead of dropping it. Local to this package: the hosted server does not have this tool yet.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "bundle": {
+      "description": "a composition, a PetriNetBundle: {\"@type\": \"PetriNetBundle\", \"name\", \"subnets\": [{\"id\", \"net_type\" (ResourceNet, WorkflowNet, GameNet, ComputationNet, ClassificationNet or omitted), \"model\": {\"places\": [{\"id\", \"initial\", \"exported\", \"capacity\", \"kind\": \"token\"|\"data\"}], \"transitions\": [{\"id\"}], \"arcs\": [{\"from\", \"to\", \"weight\", \"type\": \"read\"|\"inhibitor\"}], \"constraints\": [{\"id\", \"expr\"}]}, \"ports\": [{\"id\", \"kind\": \"in\"|\"out\"|\"inout\"|\"observe\", \"place\"|(\"target\": \"transition\", \"transition\"), \"schema\"}]}], \"links\": [{\"kind\": \"token\"|\"data\"|\"event\"|\"guard\", \"from\": {\"subnet\", \"port\"}, \"to\": {\"subnet\", \"port\"}, \"id\", \"condition\"}], \"namespace\", \"arc_merge\": \"sum\"|\"max\"}. pflow_bundle_example returns one to start from. Limits: names (ids) of at most 128 bytes, counts and weights below 2^53, at most 32 subnets, 1000 places, 1000 transitions, 4000 arcs, 512 ports, 200 links and 200 constraints. Give every arc an explicit weight: one with none fires as 1 but counts as 0 in the incidence matrix (and, for a lone subnet, in the flat arcs). A subnet that declares no ports has one per exported place, named for it (pflow_bundle_candidates alone does not derive them); a port on a transition has to be declared. A link in the document may also name {subnet, place} or {subnet, transition} for an end that has no port. Fields not named here are ignored without a word (`tokens` on a place does nothing, it is `initial`; `inhibit: true` on an arc does nothing, it is `type: \"inhibitor\"`); a misspelt net_type, place kind, port kind or target, link kind or arc_merge is refused. A bundle and the flat net it makes are not pflow.xyz nets: pflow_simulate, pflow_fire and the other net tools cannot read them.",
+      "properties": {
+       "links": {
+        "items": {
+         "type": "object"
+        },
+        "maxItems": 200,
+        "type": "array"
+       },
+       "subnets": {
+        "items": {
+         "type": "object"
+        },
+        "maxItems": 32,
+        "minItems": 1,
+        "type": "array"
+       }
+      },
+      "required": [
+       "subnets"
+      ],
+      "type": "object"
+     }
+    },
+    "required": [
+     "bundle"
+    ]
+   }
+  },
+  {
+   "name": "bundle_prove",
+   "hosted": null,
+   "title": "Does the glue hold? Per-link verdicts and a checkable proof record",
+   "description": "Judge what each link does, beyond its ports. Every conservation law a part carries (its declared constraints, and the part's own minimal P-invariants) is lifted onto the composite and classed preserved (still y.C = 0), extended (it is the part's share of a larger composite law z, named) or changed (the composite moves it; the residual names the transitions); a declared law is also tried on every reachable marking (a counterexample comes with a replayable trace). The composite is judged bounded (an invariant cover, a capacity, or a finished search), deadlock-free and quasi-live: proved, refuted (with a witness) or unknown, and nothing is proved by a search that stopped early. Each link gets ok / explained / warn / fail by taking it out and re-running the analyses (a deadlock, unbounded growth or blocked transition that exists with the link and not without is the link's; a part that finishes by itself, a saga, explains the dead end it brings). Returns a CompositionProof record: laws, claims with certificates, links, verdict, plain-language `says`, and the rules a reader needs to re-check it (bundle_check_proof, or the arithmetic and replay on bundle_net's net). Arguments: bundle; max_states (default 2000, at most 20000), max_tokens, ablate (default true, off past 60 links). Local to this package.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "bundle": {
+      "description": "a composition, a PetriNetBundle: {\"@type\": \"PetriNetBundle\", \"name\", \"subnets\": [{\"id\", \"net_type\" (ResourceNet, WorkflowNet, GameNet, ComputationNet, ClassificationNet or omitted), \"model\": {\"places\": [{\"id\", \"initial\", \"exported\", \"capacity\", \"kind\": \"token\"|\"data\"}], \"transitions\": [{\"id\"}], \"arcs\": [{\"from\", \"to\", \"weight\", \"type\": \"read\"|\"inhibitor\"}], \"constraints\": [{\"id\", \"expr\"}]}, \"ports\": [{\"id\", \"kind\": \"in\"|\"out\"|\"inout\"|\"observe\", \"place\"|(\"target\": \"transition\", \"transition\"), \"schema\"}]}], \"links\": [{\"kind\": \"token\"|\"data\"|\"event\"|\"guard\", \"from\": {\"subnet\", \"port\"}, \"to\": {\"subnet\", \"port\"}, \"id\", \"condition\"}], \"namespace\", \"arc_merge\": \"sum\"|\"max\"}. pflow_bundle_example returns one to start from. Limits: names (ids) of at most 128 bytes, counts and weights below 2^53, at most 32 subnets, 1000 places, 1000 transitions, 4000 arcs, 512 ports, 200 links and 200 constraints. Give every arc an explicit weight: one with none fires as 1 but counts as 0 in the incidence matrix (and, for a lone subnet, in the flat arcs). A subnet that declares no ports has one per exported place, named for it (pflow_bundle_candidates alone does not derive them); a port on a transition has to be declared. A link in the document may also name {subnet, place} or {subnet, transition} for an end that has no port. Fields not named here are ignored without a word (`tokens` on a place does nothing, it is `initial`; `inhibit: true` on an arc does nothing, it is `type: \"inhibitor\"`); a misspelt net_type, place kind, port kind or target, link kind or arc_merge is refused. A bundle and the flat net it makes are not pflow.xyz nets: pflow_simulate, pflow_fire and the other net tools cannot read them.",
+      "properties": {
+       "links": {
+        "items": {
+         "type": "object"
+        },
+        "maxItems": 200,
+        "type": "array"
+       },
+       "subnets": {
+        "items": {
+         "type": "object"
+        },
+        "maxItems": 32,
+        "minItems": 1,
+        "type": "array"
+       }
+      },
+      "required": [
+       "subnets"
+      ],
+      "type": "object"
+     },
+     "max_states": {
+      "type": "integer",
+      "description": "state cap for each reachability search (default 2000, at most 20000)"
+     },
+     "max_tokens": {
+      "type": "integer",
+      "description": "per-place token cap (default 1000)"
+     },
+     "ablate": {
+      "type": "boolean",
+      "description": "judge each link by removing it and searching again (default true; skipped past 60 links)"
+     }
+    },
+    "required": [
+     "bundle"
+    ]
+   }
+  },
+  {
+   "name": "bundle_check_proof",
+   "hosted": null,
+   "title": "Re-check a bundle_prove record",
+   "description": "Re-check a CompositionProof record against the bundle it claims to be about. Two layers: every certificate is checked by arithmetic or replay on the flat net (y.C, z.C = 0 and z >= 0, bounds, witness traces fired step by step to the stated marking), and the engine's own answers (the exhaustive searches, the per-link verdicts) are recomputed and compared. Returns valid, how many checks ran, the failures and what the check trusts (the flattening, held to go-pflow's goldens, and the firing rule). A record edited by hand, or made for another composition, does not check. Local to this package.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "bundle": {
+      "description": "a composition, a PetriNetBundle: {\"@type\": \"PetriNetBundle\", \"name\", \"subnets\": [{\"id\", \"net_type\" (ResourceNet, WorkflowNet, GameNet, ComputationNet, ClassificationNet or omitted), \"model\": {\"places\": [{\"id\", \"initial\", \"exported\", \"capacity\", \"kind\": \"token\"|\"data\"}], \"transitions\": [{\"id\"}], \"arcs\": [{\"from\", \"to\", \"weight\", \"type\": \"read\"|\"inhibitor\"}], \"constraints\": [{\"id\", \"expr\"}]}, \"ports\": [{\"id\", \"kind\": \"in\"|\"out\"|\"inout\"|\"observe\", \"place\"|(\"target\": \"transition\", \"transition\"), \"schema\"}]}], \"links\": [{\"kind\": \"token\"|\"data\"|\"event\"|\"guard\", \"from\": {\"subnet\", \"port\"}, \"to\": {\"subnet\", \"port\"}, \"id\", \"condition\"}], \"namespace\", \"arc_merge\": \"sum\"|\"max\"}. pflow_bundle_example returns one to start from. Limits: names (ids) of at most 128 bytes, counts and weights below 2^53, at most 32 subnets, 1000 places, 1000 transitions, 4000 arcs, 512 ports, 200 links and 200 constraints. Give every arc an explicit weight: one with none fires as 1 but counts as 0 in the incidence matrix (and, for a lone subnet, in the flat arcs). A subnet that declares no ports has one per exported place, named for it (pflow_bundle_candidates alone does not derive them); a port on a transition has to be declared. A link in the document may also name {subnet, place} or {subnet, transition} for an end that has no port. Fields not named here are ignored without a word (`tokens` on a place does nothing, it is `initial`; `inhibit: true` on an arc does nothing, it is `type: \"inhibitor\"`); a misspelt net_type, place kind, port kind or target, link kind or arc_merge is refused. A bundle and the flat net it makes are not pflow.xyz nets: pflow_simulate, pflow_fire and the other net tools cannot read them.",
+      "properties": {
+       "links": {
+        "items": {
+         "type": "object"
+        },
+        "maxItems": 200,
+        "type": "array"
+       },
+       "subnets": {
+        "items": {
+         "type": "object"
+        },
+        "maxItems": 32,
+        "minItems": 1,
+        "type": "array"
+       }
+      },
+      "required": [
+       "subnets"
+      ],
+      "type": "object"
+     },
+     "proof": {
+      "type": "object",
+      "description": "the record pflow_bundle_prove returned"
+     }
+    },
+    "required": [
+     "bundle",
+     "proof"
+    ]
+   }
+  },
+  {
+   "name": "bundle_parts",
+   "hosted": null,
+   "title": "The parts catalog, and a composition built from it",
+   "description": "Thirteen parts to snap together: queue, resource-pool, saga (as bundle_example), and lock (mutex), token_bucket, circuit_breaker, batcher, approval, inventory, failover, sir, kanban, traffic_light. With no arguments: the catalog (each part's parameters with defaults and limits, ports with direction and schema, the conservation law it carries, and the joins that are legal with other parts, each checked against the link rules). With `instances` [{id, part, params?}] (and optionally `links` as bundle_example takes them): a PetriNetBundle built from them, each link judged as bundle_add_link judges it. Port schemas decide what can join: `resource` joins a pool, a lock, a bucket and machines; `queue:items` joins a queue, a batcher, an approval desk and a kanban stage. The parts' sizes and ports are this catalog's judgment, written from textbook descriptions. Local to this package.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "instances": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "id": {
+         "type": "string"
+        },
+        "part": {
+         "type": "string"
+        },
+        "params": {
+         "type": "object"
+        }
+       },
+       "required": [
+        "part"
+       ]
+      },
+      "description": "parts to build; omit for the catalog"
+     },
+     "links": {
+      "type": "array",
+      "items": {
+       "type": "object"
+      },
+      "description": "links between the instances' ports: {kind, from:{subnet, port}, to:{subnet, port}}"
+     }
+    }
+   }
+  }
+ ]
+}

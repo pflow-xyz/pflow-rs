@@ -10,7 +10,9 @@
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 
-const { tools } = JSON.parse(readFileSync(new URL('./hosted-tools.json', import.meta.url), 'utf8'));
+const read = (f) => JSON.parse(readFileSync(new URL(f, import.meta.url), 'utf8')).tools;
+// the hosted server's tools, then this package's own (compose-tools.json: ahead of the hosted server)
+const tools = [...read('./hosted-tools.json'), ...read('./compose-tools.json')];
 
 const LOCAL_NOTE =
   ' Runs locally and offline on pflow-rs (its port of this pflow.xyz/mcp tool, with the same arguments and answer shape); where this says go-pflow, read the pflow-rs port of it.';

@@ -1,5 +1,5 @@
 # The npm package @pflow-xyz/pflow-wasm. Everything else here is plain cargo.
-.PHONY: wasm-npm wasm-npm-test wasm-npm-publish wasm-mcp-engine wasm-mcp wasm-mcp-test wasm-mcp-crosscheck wasm-mcp-crosscheck-tools wasm-mcp-publish
+.PHONY: wasm-compose wasm-compose-test wasm-npm wasm-npm-test wasm-npm-publish wasm-mcp-engine wasm-mcp wasm-mcp-test wasm-mcp-crosscheck wasm-mcp-crosscheck-tools wasm-mcp-publish
 
 # Must equal the wasm-bindgen dependency in crates/pflow-wasm/Cargo.toml.
 WASM_BINDGEN_VERSION := 0.2.129
@@ -60,6 +60,18 @@ wasm-mcp-engine:
 	  --strip-debug --strip-producers \
 	  -o $(MCP_BINDGEN_OUT)/pflow-wasm_bg.opt.wasm $(MCP_BINDGEN_OUT)/pflow-wasm_bg.wasm
 	node crates/pflow-wasm/npm/build.mjs $(MCP_BINDGEN_OUT) $(MCP_BINDGEN_OUT)/pflow-wasm_bg.opt.wasm $(MCP_ENGINE_OUT)
+
+# The snap-together composition canvas: ONE html file, the hosted engine inside
+# (crates/pflow-wasm/compose). Publishable as a Claude artifact; no network.
+COMPOSE_HTML := target/compose-canvas.html
+wasm-compose: wasm-mcp-engine
+	node crates/pflow-wasm/compose/build.mjs $(MCP_ENGINE_OUT) $(COMPOSE_HTML)
+
+# Engine vs native goldens, the engine-free proof re-checker, and the page in a
+# real browser under a sandbox CSP (skips, saying so, with no browser).
+wasm-compose-test: wasm-compose
+	node crates/pflow-wasm/compose/test.mjs $(MCP_ENGINE_OUT)
+	node crates/pflow-wasm/compose/e2e.mjs $(COMPOSE_HTML)
 
 wasm-mcp: wasm-npm wasm-mcp-engine
 	node crates/pflow-wasm/mcp/build.mjs $(NPM_OUT) $(MCP_OUT) $(MCP_ENGINE_OUT)

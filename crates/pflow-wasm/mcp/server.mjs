@@ -226,8 +226,10 @@ tool('artifact_html',
 import { register as registerOntology } from './ontology.mjs';
 import { register as registerChyp } from './chyp.mjs';
 import { register as registerHosted } from './hosted.mjs';
+import { register as registerCompose } from './compose.mjs';
 registerOntology(tool);
 registerChyp(tool);
 registerHosted(tool, { hosted, models, last: () => last });
+registerCompose(tool);
 
 await server.connect(new StdioServerTransport());
