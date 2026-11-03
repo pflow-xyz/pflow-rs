@@ -235,3 +235,29 @@ fn the_catalog_lists_every_part_and_its_joins_prove_and_recheck() {
     }
     assert!(joins >= 15, "{joins}");
 }
+
+#[test]
+fn an_arc_with_no_weight_counts_as_one_in_the_proof() {
+    // p -> t -> q with no weights: t moves a token, so "p == 1" is not preserved
+    let b = json!({"@type": "PetriNetBundle", "name": "lone", "subnets": [{"id": "s", "model": {
+        "places": [{"id": "p", "initial": 1, "kind": "token"}, {"id": "q", "kind": "token"}],
+        "transitions": [{"id": "t"}],
+        "arcs": [{"from": "p", "to": "t"}, {"from": "t", "to": "q"}],
+        "constraints": [{"id": "one", "expr": "tokens(\"p\") == 1"}]}}], "links": []});
+    let p = prove(&b);
+    let law = p["laws"].as_array().unwrap().iter().find(|l| l["id"] == "one").unwrap();
+    assert_eq!(law["status"], "changed", "{law}");
+    assert_eq!(law["holds_on_reachable"], "refuted");
+    assert_eq!(check(&b, &p)["valid"], true);
+}
+
+#[test]
+fn a_record_with_a_law_deleted_does_not_check() {
+    let b = default_bundle();
+    let mut p = prove(&b);
+    p["laws"].as_array_mut().unwrap().pop();
+    assert_eq!(check(&b, &p)["valid"], false);
+    let mut p = prove(&b);
+    p["claims"].as_array_mut().unwrap().pop();
+    assert_eq!(check(&b, &p)["valid"], false);
+}

@@ -116,7 +116,13 @@ chyp-rs is in the ecosystem (typed wires; `rule`, `refl`, `simp`; the Laws view 
 
 ## go-pflow and pflow-xyz
 
-See the section appended at the end of this document by the port (status as of the end of the run).
+Local branches `val/run-520d030a` in both repos, nothing pushed.
+
+- **go-pflow** `composite/` (commits 68eba0f, 894c7cf): `Call(tool, args)` and typed `Net`, `Prove`, `CheckProof`, `Parts`. The three existing patterns come from go-pflow's own constructors; the ten new parts are written from `parts.rs`; search, Farkas bases and laws run on go-pflow's `reachability`. Held to the pflow-rs goldens (`composite/testdata/composite.json`, pflow-rs 16f69e0, sha256 `8bf9ee18…d934`). **Parity is exact**: catalog, bundles, nets and every prove record (traces, `extended_by`, `says` text) are equal in all 9 cases; nothing was relaxed. Cross-checked both ways: Go's checker accepts every Rust record, and the Rust checker (`FOREIGN_RECORDS`) accepts the records Go writes. `go test ./composite` passes (also under Bazel).
+- **pflow-xyz** (b82f6c2, plus 3d2886e, a TEMP `replace` to the local go-pflow that must be dropped before merge: bump the go-pflow pin to a release containing `composite/` instead, or b82f6c2 alone does not build): `pflow_bundle_net`, `pflow_bundle_prove`, `pflow_bundle_check_proof`, `pflow_bundle_parts` registered beside the other `pflow_bundle_*` tools (`cmd/webserver/mcp_model_composite.go`). Tests load the net in check/info/invariants/incidence/validate/cid/export/verify/reachability; the record's cid equals `pflow_cid` of the net (sealed with json-gold) and its states equal `pflow_reachability`'s. Two things differ for the hosted transport: `bundle_net` refuses a net over the 60 KiB result cap rather than cut it, and `bundle_prove` answers with a summary (`record_omitted`) when its record would not fit, since a cut record cannot be checked. `go test ./cmd/webserver/...` passes except two tests that run `git push` and are refused by this run's push hook.
+- Differences from the Rust reference: Go's `bundle_prove` refuses a flat net with a guard or data place (go-pflow's reachability does not evaluate guards, so the answer would be about another net); Rust analyses it and sets `net_available:false`.
+- **Fixed in Rust after the Go port reported it, not yet in Go**: the proof's incidence now reads a weightless arc as weight 1 (it fires as 1; the hosted `bundle_incidence` keeps raw weights), so a law is no longer "preserved" by an arc that moves a token (a lone subnet with weightless arcs); `bundle_check_proof` now also requires the record to be complete (a deleted law or claim fails); a repeated place id keeps its first row. The goldens did not change. The Go port needs the same three edits before the next golden refresh.
+- Not touched: `public/llms.txt` / `llms-full.txt` in pflow-xyz still say "the flat net is not a pflow.xyz net".
 
 ## Running it
 

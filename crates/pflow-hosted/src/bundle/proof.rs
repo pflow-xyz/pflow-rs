@@ -372,8 +372,8 @@ pub fn prove(b: &Bundle, o: &Opts, tool: &str) -> Result<Value, String> {
         .as_ref()
         .and_then(|(n, _)| crate::cid::run(&json!({"net": n})).ok())
         .and_then(|v| v["cid"].as_str().map(String::from));
-    let c = rules::incidence(m);
-    let pidx: HashMap<&str, usize> = m.places.iter().enumerate().map(|(i, p)| (p.id.as_str(), i)).collect();
+    let c = incidence(m);
+    let pidx: HashMap<&str, usize> = place_index(m);
 
     let whole = search(m, o);
     let (basis, basis_truncated) = composite_basis(m);
@@ -714,6 +714,44 @@ pub fn prove(b: &Bundle, o: &Opts, tool: &str) -> Result<Value, String> {
     }))
 }
 
+/// C = post - pre of the model, as the net tools read it: an arc with no
+/// weight moves 1 (every firing rule reads 0 as 1), read and inhibitor arcs
+/// move nothing. `rules::incidence` keeps the raw weights (it is the hosted
+/// tool's answer); a law checked against it could be "preserved" by an arc
+/// that fires.
+fn incidence(m: &Model) -> Vec<Vec<i64>> {
+    let mut c = vec![vec![0i64; m.transitions.len()]; m.places.len()];
+    let pi: HashMap<&str, usize> = place_index(m);
+    let ti: HashMap<&str, usize> = {
+        let mut h = HashMap::new();
+        for (i, t) in m.transitions.iter().enumerate() {
+            h.entry(t.id.as_str()).or_insert(i);
+        }
+        h
+    };
+    for a in &m.arcs {
+        if a.is_read_only() {
+            continue;
+        }
+        let w = a.weight.max(1);
+        if let (Some(&p), Some(&t)) = (pi.get(a.from.as_str()), ti.get(a.to.as_str())) {
+            c[p][t] = c[p][t].wrapping_sub(w);
+        } else if let (Some(&t), Some(&p)) = (ti.get(a.from.as_str()), pi.get(a.to.as_str())) {
+            c[p][t] = c[p][t].wrapping_add(w);
+        }
+    }
+    c
+}
+
+/// Place ids to row; a repeated id keeps its first row, as the incidence does.
+fn place_index(m: &Model) -> HashMap<&str, usize> {
+    let mut h = HashMap::new();
+    for (i, p) in m.places.iter().enumerate() {
+        h.entry(p.id.as_str()).or_insert(i);
+    }
+    h
+}
+
 /// A shortest trace from the initial marking to `target`, by the analyzer.
 fn trace_to(m: &Model, o: &Opts, target: &Marking) -> Value {
     let a = Analyzer::new(m).with_max_states(o.max_states).with_max_tokens(o.max_tokens);
@@ -878,8 +916,8 @@ pub fn check(b: &Bundle, rec: &Value, tool: &str) -> Result<Value, String> {
     };
     let f = rules::flatten(b).map_err(|e| format!("{tool}: {e}"))?;
     let m = &f.model;
-    let c = rules::incidence(m);
-    let pidx: HashMap<&str, usize> = m.places.iter().enumerate().map(|(i, p)| (p.id.as_str(), i)).collect();
+    let c = incidence(m);
+    let pidx: HashMap<&str, usize> = place_index(m);
     let mut results: Vec<Value> = vec![];
     let mut ok = true;
     let mut rec_check = |what: String, method: &str, pass: bool, detail: String| {
@@ -1010,6 +1048,10 @@ pub fn check(b: &Bundle, rec: &Value, tool: &str) -> Result<Value, String> {
     }
     // links: the verdicts are recomputed; structural verdicts and findings must match
     let again = prove(b, &opts, tool)?;
+    // a record may not leave things out: laws, claims and the search summary are the whole of them
+    rec_check("laws complete".into(), "recompute", again["laws"] == rec["laws"], format!("{} laws", again["laws"].as_array().map_or(0, Vec::len)));
+    rec_check("claims complete".into(), "recompute", again["claims"] == rec["claims"], format!("{} claims", again["claims"].as_array().map_or(0, Vec::len)));
+    rec_check("search summary".into(), "recompute", again["search"] == rec["search"], format!("{} states", again["search"]["states"]));
     let same_links = again["links"] == rec["links"];
     rec_check("link verdicts".into(), "recompute", same_links, format!("{} links re-judged", b.links.len()));
     rec_check("overall verdict".into(), "recompute", again["verdict"] == rec["verdict"], format!("{}", again["verdict"]["status"]));
