@@ -450,10 +450,11 @@ pub fn prove(b: &Bundle, o: &Opts, tool: &str) -> Result<Value, String> {
     }
 
     // ---- composite claims
-    let mut claims: Vec<Value> = vec![];
-    claims.push(bounded_claim(m, &c, &pidx, &basis, basis_truncated, &whole));
-    claims.push(deadlock_claim(&whole));
-    claims.push(live_claim(&whole));
+    let claims: Vec<Value> = vec![
+        bounded_claim(m, &c, &pidx, &basis, basis_truncated, &whole),
+        deadlock_claim(&whole),
+        live_claim(&whole),
+    ];
 
     // ---- links
     // which parts end on their own (a saga completes): their dead markings are intended
