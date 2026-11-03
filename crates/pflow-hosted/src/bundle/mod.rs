@@ -20,6 +20,8 @@
 //! …`).
 
 mod catalog;
+mod flatnet;
+mod proof;
 mod read;
 mod rules;
 mod text;
@@ -78,6 +80,9 @@ pub fn call(tool: &str, args: &Value) -> Result<Value, String> {
         "bundle_flatten" => flatten,
         "bundle_run" => run,
         "bundle_incidence" => incidence,
+        "bundle_net" => net,
+        "bundle_prove" => prove,
+        "bundle_check_proof" => check_proof,
         _ => return Err(format!("unknown tool {tool:?}")),
     };
     let hosted = format!("pflow_{tool}");
@@ -128,6 +133,67 @@ fn flatten(a: &Map<String, Value>) -> Result<Value, String> {
     };
     f.check_answer(TOOL)?;
     Ok(f.view())
+}
+
+/// `bundle_net`: the flat net as an ordinary pflow.xyz net the net tools read.
+fn net(a: &Map<String, Value>) -> Result<Value, String> {
+    const TOOL: &str = "pflow_bundle_net";
+    let b = read::bundle_arg(TOOL, a, BUNDLE_ONLY)?;
+    let f = match rules::flatten(&b) {
+        Ok(f) => f,
+        Err(e) => return Ok(json!({"ok": false, "error": e})),
+    };
+    f.check_answer(TOOL)?;
+    let order: Vec<String> = b.subnets.iter().map(|s| s.id.clone()).collect();
+    match flatnet::editor_net(&b.name, &f, &order) {
+        Err(why) => Ok(json!({
+            "ok": false,
+            "error": "the flat net has what the editor's format cannot say, so no net is returned (a net that ran differently from the composite would be worse than none)",
+            "unrepresentable": why,
+        })),
+        Ok((net, members)) => {
+            let mut notes = vec![];
+            let n = rules::weightless(&f.model, false);
+            if n > 0 {
+                notes.push(format!("{n} arcs had no weight; they are written with weight 1, which is how every firing rule reads them"));
+            }
+            Ok(json!({
+                "ok": true,
+                "net": net,
+                "members": members,
+                "places": f.model.places.len(),
+                "transitions": f.model.transitions.len(),
+                "arcs": f.model.arcs.len(),
+                "notes": notes,
+            }))
+        }
+    }
+}
+
+const PROVE_KINDS: &[(&str, Kind)] = &[
+    ("bundle", Kind::Any),
+    ("max_states", Kind::Any),
+    ("max_tokens", Kind::Any),
+    ("ablate", Kind::Bool),
+];
+const CHECK_PROOF_KINDS: &[(&str, Kind)] = &[("bundle", Kind::Any), ("proof", Kind::Any)];
+
+/// `bundle_prove`: does the glue hold? Per-link verdicts and a proof record.
+fn prove(a: &Map<String, Value>) -> Result<Value, String> {
+    const TOOL: &str = "pflow_bundle_prove";
+    let b = read::bundle_arg(TOOL, a, PROVE_KINDS)?;
+    let o = proof::Opts::from_args(a, TOOL)?;
+    proof::prove(&b, &o, TOOL)
+}
+
+/// `bundle_check_proof`: re-checks a `bundle_prove` record against the bundle.
+fn check_proof(a: &Map<String, Value>) -> Result<Value, String> {
+    const TOOL: &str = "pflow_bundle_check_proof";
+    let b = read::bundle_arg(TOOL, a, CHECK_PROOF_KINDS)?;
+    let Some(rec) = a.get("proof").filter(|v| v.is_object()) else {
+        return Err(format!("{TOOL}: proof: the record pflow_bundle_prove returned is required"));
+    };
+    proof::check(&b, rec, TOOL)
 }
 
 fn add_link(a: &Map<String, Value>) -> Result<Value, String> {
