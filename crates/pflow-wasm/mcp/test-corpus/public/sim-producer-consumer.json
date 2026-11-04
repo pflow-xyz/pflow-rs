@@ -1,0 +1,52 @@
+{
+  "name": "producer-consumer",
+  "description": "Bounded-buffer producer-consumer problem demonstrating synchronization via Petri net capacity constraints",
+  "debug": {
+    "enabled": true
+  },
+  "graphql": {
+    "enabled": true,
+    "playground": true
+  },
+  "places": [
+    {"id": "producer_idle", "description": "Producer is idle, ready to produce", "initial": 1, "x": 100, "y": 100},
+    {"id": "producing", "description": "Producer is creating an item", "initial": 0, "x": 300, "y": 100},
+    {"id": "buffer", "description": "Items waiting in the bounded buffer", "initial": 0, "x": 500, "y": 200},
+    {"id": "buffer_space", "description": "Available slots in the buffer (capacity counter)", "initial": 5, "x": 500, "y": 50},
+    {"id": "consumer_idle", "description": "Consumer is idle, ready to consume", "initial": 1, "x": 900, "y": 100},
+    {"id": "consuming", "description": "Consumer is processing an item", "initial": 0, "x": 700, "y": 100},
+    {"id": "consumed", "description": "Total items consumed (completed)", "initial": 0, "x": 700, "y": 350}
+  ],
+  "transitions": [
+    {"id": "start_produce", "description": "Producer begins creating an item (requires buffer space)", "x": 200, "y": 100},
+    {"id": "finish_produce", "description": "Producer finishes item, places it in buffer", "x": 400, "y": 100},
+    {"id": "start_consume", "description": "Consumer takes an item from the buffer", "x": 600, "y": 100},
+    {"id": "finish_consume", "description": "Consumer finishes processing the item", "x": 800, "y": 100}
+  ],
+  "arcs": [
+    {"from": "producer_idle", "to": "start_produce"},
+    {"from": "buffer_space", "to": "start_produce"},
+    {"from": "start_produce", "to": "producing"},
+
+    {"from": "producing", "to": "finish_produce"},
+    {"from": "finish_produce", "to": "producer_idle"},
+    {"from": "finish_produce", "to": "buffer"},
+
+    {"from": "consumer_idle", "to": "start_consume"},
+    {"from": "buffer", "to": "start_consume"},
+    {"from": "start_consume", "to": "consuming"},
+
+    {"from": "consuming", "to": "finish_consume"},
+    {"from": "finish_consume", "to": "consumer_idle"},
+    {"from": "finish_consume", "to": "buffer_space"},
+    {"from": "finish_consume", "to": "consumed"}
+  ],
+  "metadata": {
+    "concurrency": {
+      "description": "Bounded-buffer producer-consumer with capacity 5",
+      "buffer_capacity": 5,
+      "synchronization": "Producer blocks when buffer full (no buffer_space tokens), consumer blocks when buffer empty (no buffer tokens)",
+      "concepts": ["bounded buffer", "producer-consumer", "synchronization", "mutual exclusion", "capacity constraint"]
+    }
+  }
+}

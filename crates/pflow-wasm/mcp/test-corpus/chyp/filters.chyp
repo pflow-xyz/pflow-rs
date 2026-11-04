@@ -1,0 +1,83 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 the chyp-rs contributors. New in chyp-rs.
+#
+# Sound filters form a meet-semilattice under intersection.
+#
+# Source: ontology-pflow-xyz ROADMAP.md, Phase 6 "Search composition":
+#   "Sound filters: a meet-semilattice under intersection (an empty result
+#    falls back to all moves). Bounds: interval meet. Neither is built."
+#
+# The rules below model plain intersection. They do not hold with the
+# empty-result fallback: with it, meet is not associative (for A = {1} and
+# B = C = {2}, (A meet B) meet C = {2} but A meet (B meet C) = all moves).
+#
+# A wire carries a set of moves. `meet` intersects two sets, `all` is the set
+# of all moves (the unit of intersection), and `dup` copies a set, which is
+# what idempotence needs to be stated as a string diagram.
+
+gen meet : 2 -> 1
+gen all : 0 -> 1
+gen dup : 1 -> 2
+
+rule meet_assoc : meet * id ; meet = id * meet ; meet
+rule meet_unitL : all * id ; meet = id
+rule meet_comm : sw ; meet = meet
+rule meet_idem : dup ; meet = id
+
+# Two concrete sound filters. Filters are plain data, so they can be copied.
+gen legal : 0 -> 1
+gen threat : 0 -> 1
+rule legal_copy : legal ; dup = legal * legal
+
+# The right unit law follows from the left one and commutativity.
+rewrite meet_unitR :
+  id * all ; meet
+  = all * id ; meet by -meet_comm
+  = id by meet_unitL
+
+# Intersection of two concrete filters does not depend on their order.
+rewrite meet_comm_concrete :
+  legal * threat ; meet
+  = threat * legal ; meet by -meet_comm
+
+# Idempotence: intersecting a filter with itself changes nothing.
+theorem legal_idem :
+  legal * legal ; meet = legal
+proof
+  rewrite LHS
+    = legal ; dup ; meet by -legal_copy
+    = RHS by meet_idem
+qed
+
+# Idempotence for a three-way copy, using it twice.
+rewrite meet_idem3 :
+  dup ; dup * id ; meet * id ; meet
+  = dup ; meet by meet_idem
+  = id by meet_idem
+
+# Associativity lets a three-filter intersection be regrouped.
+rewrite meet3_regroup :
+  legal * threat * all ; meet * id ; meet
+  = legal * threat * all ; id * meet ; meet by meet_assoc
+  = legal * threat ; meet by meet_unitR
+
+# A rejected step shows only that the cited rule does not turn its left side
+# into its right side, or, with `by refl`, that the two sides are different
+# diagrams. Chyp cannot show that an equation does not follow from the rules.
+#
+# The right unit law is true (meet_unitR above proves it), but not by
+# meet_unitL alone: that rule's left side feeds `all` into the FIRST input
+# of meet, so it does not apply here. Rejected.
+rewrite unitR_needs_comm :
+  id * all ; meet
+  = id by meet_unitL
+
+# Intersection is not absorbing: removing the unit `all` leaves the filter,
+# not `all`. The first step is accepted, the second rejected.
+rewrite meet_drops_unit :
+  all * legal ; meet
+  = legal by meet_unitL
+
+rewrite meet_not_absorbing :
+  all * legal ; meet
+  = all by meet_unitL

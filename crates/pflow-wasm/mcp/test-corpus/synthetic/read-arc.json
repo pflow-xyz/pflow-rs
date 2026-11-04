@@ -1,0 +1,39 @@
+{
+ "name": "read-arc",
+ "places": [
+  {
+   "id": "substrate",
+   "initial": 5
+  },
+  {
+   "id": "catalyst",
+   "initial": 1
+  },
+  {
+   "id": "product",
+   "initial": 0
+  }
+ ],
+ "transitions": [
+  {
+   "id": "react",
+   "rate": 1
+  }
+ ],
+ "arcs": [
+  {
+   "from": "substrate",
+   "to": "react"
+  },
+  {
+   "from": "catalyst",
+   "to": "react",
+   "weight": 1,
+   "type": "read"
+  },
+  {
+   "from": "react",
+   "to": "product"
+  }
+ ]
+}

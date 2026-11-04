@@ -1,0 +1,1213 @@
+{
+  "name": "vet-clinic",
+  "description": "Veterinary clinic what-if simulator. Every service is two firings \u2014 start_X seizes staff and a room, finish_X releases them \u2014 so headcount and room counts are observably busy and staffing questions have answers. Queue -> start arcs are kinetic:false with a fast pickup rate (720/h, ~5s): a free vet does not notice a waiting patient faster because more are waiting, so the queue is a prerequisite, not an accelerant; the declared service times live on finish_X. Patience is per queue and kinetic (each waiting client gives up independently), draining to walked_out. Emergencies arrive through their own source (rate 0 until a scenario raises it or injects wait_emergency directly), inhibit routine exam starts so they take the next free DVM, and divert to another hospital if not seen fast. surgery_day is a read arc \u2014 a gate analysis can see \u2014 and recovery kennels are seized when a procedure finishes, so a full recovery ward backs up into the surgery suite.",
+  "view": "A live map of the clinic: rooms, staff pools and queues drawn as a floor plan whose occupancy animates from scenario runs, with the rates as the controls beside it \u2014 sliders for staffing and patience, disruption toggles for emergency walk-ins, and a compare strip showing seeded what-if results next to today's baseline. A monitoring view, not a game: the visitor reads state and turns knobs, the engine does the rest.",
+  "simulation": {
+    "solver": {
+      "rates": {
+        "emergency_arrives": 0
+      }
+    }
+  },
+  "places": [
+    {
+      "id": "dvm_avail",
+      "description": "Available veterinarians",
+      "initial": 2
+    },
+    {
+      "id": "rvt_avail",
+      "description": "Available vet techs",
+      "initial": 3
+    },
+    {
+      "id": "receptionist_avail",
+      "description": "Receptionists for checkout",
+      "initial": 1
+    },
+    {
+      "id": "exam_room_free",
+      "description": "Free exam rooms",
+      "initial": 4
+    },
+    {
+      "id": "surgery_free",
+      "description": "Surgery suite available",
+      "initial": 1
+    },
+    {
+      "id": "dental_free",
+      "description": "Dental suite available",
+      "initial": 1
+    },
+    {
+      "id": "radiology_free",
+      "description": "X-ray/ultrasound room",
+      "initial": 1
+    },
+    {
+      "id": "treatment_free",
+      "description": "Treatment area stations",
+      "initial": 3
+    },
+    {
+      "id": "recovery_free",
+      "description": "Recovery kennels",
+      "initial": 6
+    },
+    {
+      "id": "lab_free",
+      "description": "Lab equipment",
+      "initial": 1
+    },
+    {
+      "id": "surgery_day",
+      "description": "Surgery gate (1 = procedures run today)",
+      "initial": 1
+    },
+    {
+      "id": "arrival",
+      "description": "Patients at triage",
+      "initial": 0
+    },
+    {
+      "id": "wait_exam",
+      "description": "Waiting for exam",
+      "initial": 0
+    },
+    {
+      "id": "wait_tech",
+      "description": "Waiting for tech service",
+      "initial": 0
+    },
+    {
+      "id": "wait_surgery",
+      "description": "Waiting for surgery",
+      "initial": 0
+    },
+    {
+      "id": "wait_dental",
+      "description": "Waiting for dental",
+      "initial": 0
+    },
+    {
+      "id": "wait_diag",
+      "description": "Waiting for diagnostics",
+      "initial": 0
+    },
+    {
+      "id": "wait_emergency",
+      "description": "Emergency awaiting stabilization",
+      "initial": 0
+    },
+    {
+      "id": "wait_lab",
+      "description": "Sample awaiting lab processing",
+      "initial": 0
+    },
+    {
+      "id": "wait_checkout",
+      "description": "Waiting at the front desk",
+      "initial": 0
+    },
+    {
+      "id": "in_wellness",
+      "description": "In wellness exam",
+      "initial": 0
+    },
+    {
+      "id": "in_sick",
+      "description": "In sick visit",
+      "initial": 0
+    },
+    {
+      "id": "in_vaccine",
+      "description": "Getting vaccinated",
+      "initial": 0
+    },
+    {
+      "id": "in_nail_trim",
+      "description": "Getting nail trim",
+      "initial": 0
+    },
+    {
+      "id": "in_weight",
+      "description": "Weight check",
+      "initial": 0
+    },
+    {
+      "id": "in_suture",
+      "description": "Suture removal",
+      "initial": 0
+    },
+    {
+      "id": "in_spay",
+      "description": "In spay surgery",
+      "initial": 0
+    },
+    {
+      "id": "in_neuter",
+      "description": "In neuter surgery",
+      "initial": 0
+    },
+    {
+      "id": "in_dental",
+      "description": "In dental cleaning",
+      "initial": 0
+    },
+    {
+      "id": "in_xray",
+      "description": "Getting x-ray",
+      "initial": 0
+    },
+    {
+      "id": "in_bloodwork",
+      "description": "Blood draw",
+      "initial": 0
+    },
+    {
+      "id": "in_lab",
+      "description": "Lab test in progress",
+      "initial": 0
+    },
+    {
+      "id": "in_emergency",
+      "description": "Emergency stabilization in progress",
+      "initial": 0
+    },
+    {
+      "id": "checking_out",
+      "description": "Being checked out",
+      "initial": 0
+    },
+    {
+      "id": "in_recovery",
+      "description": "Post-op recovery (kennel held)",
+      "initial": 0
+    },
+    {
+      "id": "discharged",
+      "description": "Discharged patients",
+      "initial": 0
+    },
+    {
+      "id": "walked_out",
+      "description": "Left without being seen",
+      "initial": 0
+    },
+    {
+      "id": "diverted",
+      "description": "Emergencies sent to another hospital",
+      "initial": 0
+    }
+  ],
+  "transitions": [
+    {
+      "id": "patient_arrives",
+      "description": "Scheduled/walk-in patient arrives",
+      "rate": 6
+    },
+    {
+      "id": "emergency_arrives",
+      "description": "Emergency walk-in (rate 0 via simulation.solver.rates \u2014 a transition-level 0 would read as unset and default to 1)"
+    },
+    {
+      "id": "triage_to_exam",
+      "description": "Route to exam queue",
+      "rate": 50
+    },
+    {
+      "id": "triage_to_tech",
+      "description": "Route to tech services",
+      "rate": 25
+    },
+    {
+      "id": "triage_to_surgery",
+      "description": "Route to surgery queue",
+      "rate": 10
+    },
+    {
+      "id": "triage_to_dental",
+      "description": "Route to dental queue",
+      "rate": 5
+    },
+    {
+      "id": "triage_to_diag",
+      "description": "Route to diagnostics",
+      "rate": 10
+    },
+    {
+      "id": "start_wellness",
+      "description": "Free DVM+RVT+room pick up a wellness exam",
+      "rate": 720
+    },
+    {
+      "id": "finish_wellness",
+      "description": "Wellness exam (~20 min)",
+      "rate": 3
+    },
+    {
+      "id": "start_sick",
+      "description": "Free DVM+RVT+room pick up a sick visit",
+      "rate": 720
+    },
+    {
+      "id": "finish_sick",
+      "description": "Sick visit (~30 min)",
+      "rate": 2
+    },
+    {
+      "id": "start_vaccine",
+      "description": "Free DVM+RVT+room pick up a vaccination",
+      "rate": 720
+    },
+    {
+      "id": "finish_vaccine",
+      "description": "Vaccination (~15 min)",
+      "rate": 4
+    },
+    {
+      "id": "start_nail_trim",
+      "description": "Free RVT+station pick up a nail trim",
+      "rate": 720
+    },
+    {
+      "id": "finish_nail_trim",
+      "description": "Nail trim (~15 min)",
+      "rate": 4
+    },
+    {
+      "id": "start_weight",
+      "description": "Free RVT+station pick up a weight check",
+      "rate": 720
+    },
+    {
+      "id": "finish_weight",
+      "description": "Weight check (~10 min)",
+      "rate": 6
+    },
+    {
+      "id": "start_suture",
+      "description": "Free RVT+room pick up a suture removal",
+      "rate": 720
+    },
+    {
+      "id": "finish_suture",
+      "description": "Suture removal (~15 min)",
+      "rate": 4
+    },
+    {
+      "id": "start_spay",
+      "description": "DVM+2 RVT+suite begin a spay (surgery day only)",
+      "rate": 720
+    },
+    {
+      "id": "finish_spay",
+      "description": "Spay (~60 min); needs a free recovery kennel",
+      "rate": 1
+    },
+    {
+      "id": "start_neuter",
+      "description": "DVM+2 RVT+suite begin a neuter (surgery day only)",
+      "rate": 720
+    },
+    {
+      "id": "finish_neuter",
+      "description": "Neuter (~45 min); needs a free recovery kennel",
+      "rate": 1.33
+    },
+    {
+      "id": "start_dental",
+      "description": "DVM+RVT+suite begin a dental (surgery day only)",
+      "rate": 720
+    },
+    {
+      "id": "finish_dental",
+      "description": "Dental cleaning (~90 min); needs a free recovery kennel",
+      "rate": 0.67
+    },
+    {
+      "id": "start_xray",
+      "description": "Free RVT+radiology pick up an x-ray",
+      "rate": 720
+    },
+    {
+      "id": "finish_xray",
+      "description": "X-ray (~30 min)",
+      "rate": 2
+    },
+    {
+      "id": "start_bloodwork",
+      "description": "Free RVT+station pick up a blood draw",
+      "rate": 720
+    },
+    {
+      "id": "finish_bloodwork",
+      "description": "Blood draw (~15 min); sample goes to the lab",
+      "rate": 4
+    },
+    {
+      "id": "start_lab",
+      "description": "Lab picks up a waiting sample",
+      "rate": 720
+    },
+    {
+      "id": "finish_lab",
+      "description": "Lab processing (~30 min)",
+      "rate": 2
+    },
+    {
+      "id": "start_emergency",
+      "description": "DVM+RVT+station stabilize an emergency",
+      "rate": 720
+    },
+    {
+      "id": "finish_emergency",
+      "description": "Stabilization (~45 min); needs a recovery kennel",
+      "rate": 1.33
+    },
+    {
+      "id": "start_checkout",
+      "description": "Receptionist picks up the next checkout",
+      "rate": 720
+    },
+    {
+      "id": "finish_checkout",
+      "description": "Checkout (~10 min)",
+      "rate": 6
+    },
+    {
+      "id": "finish_recovery",
+      "description": "Recovery (~60 min); kennel freed",
+      "rate": 1
+    },
+    {
+      "id": "abandon_exam",
+      "description": "Exam client gives up (~30 min patience)",
+      "rate": 2
+    },
+    {
+      "id": "abandon_tech",
+      "description": "Tech client gives up (~30 min patience)",
+      "rate": 2
+    },
+    {
+      "id": "abandon_diag",
+      "description": "Diagnostics client gives up (~30 min patience)",
+      "rate": 2
+    },
+    {
+      "id": "abandon_surgery",
+      "description": "Surgery client reschedules (~2 h patience)",
+      "rate": 0.5
+    },
+    {
+      "id": "abandon_dental",
+      "description": "Dental client reschedules (~2 h patience)",
+      "rate": 0.5
+    },
+    {
+      "id": "divert_emergency",
+      "description": "Emergency diverted if unseen (~15 min tolerance)",
+      "rate": 4
+    }
+  ],
+  "arcs": [
+    {
+      "from": "patient_arrives",
+      "to": "arrival"
+    },
+    {
+      "from": "emergency_arrives",
+      "to": "wait_emergency"
+    },
+    {
+      "from": "arrival",
+      "to": "triage_to_exam"
+    },
+    {
+      "from": "arrival",
+      "to": "triage_to_tech"
+    },
+    {
+      "from": "arrival",
+      "to": "triage_to_surgery"
+    },
+    {
+      "from": "arrival",
+      "to": "triage_to_dental"
+    },
+    {
+      "from": "arrival",
+      "to": "triage_to_diag"
+    },
+    {
+      "from": "triage_to_exam",
+      "to": "wait_exam"
+    },
+    {
+      "from": "triage_to_tech",
+      "to": "wait_tech"
+    },
+    {
+      "from": "triage_to_surgery",
+      "to": "wait_surgery"
+    },
+    {
+      "from": "triage_to_dental",
+      "to": "wait_dental"
+    },
+    {
+      "from": "triage_to_diag",
+      "to": "wait_diag"
+    },
+    {
+      "from": "wait_exam",
+      "to": "start_wellness",
+      "kinetic": false
+    },
+    {
+      "from": "dvm_avail",
+      "to": "start_wellness"
+    },
+    {
+      "from": "rvt_avail",
+      "to": "start_wellness"
+    },
+    {
+      "from": "exam_room_free",
+      "to": "start_wellness"
+    },
+    {
+      "from": "wait_emergency",
+      "to": "start_wellness",
+      "type": "inhibitor"
+    },
+    {
+      "from": "start_wellness",
+      "to": "in_wellness"
+    },
+    {
+      "from": "in_wellness",
+      "to": "finish_wellness"
+    },
+    {
+      "from": "finish_wellness",
+      "to": "dvm_avail"
+    },
+    {
+      "from": "finish_wellness",
+      "to": "rvt_avail"
+    },
+    {
+      "from": "finish_wellness",
+      "to": "exam_room_free"
+    },
+    {
+      "from": "finish_wellness",
+      "to": "wait_checkout"
+    },
+    {
+      "from": "wait_exam",
+      "to": "start_sick",
+      "kinetic": false
+    },
+    {
+      "from": "dvm_avail",
+      "to": "start_sick"
+    },
+    {
+      "from": "rvt_avail",
+      "to": "start_sick"
+    },
+    {
+      "from": "exam_room_free",
+      "to": "start_sick"
+    },
+    {
+      "from": "wait_emergency",
+      "to": "start_sick",
+      "type": "inhibitor"
+    },
+    {
+      "from": "start_sick",
+      "to": "in_sick"
+    },
+    {
+      "from": "in_sick",
+      "to": "finish_sick"
+    },
+    {
+      "from": "finish_sick",
+      "to": "dvm_avail"
+    },
+    {
+      "from": "finish_sick",
+      "to": "rvt_avail"
+    },
+    {
+      "from": "finish_sick",
+      "to": "exam_room_free"
+    },
+    {
+      "from": "finish_sick",
+      "to": "wait_checkout"
+    },
+    {
+      "from": "wait_exam",
+      "to": "start_vaccine",
+      "kinetic": false
+    },
+    {
+      "from": "dvm_avail",
+      "to": "start_vaccine"
+    },
+    {
+      "from": "rvt_avail",
+      "to": "start_vaccine"
+    },
+    {
+      "from": "exam_room_free",
+      "to": "start_vaccine"
+    },
+    {
+      "from": "wait_emergency",
+      "to": "start_vaccine",
+      "type": "inhibitor"
+    },
+    {
+      "from": "start_vaccine",
+      "to": "in_vaccine"
+    },
+    {
+      "from": "in_vaccine",
+      "to": "finish_vaccine"
+    },
+    {
+      "from": "finish_vaccine",
+      "to": "dvm_avail"
+    },
+    {
+      "from": "finish_vaccine",
+      "to": "rvt_avail"
+    },
+    {
+      "from": "finish_vaccine",
+      "to": "exam_room_free"
+    },
+    {
+      "from": "finish_vaccine",
+      "to": "wait_checkout"
+    },
+    {
+      "from": "wait_tech",
+      "to": "start_nail_trim",
+      "kinetic": false
+    },
+    {
+      "from": "rvt_avail",
+      "to": "start_nail_trim"
+    },
+    {
+      "from": "treatment_free",
+      "to": "start_nail_trim"
+    },
+    {
+      "from": "start_nail_trim",
+      "to": "in_nail_trim"
+    },
+    {
+      "from": "in_nail_trim",
+      "to": "finish_nail_trim"
+    },
+    {
+      "from": "finish_nail_trim",
+      "to": "rvt_avail"
+    },
+    {
+      "from": "finish_nail_trim",
+      "to": "treatment_free"
+    },
+    {
+      "from": "finish_nail_trim",
+      "to": "wait_checkout"
+    },
+    {
+      "from": "wait_tech",
+      "to": "start_weight",
+      "kinetic": false
+    },
+    {
+      "from": "rvt_avail",
+      "to": "start_weight"
+    },
+    {
+      "from": "treatment_free",
+      "to": "start_weight"
+    },
+    {
+      "from": "start_weight",
+      "to": "in_weight"
+    },
+    {
+      "from": "in_weight",
+      "to": "finish_weight"
+    },
+    {
+      "from": "finish_weight",
+      "to": "rvt_avail"
+    },
+    {
+      "from": "finish_weight",
+      "to": "treatment_free"
+    },
+    {
+      "from": "finish_weight",
+      "to": "wait_checkout"
+    },
+    {
+      "from": "wait_tech",
+      "to": "start_suture",
+      "kinetic": false
+    },
+    {
+      "from": "rvt_avail",
+      "to": "start_suture"
+    },
+    {
+      "from": "exam_room_free",
+      "to": "start_suture"
+    },
+    {
+      "from": "start_suture",
+      "to": "in_suture"
+    },
+    {
+      "from": "in_suture",
+      "to": "finish_suture"
+    },
+    {
+      "from": "finish_suture",
+      "to": "rvt_avail"
+    },
+    {
+      "from": "finish_suture",
+      "to": "exam_room_free"
+    },
+    {
+      "from": "finish_suture",
+      "to": "wait_checkout"
+    },
+    {
+      "from": "wait_surgery",
+      "to": "start_spay",
+      "kinetic": false
+    },
+    {
+      "from": "dvm_avail",
+      "to": "start_spay"
+    },
+    {
+      "from": "rvt_avail",
+      "to": "start_spay",
+      "weight": 2
+    },
+    {
+      "from": "surgery_free",
+      "to": "start_spay"
+    },
+    {
+      "from": "surgery_day",
+      "to": "start_spay",
+      "type": "read"
+    },
+    {
+      "from": "start_spay",
+      "to": "in_spay"
+    },
+    {
+      "from": "in_spay",
+      "to": "finish_spay"
+    },
+    {
+      "from": "recovery_free",
+      "to": "finish_spay"
+    },
+    {
+      "from": "finish_spay",
+      "to": "dvm_avail"
+    },
+    {
+      "from": "finish_spay",
+      "to": "rvt_avail",
+      "weight": 2
+    },
+    {
+      "from": "finish_spay",
+      "to": "surgery_free"
+    },
+    {
+      "from": "finish_spay",
+      "to": "in_recovery"
+    },
+    {
+      "from": "wait_surgery",
+      "to": "start_neuter",
+      "kinetic": false
+    },
+    {
+      "from": "dvm_avail",
+      "to": "start_neuter"
+    },
+    {
+      "from": "rvt_avail",
+      "to": "start_neuter",
+      "weight": 2
+    },
+    {
+      "from": "surgery_free",
+      "to": "start_neuter"
+    },
+    {
+      "from": "surgery_day",
+      "to": "start_neuter",
+      "type": "read"
+    },
+    {
+      "from": "start_neuter",
+      "to": "in_neuter"
+    },
+    {
+      "from": "in_neuter",
+      "to": "finish_neuter"
+    },
+    {
+      "from": "recovery_free",
+      "to": "finish_neuter"
+    },
+    {
+      "from": "finish_neuter",
+      "to": "dvm_avail"
+    },
+    {
+      "from": "finish_neuter",
+      "to": "rvt_avail",
+      "weight": 2
+    },
+    {
+      "from": "finish_neuter",
+      "to": "surgery_free"
+    },
+    {
+      "from": "finish_neuter",
+      "to": "in_recovery"
+    },
+    {
+      "from": "wait_dental",
+      "to": "start_dental",
+      "kinetic": false
+    },
+    {
+      "from": "dvm_avail",
+      "to": "start_dental"
+    },
+    {
+      "from": "rvt_avail",
+      "to": "start_dental"
+    },
+    {
+      "from": "dental_free",
+      "to": "start_dental"
+    },
+    {
+      "from": "surgery_day",
+      "to": "start_dental",
+      "type": "read"
+    },
+    {
+      "from": "start_dental",
+      "to": "in_dental"
+    },
+    {
+      "from": "in_dental",
+      "to": "finish_dental"
+    },
+    {
+      "from": "recovery_free",
+      "to": "finish_dental"
+    },
+    {
+      "from": "finish_dental",
+      "to": "dvm_avail"
+    },
+    {
+      "from": "finish_dental",
+      "to": "rvt_avail"
+    },
+    {
+      "from": "finish_dental",
+      "to": "dental_free"
+    },
+    {
+      "from": "finish_dental",
+      "to": "in_recovery"
+    },
+    {
+      "from": "wait_diag",
+      "to": "start_xray",
+      "kinetic": false
+    },
+    {
+      "from": "rvt_avail",
+      "to": "start_xray"
+    },
+    {
+      "from": "radiology_free",
+      "to": "start_xray"
+    },
+    {
+      "from": "start_xray",
+      "to": "in_xray"
+    },
+    {
+      "from": "in_xray",
+      "to": "finish_xray"
+    },
+    {
+      "from": "finish_xray",
+      "to": "rvt_avail"
+    },
+    {
+      "from": "finish_xray",
+      "to": "radiology_free"
+    },
+    {
+      "from": "finish_xray",
+      "to": "wait_checkout"
+    },
+    {
+      "from": "wait_diag",
+      "to": "start_bloodwork",
+      "kinetic": false
+    },
+    {
+      "from": "rvt_avail",
+      "to": "start_bloodwork"
+    },
+    {
+      "from": "treatment_free",
+      "to": "start_bloodwork"
+    },
+    {
+      "from": "start_bloodwork",
+      "to": "in_bloodwork"
+    },
+    {
+      "from": "in_bloodwork",
+      "to": "finish_bloodwork"
+    },
+    {
+      "from": "finish_bloodwork",
+      "to": "rvt_avail"
+    },
+    {
+      "from": "finish_bloodwork",
+      "to": "treatment_free"
+    },
+    {
+      "from": "finish_bloodwork",
+      "to": "wait_lab"
+    },
+    {
+      "from": "wait_lab",
+      "to": "start_lab",
+      "kinetic": false
+    },
+    {
+      "from": "lab_free",
+      "to": "start_lab"
+    },
+    {
+      "from": "start_lab",
+      "to": "in_lab"
+    },
+    {
+      "from": "in_lab",
+      "to": "finish_lab"
+    },
+    {
+      "from": "finish_lab",
+      "to": "lab_free"
+    },
+    {
+      "from": "finish_lab",
+      "to": "wait_checkout"
+    },
+    {
+      "from": "wait_emergency",
+      "to": "start_emergency",
+      "kinetic": false
+    },
+    {
+      "from": "dvm_avail",
+      "to": "start_emergency"
+    },
+    {
+      "from": "rvt_avail",
+      "to": "start_emergency"
+    },
+    {
+      "from": "treatment_free",
+      "to": "start_emergency"
+    },
+    {
+      "from": "start_emergency",
+      "to": "in_emergency"
+    },
+    {
+      "from": "in_emergency",
+      "to": "finish_emergency"
+    },
+    {
+      "from": "recovery_free",
+      "to": "finish_emergency"
+    },
+    {
+      "from": "finish_emergency",
+      "to": "dvm_avail"
+    },
+    {
+      "from": "finish_emergency",
+      "to": "rvt_avail"
+    },
+    {
+      "from": "finish_emergency",
+      "to": "treatment_free"
+    },
+    {
+      "from": "finish_emergency",
+      "to": "in_recovery"
+    },
+    {
+      "from": "wait_checkout",
+      "to": "start_checkout",
+      "kinetic": false
+    },
+    {
+      "from": "receptionist_avail",
+      "to": "start_checkout"
+    },
+    {
+      "from": "start_checkout",
+      "to": "checking_out"
+    },
+    {
+      "from": "checking_out",
+      "to": "finish_checkout"
+    },
+    {
+      "from": "finish_checkout",
+      "to": "receptionist_avail"
+    },
+    {
+      "from": "finish_checkout",
+      "to": "discharged"
+    },
+    {
+      "from": "in_recovery",
+      "to": "finish_recovery"
+    },
+    {
+      "from": "finish_recovery",
+      "to": "recovery_free"
+    },
+    {
+      "from": "finish_recovery",
+      "to": "wait_checkout"
+    },
+    {
+      "from": "wait_exam",
+      "to": "abandon_exam"
+    },
+    {
+      "from": "abandon_exam",
+      "to": "walked_out"
+    },
+    {
+      "from": "wait_tech",
+      "to": "abandon_tech"
+    },
+    {
+      "from": "abandon_tech",
+      "to": "walked_out"
+    },
+    {
+      "from": "wait_diag",
+      "to": "abandon_diag"
+    },
+    {
+      "from": "abandon_diag",
+      "to": "walked_out"
+    },
+    {
+      "from": "wait_surgery",
+      "to": "abandon_surgery"
+    },
+    {
+      "from": "abandon_surgery",
+      "to": "walked_out"
+    },
+    {
+      "from": "wait_dental",
+      "to": "abandon_dental"
+    },
+    {
+      "from": "abandon_dental",
+      "to": "walked_out"
+    },
+    {
+      "from": "wait_emergency",
+      "to": "divert_emergency"
+    },
+    {
+      "from": "divert_emergency",
+      "to": "diverted"
+    }
+  ],
+  "presentation": {
+    "title": "Vet Clinic",
+    "accent": "#4f8ff7",
+    "labels": {
+      "dvm_avail": "Veterinarians",
+      "rvt_avail": "Vet techs",
+      "receptionist_avail": "Receptionists",
+      "exam_room_free": "Exam rooms",
+      "surgery_free": "Surgery suites",
+      "dental_free": "Dental suites",
+      "radiology_free": "X-ray machines",
+      "treatment_free": "Treatment stations",
+      "recovery_free": "Recovery kennels",
+      "lab_free": "Lab benches",
+      "patient_arrives": "Routine arrivals",
+      "emergency_arrives": "Emergency arrivals",
+      "abandon_exam": "Exam-queue patience",
+      "abandon_tech": "Tech-queue patience",
+      "abandon_diag": "Diagnostics patience",
+      "abandon_surgery": "Surgery patience",
+      "abandon_dental": "Dental patience",
+      "divert_emergency": "Emergency divert",
+      "wait_exam": "Waiting for an exam room",
+      "wait_tech": "Waiting for a tech",
+      "wait_surgery": "Waiting for surgery",
+      "wait_dental": "Waiting for dental",
+      "wait_diag": "Waiting for diagnostics",
+      "wait_emergency": "Waiting: emergency",
+      "wait_lab": "Waiting for the lab",
+      "wait_checkout": "Waiting to check out",
+      "discharged": "Discharged",
+      "walked_out": "Walked out",
+      "diverted": "Diverted",
+      "surgery_day": "Surgery day"
+    },
+    "units": {
+      "discharged": "patients",
+      "walked_out": "walkouts",
+      "diverted": "diverted patients"
+    },
+    "groups": [
+      {
+        "id": "staff",
+        "title": "Who is working",
+        "description": "The people rostered today. Every one is a conserved pool the run draws on and returns.",
+        "members": [
+          "dvm_avail",
+          "rvt_avail",
+          "receptionist_avail"
+        ]
+      },
+      {
+        "id": "rooms",
+        "title": "Rooms and equipment",
+        "members": [
+          "exam_room_free",
+          "surgery_free",
+          "dental_free",
+          "radiology_free",
+          "treatment_free",
+          "recovery_free",
+          "lab_free"
+        ]
+      },
+      {
+        "id": "demand",
+        "title": "Who comes through the door",
+        "members": [
+          "patient_arrives",
+          "emergency_arrives"
+        ]
+      },
+      {
+        "id": "patience",
+        "title": "How long people wait before giving up",
+        "description": "A patience rate races the service: loss is patience times mean queue length, which is what staffing moves.",
+        "members": [
+          "abandon_exam",
+          "abandon_tech",
+          "abandon_diag",
+          "abandon_surgery",
+          "abandon_dental",
+          "divert_emergency"
+        ]
+      }
+    ],
+    "disruptions": [
+      {
+        "id": "xray_down",
+        "label": "x-ray machine down",
+        "description": "Radiology is out for the day, so anything needing an x-ray queues behind nothing.",
+        "marking": {
+          "radiology_free": 0
+        }
+      },
+      {
+        "id": "no_surgery",
+        "label": "no surgery today",
+        "description": "The surgery gate is closed: spays, neuters and sutures do not start.",
+        "rates": {
+          "start_spay": 0.0,
+          "start_neuter": 0.0,
+          "start_suture": 0.0
+        }
+      },
+      {
+        "id": "emergency_wave",
+        "label": "emergency wave, hours 1-3",
+        "description": "Two emergencies an hour arriving between hour one and hour three, then back to baseline.",
+        "schedule": {
+          "emergency_arrives": [
+            {
+              "until": 1,
+              "value": 0.25
+            },
+            {
+              "until": 3,
+              "value": 2
+            },
+            {
+              "until": 12,
+              "value": 0.25
+            }
+          ]
+        }
+      },
+      {
+        "id": "emergencies_at_open",
+        "label": "three emergencies at the door at opening",
+        "description": "The day starts with a full emergency queue rather than an empty one.",
+        "marking": {
+          "wait_emergency": 3
+        }
+      }
+    ]
+  }
+}

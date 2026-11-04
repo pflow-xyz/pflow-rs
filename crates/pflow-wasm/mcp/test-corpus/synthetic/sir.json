@@ -1,0 +1,50 @@
+{
+ "name": "sir",
+ "places": [
+  {
+   "id": "S",
+   "initial": 99
+  },
+  {
+   "id": "I",
+   "initial": 1
+  },
+  {
+   "id": "R",
+   "initial": 0
+  }
+ ],
+ "transitions": [
+  {
+   "id": "infect",
+   "rate": 0.3
+  },
+  {
+   "id": "recover",
+   "rate": 0.1
+  }
+ ],
+ "arcs": [
+  {
+   "from": "S",
+   "to": "infect"
+  },
+  {
+   "from": "I",
+   "to": "infect"
+  },
+  {
+   "from": "infect",
+   "to": "I",
+   "weight": 2
+  },
+  {
+   "from": "I",
+   "to": "recover"
+  },
+  {
+   "from": "recover",
+   "to": "R"
+  }
+ ]
+}

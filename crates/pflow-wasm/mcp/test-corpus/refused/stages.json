@@ -1,0 +1,30 @@
+{
+ "name": "stages",
+ "places": [
+  {
+   "id": "a",
+   "initial": 2
+  },
+  {
+   "id": "b",
+   "initial": 0
+  }
+ ],
+ "arcs": [
+  {
+   "from": "a",
+   "to": "t"
+  },
+  {
+   "from": "t",
+   "to": "b"
+  }
+ ],
+ "transitions": [
+  {
+   "id": "t",
+   "rate": 1,
+   "stages": 3
+  }
+ ]
+}

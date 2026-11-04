@@ -1,0 +1,73 @@
+{
+ "name": "mutex-broken",
+ "places": [
+  {
+   "id": "idle1",
+   "initial": 1
+  },
+  {
+   "id": "crit1",
+   "initial": 0
+  },
+  {
+   "id": "idle2",
+   "initial": 1
+  },
+  {
+   "id": "crit2",
+   "initial": 0
+  }
+ ],
+ "transitions": [
+  {
+   "id": "enter1",
+   "rate": 1
+  },
+  {
+   "id": "exit1",
+   "rate": 1
+  },
+  {
+   "id": "enter2",
+   "rate": 1
+  },
+  {
+   "id": "exit2",
+   "rate": 1
+  }
+ ],
+ "arcs": [
+  {
+   "from": "idle1",
+   "to": "enter1"
+  },
+  {
+   "from": "enter1",
+   "to": "crit1"
+  },
+  {
+   "from": "crit1",
+   "to": "exit1"
+  },
+  {
+   "from": "exit1",
+   "to": "idle1"
+  },
+  {
+   "from": "idle2",
+   "to": "enter2"
+  },
+  {
+   "from": "enter2",
+   "to": "crit2"
+  },
+  {
+   "from": "crit2",
+   "to": "exit2"
+  },
+  {
+   "from": "exit2",
+   "to": "idle2"
+  }
+ ]
+}

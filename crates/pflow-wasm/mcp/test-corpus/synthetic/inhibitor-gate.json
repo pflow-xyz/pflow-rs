@@ -1,0 +1,59 @@
+{
+ "name": "inhibitor-gate",
+ "places": [
+  {
+   "id": "queue",
+   "initial": 3
+  },
+  {
+   "id": "done",
+   "initial": 0
+  },
+  {
+   "id": "lock",
+   "initial": 0
+  }
+ ],
+ "transitions": [
+  {
+   "id": "serve",
+   "rate": 2
+  },
+  {
+   "id": "halt",
+   "rate": 1
+  },
+  {
+   "id": "release",
+   "rate": 1
+  }
+ ],
+ "arcs": [
+  {
+   "from": "queue",
+   "to": "serve"
+  },
+  {
+   "from": "serve",
+   "to": "done"
+  },
+  {
+   "from": "lock",
+   "to": "serve",
+   "weight": 1,
+   "type": "inhibitor"
+  },
+  {
+   "from": "done",
+   "to": "halt"
+  },
+  {
+   "from": "halt",
+   "to": "lock"
+  },
+  {
+   "from": "lock",
+   "to": "release"
+  }
+ ]
+}

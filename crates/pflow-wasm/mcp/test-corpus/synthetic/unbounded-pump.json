@@ -1,0 +1,49 @@
+{
+ "name": "unbounded-pump",
+ "places": [
+  {
+   "id": "a",
+   "initial": 1
+  },
+  {
+   "id": "b",
+   "initial": 0
+  },
+  {
+   "id": "count",
+   "initial": 0
+  }
+ ],
+ "transitions": [
+  {
+   "id": "go",
+   "rate": 1
+  },
+  {
+   "id": "back",
+   "rate": 1
+  }
+ ],
+ "arcs": [
+  {
+   "from": "a",
+   "to": "go"
+  },
+  {
+   "from": "go",
+   "to": "b"
+  },
+  {
+   "from": "go",
+   "to": "count"
+  },
+  {
+   "from": "b",
+   "to": "back"
+  },
+  {
+   "from": "back",
+   "to": "a"
+  }
+ ]
+}

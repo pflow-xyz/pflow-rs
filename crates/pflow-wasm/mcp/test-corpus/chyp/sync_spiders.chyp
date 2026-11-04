@@ -1,0 +1,110 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Spider fusion for sync points.
+#
+# Source: ontology-pflow-xyz ROADMAP.md, Phase 6 "Model composition":
+#   "lk:event: transition fusion. Draw it as a synchronising spider joining
+#    two boxes, not as a wire."
+#
+# The generators, the seven Frobenius-algebra rules (assoc, unitL, unitR,
+# coassoc, counitL, counitR, frob) and the proofs fuse_one_wire and
+# fuse_one_wire_mirror are adapted from Chyp's examples/frobenius.chyp
+# (https://github.com/akissinger/chyp, commit 3d28483, by Aleks Kissinger,
+# Apache-2.0): its m, u, n, v are renamed join, start, fork, stop and its
+# proofs frobL, frobR are renamed fuse_one_wire, fuse_one_wire_mirror.
+# Changed by the chyp-rs contributors, 2026.
+#
+# A sync point is a spider on the event wire: a special commutative Frobenius
+# algebra. `join` merges two event wires, `fork` splits one, `start`/`stop`
+# are the zero-legged ends. Spider fusion (two connected sync points are one
+# sync point) follows from the Frobenius, special and (co)commutative laws.
+
+gen join : 2 -> 1
+gen start : 0 -> 1
+gen fork : 1 -> 2
+gen stop : 1 -> 0
+
+rule assoc : join * id ; join = id * join ; join
+rule unitL : start * id ; join = id
+rule unitR : id * start ; join = id
+rule coassoc : fork ; fork * id = fork ; id * fork
+rule counitL : fork ; stop * id = id
+rule counitR : fork ; id * stop = id
+rule frob : fork * id ; id * join = id * fork ; join * id
+rule comm : sw ; join = join
+rule cocomm : fork ; sw = fork
+rule spec : fork ; join = id
+
+# Two transitions of the orders/workers/refund composition, each with one
+# event port, so a sync spider can fuse them.
+gen dequeue : 1 -> 1
+gen acquire : 1 -> 1
+
+# A 2-in, 2-out sync point.
+def sync22 = join ; fork
+
+# Fusion along ONE shared wire: a fork feeding a join is one sync point.
+rewrite fuse_one_wire :
+  fork * id ; id * join
+  = start * fork * id ; join * join by -unitL
+  = start * id * id ; fork * id * id ; id * join * id ; id * join by -frob
+  = start * join ; fork * id ; id * join by assoc
+  = start * join ; id * fork ; join * id by frob
+  = join ; fork by unitL
+
+# ...and the mirror image.
+rewrite fuse_one_wire_mirror :
+  id * fork ; join * id
+  = fork * id ; id * join by -frob
+  = join ; fork by fuse_one_wire
+
+# Fusion along TWO shared wires: two 2-2 sync points in a row are one.
+rewrite fuse_two_wires :
+  sync22 ; sync22
+  = join ; fork ; sync22 by sync22_def
+  = join ; fork ; join ; fork by sync22_def
+  = join ; fork by spec
+  = sync22 by -sync22_def
+
+# Spider legs are unordered: permuting inputs or outputs of a sync point
+# leaves it unchanged.
+rewrite sync_legs_unordered :
+  sw ; join ; fork ; sw
+  = join ; fork ; sw by comm
+  = join ; fork by cocomm
+
+# Fusing the event ports of two transitions (queue.dequeue x pool.acquire),
+# then fusing that sync point with a third consumer, is one 3-legged sync:
+# the grouping of the fusions does not matter.
+theorem fuse_three :
+  dequeue * acquire * id ; join * id ; join
+  = dequeue * acquire * id ; id * join ; join
+proof
+  rewrite LHS
+    = RHS by assoc
+qed
+
+# A sync point that is created and immediately discarded is no sync at all.
+rewrite sync_loop_vanishes :
+  fork ; join
+  = id by spec
+
+# Sync points fuse up to an ordinary transition, but not through it.
+rewrite fuse_up_to_box :
+  join ; fork ; join ; dequeue ; fork
+  = join ; dequeue ; fork by spec
+
+# A rejected step shows only that the cited rule does not turn its left side
+# into its right side, or, with `by refl`, that the two sides are different
+# diagrams. Chyp cannot show that an equation does not follow from the rules.
+#
+# Rejected: fusing the first two sync points leaves `dequeue` between the
+# remaining ones; and two transitions in a row are a different diagram from
+# one of them.
+rewrite no_fusion_through_box :
+  join ; fork ; join ; dequeue ; fork
+  = join ; fork by spec
+
+rewrite boxes_dont_fuse :
+  dequeue ; acquire
+  = acquire by refl

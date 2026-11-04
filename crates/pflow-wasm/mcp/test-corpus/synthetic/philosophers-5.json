@@ -1,0 +1,349 @@
+{
+ "name": "philosophers-5",
+ "places": [
+  {
+   "id": "think0",
+   "initial": 1
+  },
+  {
+   "id": "fork0",
+   "initial": 1
+  },
+  {
+   "id": "hasL0",
+   "initial": 0
+  },
+  {
+   "id": "eat0",
+   "initial": 0
+  },
+  {
+   "id": "think1",
+   "initial": 1
+  },
+  {
+   "id": "fork1",
+   "initial": 1
+  },
+  {
+   "id": "hasL1",
+   "initial": 0
+  },
+  {
+   "id": "eat1",
+   "initial": 0
+  },
+  {
+   "id": "think2",
+   "initial": 1
+  },
+  {
+   "id": "fork2",
+   "initial": 1
+  },
+  {
+   "id": "hasL2",
+   "initial": 0
+  },
+  {
+   "id": "eat2",
+   "initial": 0
+  },
+  {
+   "id": "think3",
+   "initial": 1
+  },
+  {
+   "id": "fork3",
+   "initial": 1
+  },
+  {
+   "id": "hasL3",
+   "initial": 0
+  },
+  {
+   "id": "eat3",
+   "initial": 0
+  },
+  {
+   "id": "think4",
+   "initial": 1
+  },
+  {
+   "id": "fork4",
+   "initial": 1
+  },
+  {
+   "id": "hasL4",
+   "initial": 0
+  },
+  {
+   "id": "eat4",
+   "initial": 0
+  }
+ ],
+ "transitions": [
+  {
+   "id": "takeL0",
+   "rate": 1
+  },
+  {
+   "id": "takeR0",
+   "rate": 1
+  },
+  {
+   "id": "put0",
+   "rate": 1
+  },
+  {
+   "id": "takeL1",
+   "rate": 1
+  },
+  {
+   "id": "takeR1",
+   "rate": 1
+  },
+  {
+   "id": "put1",
+   "rate": 1
+  },
+  {
+   "id": "takeL2",
+   "rate": 1
+  },
+  {
+   "id": "takeR2",
+   "rate": 1
+  },
+  {
+   "id": "put2",
+   "rate": 1
+  },
+  {
+   "id": "takeL3",
+   "rate": 1
+  },
+  {
+   "id": "takeR3",
+   "rate": 1
+  },
+  {
+   "id": "put3",
+   "rate": 1
+  },
+  {
+   "id": "takeL4",
+   "rate": 1
+  },
+  {
+   "id": "takeR4",
+   "rate": 1
+  },
+  {
+   "id": "put4",
+   "rate": 1
+  }
+ ],
+ "arcs": [
+  {
+   "from": "think0",
+   "to": "takeL0"
+  },
+  {
+   "from": "fork0",
+   "to": "takeL0"
+  },
+  {
+   "from": "takeL0",
+   "to": "hasL0"
+  },
+  {
+   "from": "hasL0",
+   "to": "takeR0"
+  },
+  {
+   "from": "fork1",
+   "to": "takeR0"
+  },
+  {
+   "from": "takeR0",
+   "to": "eat0"
+  },
+  {
+   "from": "eat0",
+   "to": "put0"
+  },
+  {
+   "from": "put0",
+   "to": "think0"
+  },
+  {
+   "from": "put0",
+   "to": "fork0"
+  },
+  {
+   "from": "put0",
+   "to": "fork1"
+  },
+  {
+   "from": "think1",
+   "to": "takeL1"
+  },
+  {
+   "from": "fork1",
+   "to": "takeL1"
+  },
+  {
+   "from": "takeL1",
+   "to": "hasL1"
+  },
+  {
+   "from": "hasL1",
+   "to": "takeR1"
+  },
+  {
+   "from": "fork2",
+   "to": "takeR1"
+  },
+  {
+   "from": "takeR1",
+   "to": "eat1"
+  },
+  {
+   "from": "eat1",
+   "to": "put1"
+  },
+  {
+   "from": "put1",
+   "to": "think1"
+  },
+  {
+   "from": "put1",
+   "to": "fork1"
+  },
+  {
+   "from": "put1",
+   "to": "fork2"
+  },
+  {
+   "from": "think2",
+   "to": "takeL2"
+  },
+  {
+   "from": "fork2",
+   "to": "takeL2"
+  },
+  {
+   "from": "takeL2",
+   "to": "hasL2"
+  },
+  {
+   "from": "hasL2",
+   "to": "takeR2"
+  },
+  {
+   "from": "fork3",
+   "to": "takeR2"
+  },
+  {
+   "from": "takeR2",
+   "to": "eat2"
+  },
+  {
+   "from": "eat2",
+   "to": "put2"
+  },
+  {
+   "from": "put2",
+   "to": "think2"
+  },
+  {
+   "from": "put2",
+   "to": "fork2"
+  },
+  {
+   "from": "put2",
+   "to": "fork3"
+  },
+  {
+   "from": "think3",
+   "to": "takeL3"
+  },
+  {
+   "from": "fork3",
+   "to": "takeL3"
+  },
+  {
+   "from": "takeL3",
+   "to": "hasL3"
+  },
+  {
+   "from": "hasL3",
+   "to": "takeR3"
+  },
+  {
+   "from": "fork4",
+   "to": "takeR3"
+  },
+  {
+   "from": "takeR3",
+   "to": "eat3"
+  },
+  {
+   "from": "eat3",
+   "to": "put3"
+  },
+  {
+   "from": "put3",
+   "to": "think3"
+  },
+  {
+   "from": "put3",
+   "to": "fork3"
+  },
+  {
+   "from": "put3",
+   "to": "fork4"
+  },
+  {
+   "from": "think4",
+   "to": "takeL4"
+  },
+  {
+   "from": "fork4",
+   "to": "takeL4"
+  },
+  {
+   "from": "takeL4",
+   "to": "hasL4"
+  },
+  {
+   "from": "hasL4",
+   "to": "takeR4"
+  },
+  {
+   "from": "fork0",
+   "to": "takeR4"
+  },
+  {
+   "from": "takeR4",
+   "to": "eat4"
+  },
+  {
+   "from": "eat4",
+   "to": "put4"
+  },
+  {
+   "from": "put4",
+   "to": "think4"
+  },
+  {
+   "from": "put4",
+   "to": "fork4"
+  },
+  {
+   "from": "put4",
+   "to": "fork0"
+  }
+ ]
+}

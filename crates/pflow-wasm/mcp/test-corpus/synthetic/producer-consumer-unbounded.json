@@ -1,0 +1,53 @@
+{
+ "name": "producer-consumer-unbounded",
+ "places": [
+  {
+   "id": "idle_p",
+   "initial": 1
+  },
+  {
+   "id": "item",
+   "initial": 0
+  },
+  {
+   "id": "idle_c",
+   "initial": 1
+  }
+ ],
+ "transitions": [
+  {
+   "id": "produce",
+   "rate": 1
+  },
+  {
+   "id": "consume",
+   "rate": 0.5
+  }
+ ],
+ "arcs": [
+  {
+   "from": "idle_p",
+   "to": "produce"
+  },
+  {
+   "from": "produce",
+   "to": "idle_p"
+  },
+  {
+   "from": "produce",
+   "to": "item"
+  },
+  {
+   "from": "item",
+   "to": "consume"
+  },
+  {
+   "from": "idle_c",
+   "to": "consume"
+  },
+  {
+   "from": "consume",
+   "to": "idle_c"
+  }
+ ]
+}

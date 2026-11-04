@@ -1,0 +1,26 @@
+{
+ "name": "unbounded-doubling",
+ "places": [
+  {
+   "id": "p",
+   "initial": 1
+  }
+ ],
+ "transitions": [
+  {
+   "id": "dbl",
+   "rate": 0.1
+  }
+ ],
+ "arcs": [
+  {
+   "from": "p",
+   "to": "dbl"
+  },
+  {
+   "from": "dbl",
+   "to": "p",
+   "weight": 2
+  }
+ ]
+}

@@ -1,0 +1,89 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 the chyp-rs contributors. New in chyp-rs.
+#
+# Drivers are endomorphisms on "search", composed like functions around the
+# core.
+#
+# Source: ontology-pflow-xyz ROADMAP.md, Phase 6 "Search composition":
+#   "Drivers: endomorphisms on 'search', composed like functions around the
+#    core. Order matters (budget around null-window != null-window around
+#    budget, in general)."
+#   "Solver = drivers . core[order chain, filters, bounds, memo]"
+#
+# Here a wire is either an order chain (into the core) or a search (out of
+# it). `core` turns an order chain into a search; a driver maps a search to a
+# search, so wrapping a driver around the search is sequential composition.
+# chyp-rs drops Chyp's typed wires, so "order chain" and "search" are a
+# reading convention only: this theory also accepts ill-typed composites
+# such as `solver ; solver`.
+#
+# The two wrapping orders are not assumed to be equal: the ROADMAP says they
+# differ "in general". (pflow-rs's plan.rs currently applies null_window and
+# budget in a fixed order, whatever order the plan lists them in.)
+
+gen chain : 2 -> 1
+gen nil : 0 -> 1
+rule chain_assoc : chain * id ; chain = id * chain ; chain
+rule chain_unitR : id * nil ; chain = id
+
+gen core : 1 -> 1
+gen null_window : 1 -> 1
+gen budget : 1 -> 1
+gen plain : 1 -> 1
+
+# `plain` is a hypothetical identity driver (it stands for an empty driver
+# list; pflow-rs has only null_window and budget): wrapping it changes nothing.
+rule plain_id : plain = id
+
+# A node budget wrapped around the same node budget is that budget.
+rule budget_idem : budget ; budget = budget
+
+# The solver of plan:connect4-exact: budget(null_window(core)).
+def solver = core ; null_window ; budget
+
+# Unfolding and folding the wrapped solver.
+rewrite solver_unfold :
+  chain ; solver
+  = chain ; core ; null_window ; budget by solver_def
+
+# The identity driver can be wrapped anywhere and dropped again.
+rewrite plain_dropped :
+  core ; plain ; null_window ; plain ; budget
+  = core ; null_window ; plain ; budget by plain_id
+  = core ; null_window ; budget by plain_id
+  = solver by -solver_def
+
+# Re-wrapping with the same budget is a no-op.
+theorem budget_rewrap :
+  solver ; budget = solver
+proof
+  rewrite LHS
+    = core ; null_window ; budget ; budget by solver_def
+    = core ; null_window ; budget by budget_idem
+    = RHS by -solver_def
+qed
+
+# Drivers wrap whatever the order chain parameter is: the core's parameter
+# wire can be regrouped under the drivers.
+rewrite wrapped_chain_regroup :
+  chain * chain ; chain ; solver
+  = id * id * chain ; id * chain ; chain ; solver by chain_assoc
+  = id * chain * id ; id * chain ; chain ; solver by -chain_assoc
+
+rewrite wrapped_nil :
+  id * nil ; chain ; solver
+  = solver by chain_unitR
+
+# A rejected step shows only that the cited rule does not turn its left side
+# into its right side, or, with `by refl`, that the two sides are different
+# diagrams. Chyp cannot show that an equation does not follow from the rules.
+#
+# Rejected: unfolding the solver gives null-window inside budget, not the
+# other order; and the two orders are different diagrams.
+rewrite solver_is_not_swapped :
+  solver
+  = core ; budget ; null_window by solver_def
+
+rewrite driver_orders_differ :
+  core ; null_window ; budget
+  = core ; budget ; null_window by refl

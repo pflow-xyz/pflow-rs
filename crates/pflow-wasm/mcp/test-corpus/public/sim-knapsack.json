@@ -1,0 +1,94 @@
+{
+  "name": "knapsack",
+  "description": "0/1 Knapsack problem modeled as a Petri net with ODE-based optimization",
+  "prediction": {
+    "enabled": true,
+    "timeHours": 1,
+    "rateScale": 1.0
+  },
+  "debug": {
+    "enabled": true
+  },
+  "graphql": {
+    "enabled": true,
+    "playground": true
+  },
+  "places": [
+    {"id": "item0", "description": "Item 0 available (weight=2, value=10, efficiency=5.0)", "initial": 1, "x": 100, "y": 100},
+    {"id": "item1", "description": "Item 1 available (weight=5, value=15, efficiency=3.0)", "initial": 1, "x": 250, "y": 100},
+    {"id": "item2", "description": "Item 2 available (weight=6, value=12, efficiency=2.0)", "initial": 1, "x": 400, "y": 100},
+    {"id": "item3", "description": "Item 3 available (weight=8, value=13, efficiency=1.625)", "initial": 1, "x": 550, "y": 100},
+    {"id": "capacity", "description": "Remaining knapsack capacity (weight budget)", "initial": 15, "capacity": 15, "resource": true, "x": 325, "y": 250},
+    {"id": "item0_taken", "description": "Item 0 has been taken", "initial": 0, "x": 100, "y": 400},
+    {"id": "item1_taken", "description": "Item 1 has been taken", "initial": 0, "x": 250, "y": 400},
+    {"id": "item2_taken", "description": "Item 2 has been taken", "initial": 0, "x": 400, "y": 400},
+    {"id": "item3_taken", "description": "Item 3 has been taken", "initial": 0, "x": 550, "y": 400},
+    {"id": "total_value", "description": "Accumulated value from taken items", "initial": 0, "x": 325, "y": 500},
+    {"id": "total_weight", "description": "Total weight used", "initial": 0, "x": 475, "y": 500}
+  ],
+  "transitions": [
+    {"id": "take_item0", "description": "Take item 0 (weight=2, value=10)", "rate": 5.0, "x": 100, "y": 250},
+    {"id": "take_item1", "description": "Take item 1 (weight=5, value=15)", "rate": 3.0, "x": 250, "y": 250},
+    {"id": "take_item2", "description": "Take item 2 (weight=6, value=12)", "rate": 2.0, "x": 400, "y": 250},
+    {"id": "take_item3", "description": "Take item 3 (weight=8, value=13)", "rate": 1.625, "x": 550, "y": 250},
+    {"id": "reset", "description": "Reset knapsack to initial state", "x": 700, "y": 250}
+  ],
+  "arcs": [
+    {"from": "item0", "to": "take_item0"},
+    {"from": "capacity", "to": "take_item0", "weight": 2},
+    {"from": "take_item0", "to": "item0_taken"},
+    {"from": "take_item0", "to": "total_value", "weight": 10},
+    {"from": "take_item0", "to": "total_weight", "weight": 2},
+
+    {"from": "item1", "to": "take_item1"},
+    {"from": "capacity", "to": "take_item1", "weight": 5},
+    {"from": "take_item1", "to": "item1_taken"},
+    {"from": "take_item1", "to": "total_value", "weight": 15},
+    {"from": "take_item1", "to": "total_weight", "weight": 5},
+
+    {"from": "item2", "to": "take_item2"},
+    {"from": "capacity", "to": "take_item2", "weight": 6},
+    {"from": "take_item2", "to": "item2_taken"},
+    {"from": "take_item2", "to": "total_value", "weight": 12},
+    {"from": "take_item2", "to": "total_weight", "weight": 6},
+
+    {"from": "item3", "to": "take_item3"},
+    {"from": "capacity", "to": "take_item3", "weight": 8},
+    {"from": "take_item3", "to": "item3_taken"},
+    {"from": "take_item3", "to": "total_value", "weight": 13},
+    {"from": "take_item3", "to": "total_weight", "weight": 8},
+
+    {"from": "item0_taken", "to": "reset"},
+    {"from": "item1_taken", "to": "reset"},
+    {"from": "item2_taken", "to": "reset"},
+    {"from": "item3_taken", "to": "reset"},
+    {"from": "total_value", "to": "reset", "weight": 50},
+    {"from": "total_weight", "to": "reset", "weight": 15},
+    {"from": "reset", "to": "item0"},
+    {"from": "reset", "to": "item1"},
+    {"from": "reset", "to": "item2"},
+    {"from": "reset", "to": "item3"},
+    {"from": "reset", "to": "capacity", "weight": 15}
+  ],
+  "metadata": {
+    "problem": {
+      "description": "Classic 0/1 Knapsack Problem",
+      "capacity": 15,
+      "items": [
+        {"id": "item0", "weight": 2, "value": 10, "efficiency": 5.0},
+        {"id": "item1", "weight": 5, "value": 15, "efficiency": 3.0},
+        {"id": "item2", "weight": 6, "value": 12, "efficiency": 2.0},
+        {"id": "item3", "weight": 8, "value": 13, "efficiency": 1.625}
+      ],
+      "optimal_solution": {
+        "items": ["item0", "item1", "item3"],
+        "total_weight": 15,
+        "total_value": 38
+      }
+    },
+    "ode_insight": {
+      "description": "ODE simulation shows items competing for capacity based on their efficiency (rate). The continuous approximation reveals which items provide better value per weight. When item2 is excluded, the ODE converges toward the discrete optimal solution.",
+      "mass_action": "flux = rate × [item] × [capacity]"
+    }
+  }
+}

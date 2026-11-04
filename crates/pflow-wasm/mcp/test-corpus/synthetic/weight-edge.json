@@ -1,0 +1,31 @@
+{
+ "name": "weight-edge",
+ "places": [
+  {
+   "id": "a",
+   "initial": 3
+  },
+  {
+   "id": "b",
+   "initial": 0
+  }
+ ],
+ "transitions": [
+  {
+   "id": "t",
+   "rate": 1
+  }
+ ],
+ "arcs": [
+  {
+   "from": "a",
+   "to": "t",
+   "weight": 0.5
+  },
+  {
+   "from": "t",
+   "to": "b",
+   "weight": 2
+  }
+ ]
+}

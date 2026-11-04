@@ -1,0 +1,65 @@
+{
+ "name": "producer-consumer",
+ "places": [
+  {
+   "id": "idle_p",
+   "initial": 1
+  },
+  {
+   "id": "item",
+   "initial": 0
+  },
+  {
+   "id": "space",
+   "initial": 3
+  },
+  {
+   "id": "idle_c",
+   "initial": 1
+  }
+ ],
+ "transitions": [
+  {
+   "id": "produce",
+   "rate": 1
+  },
+  {
+   "id": "consume",
+   "rate": 1
+  }
+ ],
+ "arcs": [
+  {
+   "from": "idle_p",
+   "to": "produce"
+  },
+  {
+   "from": "space",
+   "to": "produce"
+  },
+  {
+   "from": "produce",
+   "to": "idle_p"
+  },
+  {
+   "from": "produce",
+   "to": "item"
+  },
+  {
+   "from": "item",
+   "to": "consume"
+  },
+  {
+   "from": "idle_c",
+   "to": "consume"
+  },
+  {
+   "from": "consume",
+   "to": "idle_c"
+  },
+  {
+   "from": "consume",
+   "to": "space"
+  }
+ ]
+}

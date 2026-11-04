@@ -1,0 +1,21 @@
+{
+ "name": "bad-arc",
+ "places": [
+  {
+   "id": "a",
+   "initial": 1
+  }
+ ],
+ "transitions": [
+  {
+   "id": "t",
+   "rate": 1
+  }
+ ],
+ "arcs": [
+  {
+   "from": "a",
+   "to": "nope"
+  }
+ ]
+}
