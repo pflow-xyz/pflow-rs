@@ -872,43 +872,68 @@ fn detect_cycles(graph: &Graph) -> (bool, Vec<Vec<String>>) {
     (!cycles.is_empty(), cycles)
 }
 
-#[allow(clippy::too_many_arguments)]
+/// The DFS behind [`detect_cycles`], with its own stack of frames instead of
+/// the call stack. The recursive form took one native frame per state on the
+/// current path, which on a long path (a counter or chain with tens of
+/// thousands of states) overflows the 1 MB wasm stack and, in pflow-wasm,
+/// leaves the instance unusable. Visit order, and so the cycles reported, is
+/// exactly the recursive one's.
 fn dfs_cycles(
     graph: &Graph,
-    key: &str,
+    root: &str,
     visited: &mut HashSet<String>,
     in_stack: &mut HashSet<String>,
     path: &mut Vec<String>,
     state_path: &mut Vec<String>,
     cycles: &mut Vec<Vec<String>>,
 ) {
-    visited.insert(key.to_string());
-    in_stack.insert(key.to_string());
-    state_path.push(key.to_string());
+    // One frame per state on the current path: its successors (target key,
+    // transition) and how many of them have been taken.
+    type Frame = (Vec<(String, String)>, usize);
+    let enter = |key: &str,
+                 visited: &mut HashSet<String>,
+                 in_stack: &mut HashSet<String>,
+                 state_path: &mut Vec<String>|
+     -> Frame {
+        visited.insert(key.to_string());
+        in_stack.insert(key.to_string());
+        state_path.push(key.to_string());
+        let successors = graph.states[key]
+            .successors
+            .iter()
+            .map(|&i| (graph.edges[i].to.clone(), graph.edges[i].transition.clone()))
+            .collect();
+        (successors, 0)
+    };
 
-    let state = &graph.states[key];
-    let successors: Vec<(String, String)> = state
-        .successors
-        .iter()
-        .map(|&i| (graph.edges[i].to.clone(), graph.edges[i].transition.clone()))
-        .collect();
-
-    for (next_key, transition) in successors {
-        path.push(transition);
-
-        if !visited.contains(&next_key) {
-            dfs_cycles(graph, &next_key, visited, in_stack, path, state_path, cycles);
-        } else if in_stack.contains(&next_key) {
-            if let Some(cycle_start) = state_path.iter().position(|h| h == &next_key) {
-                cycles.push(path[cycle_start..].to_vec());
+    let mut frames: Vec<Frame> = vec![enter(root, visited, in_stack, state_path)];
+    while let Some((successors, next)) = frames.last_mut() {
+        if let Some((next_key, transition)) = successors.get(*next).cloned() {
+            *next += 1;
+            path.push(transition);
+            if !visited.contains(&next_key) {
+                // Descend; the transition is popped when this child's frame is.
+                let frame = enter(&next_key, visited, in_stack, state_path);
+                frames.push(frame);
+            } else {
+                if in_stack.contains(&next_key) {
+                    if let Some(cycle_start) = state_path.iter().position(|h| h == &next_key) {
+                        cycles.push(path[cycle_start..].to_vec());
+                    }
+                }
+                path.pop();
+            }
+        } else {
+            // Every successor taken: leave this state.
+            if let Some(key) = state_path.pop() {
+                in_stack.remove(&key);
+            }
+            frames.pop();
+            if !frames.is_empty() {
+                path.pop();
             }
         }
-
-        path.pop();
     }
-
-    in_stack.remove(key);
-    state_path.pop();
 }
 
 #[cfg(test)]
@@ -1025,5 +1050,120 @@ mod tests {
         let result = analyzer.build_graph();
         assert!(!result.bounded);
         assert!(result.truncated);
+    }
+
+    /// The recursive DFS that `dfs_cycles` replaced, kept as the reference the
+    /// iterative one must agree with on cycle contents and order.
+    fn dfs_cycles_recursive(
+        graph: &Graph,
+        key: &str,
+        visited: &mut HashSet<String>,
+        in_stack: &mut HashSet<String>,
+        path: &mut Vec<String>,
+        state_path: &mut Vec<String>,
+        cycles: &mut Vec<Vec<String>>,
+    ) {
+        visited.insert(key.to_string());
+        in_stack.insert(key.to_string());
+        state_path.push(key.to_string());
+        let successors: Vec<(String, String)> = graph.states[key]
+            .successors
+            .iter()
+            .map(|&i| (graph.edges[i].to.clone(), graph.edges[i].transition.clone()))
+            .collect();
+        for (next_key, transition) in successors {
+            path.push(transition);
+            if !visited.contains(&next_key) {
+                dfs_cycles_recursive(graph, &next_key, visited, in_stack, path, state_path, cycles);
+            } else if in_stack.contains(&next_key) {
+                if let Some(start) = state_path.iter().position(|h| h == &next_key) {
+                    cycles.push(path[start..].to_vec());
+                }
+            }
+            path.pop();
+        }
+        in_stack.remove(key);
+        state_path.pop();
+    }
+
+    fn net(places: &[(&str, i64)], transitions: &[&str], arcs: &[(&str, &str)]) -> Model {
+        Model {
+            name: "n".into(),
+            places: places
+                .iter()
+                .map(|(id, n)| Place { id: (*id).into(), initial: *n, ..Default::default() })
+                .collect(),
+            transitions: transitions
+                .iter()
+                .map(|id| Transition { id: (*id).into(), ..Default::default() })
+                .collect(),
+            arcs: arcs
+                .iter()
+                .map(|(f, t)| Arc { from: (*f).into(), to: (*t).into(), ..Default::default() })
+                .collect(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn iterative_cycle_search_matches_the_recursive_one() {
+        let models = [
+            cycle_model(),
+            chain_model(),
+            // Two tokens circulating in a ring of three: many interleavings,
+            // many back edges, several distinct cycles.
+            net(
+                &[("a", 2), ("b", 0), ("c", 0)],
+                &["x", "y", "z"],
+                &[("a", "x"), ("x", "b"), ("b", "y"), ("y", "c"), ("c", "z"), ("z", "a")],
+            ),
+            // A choice between two loops that rejoin.
+            net(
+                &[("p", 1), ("q", 0)],
+                &["l", "r", "back"],
+                &[("p", "l"), ("l", "q"), ("p", "r"), ("r", "q"), ("q", "back"), ("back", "p")],
+            ),
+        ];
+        for model in &models {
+            let result = Analyzer::new(model).build_graph();
+            let (has, got) = detect_cycles(&result.graph);
+            let mut want = Vec::new();
+            let root = result.graph.root_key.clone().expect("root");
+            dfs_cycles_recursive(
+                &result.graph,
+                &root,
+                &mut HashSet::new(),
+                &mut HashSet::new(),
+                &mut Vec::new(),
+                &mut Vec::new(),
+                &mut want,
+            );
+            assert_eq!(got, want, "cycles differ on {}", model.name);
+            assert_eq!(has, !want.is_empty());
+        }
+    }
+
+    /// A path of tens of thousands of states used to overflow the native stack
+    /// in `dfs_cycles` (one frame per state on the path); in the wasm build
+    /// that took the whole instance down. A 512 KB stack stands in for the
+    /// browser's, and the walk must still finish.
+    #[test]
+    fn cycle_search_survives_a_very_long_path() {
+        // `src` has no inputs, so every firing adds a token to p: one long
+        // chain of states, no cycle, cut off by the state limit.
+        let model = net(&[("p", 0)], &["src"], &[("src", "p")]);
+        let handle = std::thread::Builder::new()
+            .stack_size(512 * 1024)
+            .spawn(move || {
+                let result = Analyzer::new(&model)
+                    .with_max_states(50_000)
+                    .with_max_tokens(1_000_000)
+                    .analyze();
+                (result.state_count, result.has_cycle)
+            })
+            .expect("spawn");
+        let (states, has_cycle) = handle.join().expect("no stack overflow");
+        assert_eq!(states, 50_000);
+        assert!(!has_cycle);
     }
 }

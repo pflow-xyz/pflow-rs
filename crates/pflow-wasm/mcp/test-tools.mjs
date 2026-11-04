@@ -7,6 +7,8 @@
 // `npm install @pflow-xyz/pflow-mcp@x.y.z` directory (node_modules/@pflow-xyz/pflow-mcp);
 // the MCP SDK is resolved from that package's own dependencies. --quick skips the
 // multi-second stress cases (cid/export on 200 places, large reachability).
+// The artifact_html chart check drives headless Chrome through playwright-core when it can be
+// resolved from the package or from PLAYWRIGHT_CORE=<path to its directory>, and a system Chrome.
 //
 // Every assertion is soft: a failure is recorded and the run continues. A check can
 // be marked `known` (a bug or rough edge documented in docs/pflow-mcp-0.4.0-test-report.md):
@@ -291,6 +293,30 @@ for (const { key, model } of C.filter((x) => x.dir === 'synthetic' && !/weight-e
   r = await call('reachability', { model: net('public/sim-vet-clinic') });
   check('sim-vet-clinic (read + inhibitor arcs, 40 places) analyzes within budget', !r.err && r.json?.states >= 1, r.text.slice(0, 200));
   console.log(`   (vet-clinic: states=${r.json?.states} complete=${r.json?.complete} bounded=${r.json?.bounded} ${r.ms.toFixed(0)} ms)`);
+}
+{ // regression (report B1): max_states of 15k-20k on a big incomplete space overflowed the wasm
+  // stack (a recursive cycle search in pflow-reachability), and after two overflows every later
+  // call, on any net, died with "memory access out of bounds". Repeat the trigger, then prove
+  // the instance still answers everything.
+  const tiny = { name: 'tiny', places: [{ id: 'a', initial: 1 }, { id: 'b' }], transitions: [{ id: 't' }], arcs: [{ from: 'a', to: 't' }, { from: 't', to: 'b' }] };
+  // ~15 s per reachability round at 20000 states (superlinear, report B7), so 3 rounds in a full
+  // run (two overflows used to be enough to poison) and 1 with --quick (one overflow is an error).
+  const rounds = QUICK ? 1 : 3;
+  let bad = null;
+  for (let i = 1; i <= rounds && !bad; i++) {
+    const a = await call('reachability', { model: net('synthetic/toggles-16'), max_states: 20000 });
+    if (a.err || a.json?.complete !== false) bad = `round ${i}: reachability(20000) -> ${a.text.slice(0, 160)}`;
+  }
+  check(`B1: reachability at max_states 20000 on a 65536-state net, repeated ${rounds}x, returns an incomplete answer, not an error`, !bad, bad);
+  const v15 = await call('verify', { net: toJsonLd(net('synthetic/toggles-16')), properties: [{ kind: 'deadlock-free' }], max_states: 15000 });
+  check('B1: ...and so does verify at 15000 (it runs the same search)', !v15.err && v15.json?.verdicts?.[0]?.status !== 'proved', v15.text.slice(0, 200));
+  const t1 = await call('reachability', { model: tiny });
+  check('B1: ...and the instance is not poisoned: a tiny reachability still answers', !t1.err && t1.json?.states === 2, t1.text.slice(0, 160));
+  const t2 = await call('check', { net: toJsonLd(tiny) });
+  check('B1: ...and a hosted-name tool (check) still answers', !t2.err, t2.text.slice(0, 160));
+  await call('load_net', { model: tiny, name: 'tiny-b1' });
+  const t3 = await call('simulate', { net: 'tiny-b1', tEnd: 1, maxPoints: 5 });
+  check('B1: ...and the ODE still answers', !t3.err, t3.text.slice(0, 160));
 }
 
 // ================================================================= 5. ODE / SSA / SDE
@@ -773,6 +799,41 @@ sec('13. artifact_html');
   console.log(`   mentions of 'fetch(': ${(html.match(/fetch\(/g) || []).length}, 'import.meta': ${(html.match(/import\.meta/g) || []).length}, 'http': ${(html.match(/https?:\/\//g) || []).length}`);
   check('page includes a title, marks, fire buttons', /<title>sir<\/title>/.test(html) && /id="tx"/.test(html));
   check('page says nothing about proofs, invariants or checks (no verify surface)', !/invariant|deadlock|proof|verified/i.test(html.replace(/<script[\s\S]*?<\/script>/g, '')), 'has proof text', { known: true });
+  // regression (report B2): the chart read `series[p].values || series[p]`, but an ODE series is
+  // an array and an array's own .values is Array.prototype.values (a function, always truthy), so
+  // every page threw "not iterable" and drew nothing. Static check always; the real thing in
+  // headless Chrome when playwright-core is findable (PLAYWRIGHT_CORE=<dir>, or in the package).
+  check('B2: the page does not pick a series with `.values||` (an array\'s .values is a function)', !/\.values\s*\|\|/.test(html), 'found `.values||` in the page script');
+  let pw = null;
+  const pwResolvers = [req]; // the package's own node_modules first
+  if (process.env.PLAYWRIGHT_CORE) pwResolvers.push(createRequire(join(resolve(process.env.PLAYWRIGHT_CORE), '..', 'x.js')));
+  for (const r of pwResolvers) {
+    try { pw = await import(pathToFileURL(r.resolve('playwright-core')).href); break; } catch { /* try the next */ }
+  }
+  const chrome = ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'].find((p) => existsSync(p));
+  if (!pw || !chrome) {
+    console.log('   (B2 browser check skipped: needs playwright-core (set PLAYWRIGHT_CORE=<its dir>) and a system Chrome)');
+  } else {
+    const chromium = (pw.chromium ?? pw.default?.chromium);
+    const browser = await chromium.launch({ executablePath: chrome, headless: true });
+    try {
+      const page = await (await browser.newContext({ offline: true })).newPage();
+      const errs = [];
+      page.on('pageerror', (e) => errs.push(String(e.message ?? e)));
+      await page.goto(pathToFileURL(out).href);
+      await page.waitForFunction(() => document.querySelector('#chart svg') || /not iterable|error/i.test(document.querySelector('#log')?.textContent ?? ''), null, { timeout: 15000 }).catch(() => {});
+      const nPlaces = 3; // sir: S, I, R
+      const odeLines = await page.$$eval('#chart polyline', (l) => l.length);
+      const odeLog = await page.textContent('#log');
+      check(`B2: Run ODE draws one line per place (${odeLines}) and reports no error`, odeLines === nPlaces && !/iterable|error/i.test(odeLog) && !errs.length, `lines=${odeLines} log="${odeLog}" errors=${errs.join('; ')}`);
+      await page.click('#ssa');
+      const ssaLines = await page.$$eval('#chart polyline', (l) => l.length);
+      check(`B2: Run SSA still draws one line per place (${ssaLines})`, ssaLines === nPlaces && !errs.length, `errors=${errs.join('; ')}`);
+      await page.click('#ode');
+      const again = await page.$$eval('#chart polyline', (l) => l.length);
+      check('B2: ...and switching back to ODE redraws it', again === nPlaces && !errs.length, `lines=${again} errors=${errs.join('; ')}`);
+    } finally { await browser.close(); }
+  }
   r = await call('artifact_html', { net: 'sir', path: out, title: '</title><script>alert(1)</script>' });
   const h2 = readFileSync(out, 'utf8');
   check('a hostile title cannot inject a tag', !/<script>alert\(1\)/.test(h2) && h2.includes('<title>/title>'.replace('/title>', '')) !== undefined, h2.slice(0, 300));

@@ -169,12 +169,14 @@ function render(){
 }
 function chart(res){
   const W=800,H=300,L=44,B=28,T=8,R=8,ts=res.times;
-  let max=0;for(const p of places)for(const v of (res.series[p].values||res.series[p]))max=Math.max(max,v);max=max||1;
+  // ODE series are arrays, SSA series are {values, stddev}; an array has its own .values (a function), so test the type
+  const ser=p=>Array.isArray(res.series[p])?res.series[p]:res.series[p].values;
+  let max=0;for(const p of places)for(const v of ser(p))max=Math.max(max,v);max=max||1;
   const x=t=>L+(t-ts[0])/((ts[ts.length-1]-ts[0])||1)*(W-L-R), y=v=>T+(1-v/max)*(H-T-B);
   let s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="token counts over time">';
   for(let i=0;i<=4;i++){const v=max*i/4,yy=y(v);s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+yy+'" y2="'+yy+'" stroke="var(--line)"/><text x="'+(L-6)+'" y="'+(yy+4)+'" text-anchor="end" font-size="11" fill="var(--mut)">'+(+v.toFixed(2))+'</text>'}
   for(const i of [0,.5,1]){const t=ts[0]+(ts[ts.length-1]-ts[0])*i;s+='<text x="'+x(t)+'" y="'+(H-8)+'" text-anchor="middle" font-size="11" fill="var(--mut)">'+(+t.toFixed(2))+'</text>'}
-  places.forEach((p,k)=>{const vals=res.series[p].values||res.series[p];
+  places.forEach((p,k)=>{const vals=ser(p);
     s+='<polyline fill="none" stroke="'+COLORS[k%8]+'" stroke-width="2" points="'+vals.map((v,i)=>x(ts[i]).toFixed(1)+','+y(v).toFixed(1)).join(' ')+'"/>'});
   $('chart').innerHTML=s+'</svg>';
   $('legend').innerHTML=places.map((p,k)=>'<span><i class="sw" style="background:'+COLORS[k%8]+'"></i>'+esc(p)+'</span>').join('');
