@@ -16,12 +16,12 @@ const here = dirname(fileURLToPath(import.meta.url));
 // The package's own version, independent of the workspace (pflow-wasm's) one:
 // the MCP surface changes on its own schedule. Bump it here; npm refuses a
 // version it already has.
-const version = '0.4.0';
+const version = '0.5.0';
 const engineVersion = JSON.parse(readFileSync(join(wasmPkg, 'package.json'), 'utf8')).version;
 
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
-for (const f of ['server.mjs', 'ontology.mjs', 'chyp.mjs', 'hosted.mjs', 'hosted-tools.json']) copyFileSync(join(here, f), join(outDir, f));
+for (const f of ['server.mjs', 'ontology.mjs', 'chyp.mjs', 'hosted.mjs', 'hosted-tools.json', 'compose-tools.json', 'compose.mjs']) copyFileSync(join(here, f), join(outDir, f));
 
 // chyp-rs: `make wasm` in the chyp-rs checkout builds pkg/. Apache-2.0, so its
 // LICENSE, NOTICE and THIRD-PARTY-NOTICES travel with it.
@@ -47,6 +47,8 @@ writeFileSync(join(outDir, 'ontology', 'meta.json'), JSON.stringify({
 }, null, 2) + '\n');
 copyFileSync(join(wasmPkg, 'pflow-wasm.inline.js'), join(outDir, 'pflow-wasm.inline.js'));
 copyFileSync(join(hostedPkg, 'pflow-wasm.inline.js'), join(outDir, 'pflow-wasm-hosted.inline.js'));
+// The snap-together canvas, one file with the hosted engine inside (compose_canvas writes it out).
+execFileSync(process.execPath, [join(here, '..', 'compose', 'build.mjs'), hostedPkg, join(outDir, 'compose-canvas.html')], { stdio: 'inherit' });
 copyFileSync(join(wasmPkg, 'LICENSE'), join(outDir, 'LICENSE'));
 copyFileSync(join(here, 'README.md'), join(outDir, 'README.md'));
 writeFileSync(join(outDir, 'package.json'), JSON.stringify({
@@ -57,7 +59,7 @@ writeFileSync(join(outDir, 'package.json'), JSON.stringify({
   repository: { type: 'git', url: 'git+https://github.com/pflow-xyz/pflow-rs.git', directory: 'crates/pflow-wasm/mcp' },
   type: 'module',
   bin: { 'pflow-mcp': 'server.mjs' },
-  files: ['server.mjs', 'ontology.mjs', 'chyp.mjs', 'hosted.mjs', 'hosted-tools.json', 'pflow-wasm.inline.js', 'pflow-wasm-hosted.inline.js', 'chyp/', 'ontology/', 'LICENSE', 'README.md'],
+  files: ['server.mjs', 'ontology.mjs', 'chyp.mjs', 'hosted.mjs', 'hosted-tools.json', 'compose-tools.json', 'compose.mjs', 'compose-canvas.html', 'pflow-wasm.inline.js', 'pflow-wasm-hosted.inline.js', 'chyp/', 'ontology/', 'LICENSE', 'README.md'],
   engines: { node: '>=18' },
   dependencies: { '@modelcontextprotocol/sdk': '^1.0.0', n3: '^1.17.0', zod: '^3.23.0' },
   publishConfig: { access: 'public' },

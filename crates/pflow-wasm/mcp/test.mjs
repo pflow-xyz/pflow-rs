@@ -18,9 +18,10 @@ const call = async (name, args = {}) => {
 const tools = (await client.listTools()).tools.map((t) => t.name).sort();
 const HOSTED = ['bundle_add_link', 'bundle_candidates', 'bundle_example', 'bundle_flatten', 'bundle_incidence', 'bundle_run',
   'bundle_validate', 'check', 'cid', 'edit', 'export', 'incidence', 'info', 'invariants', 'sde', 'validate', 'verify', 'what_if'];
-assert.deepEqual(tools, ['artifact_html', 'chyp_check', 'chyp_part', 'chyp_rule', 'fire', 'list_nets', 'load_net',
+const LOCAL = ['bundle_check_proof', 'bundle_net', 'bundle_parts', 'bundle_prove'];
+assert.deepEqual(tools, ['artifact_html', 'compose_canvas', 'chyp_check', 'chyp_part', 'chyp_rule', 'fire', 'list_nets', 'load_net',
   'ontology_classes', 'ontology_describe', 'ontology_search', 'reachability', 'reset', 'simulate', 'state', 'stochastic',
-  ...HOSTED].sort());
+  ...HOSTED, ...LOCAL].sort());
 const { version } = JSON.parse((await import('node:fs')).readFileSync(join(dir, 'package.json'), 'utf8'));
 assert.equal(client.getServerVersion().version, version, 'server reports the package version');
 
@@ -108,6 +109,32 @@ writeFileSync(mjs, html.split('<script type="module">')[1].split('</script>')[0]
 const chk = spawnSync(process.execPath, ['--check', mjs], { encoding: 'utf8' });
 rmSync(mjs);
 assert.equal(chk.status, 0, chk.stderr);
+
+// composites: build from the parts catalog, read as an ordinary net, prove, re-check
+r = await call('bundle_parts', { instances: [{ id: 'q', part: 'queue', params: { initial: 2 } }, { id: 'pay', part: 'saga' }],
+  links: [{ kind: 'event', from: { subnet: 'q', port: 'dequeue' }, to: { subnet: 'pay', port: 'do:reserve' } }] });
+const comp = r.json.bundle;
+r = await call('bundle_net', { bundle: comp });
+assert.equal(r.json.ok, true);
+const flatNet = r.json.net;
+r = await call('load_net', { name: 'composite', model: flatNet });
+assert.ok(r.json.enabled.length > 0, 'the composite loads and has enabled transitions');
+r = await call('reachability', { net: 'composite' });
+assert.equal(r.json.deadlock_free, false); // the saga finishes
+r = await call('invariants', { net: 'composite' });
+assert.equal(r.json.conservative, true);
+r = await call('bundle_prove', { bundle: comp });
+assert.equal(r.json.type, 'CompositionProof');
+const record = r.json;
+r = await call('bundle_check_proof', { bundle: comp, proof: record });
+assert.equal(r.json.valid, true, r.text.slice(0, 400));
+record.laws[0].status = record.laws[0].status === 'preserved' ? 'changed' : 'preserved';
+r = await call('bundle_check_proof', { bundle: comp, proof: record });
+assert.equal(r.json.valid, false);
+r = await call('compose_canvas', { path: join(dir, 'canvas-test.html') });
+const canvas = readFileSync(r.json.path, 'utf8');
+rmSync(r.json.path);
+assert.ok(canvas.includes('Snap-together nets') && !/\bimport\s*\(/.test(canvas.replace(/function init[\s\S]*$/, '')) && canvas.length > 500000);
 
 // ontology: offline lookups from the bundled snapshot
 r = await call('ontology_describe', { term: 'bounded' });

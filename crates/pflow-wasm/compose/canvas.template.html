@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Snap-together nets</title>
+<style>
+:root{--bg:#fbfbfc;--fg:#1c1c1f;--mut:#6a6a73;--line:#d9d9df;--card:#fff;--soft:#f2f2f5;--acc:#2563eb;
+ --ok:#15803d;--okbg:#e7f6ec;--note:#a16207;--notebg:#fdf3d8;--warn:#c2410c;--warnbg:#ffe9dc;--bad:#b91c1c;--badbg:#fde4e4;--unk:#52525b;--unkbg:#ececef;
+ --token:#2563eb;--data:#0d9488;--event:#d97706;--guard:#9333ea}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#141417;--fg:#ececf0;--mut:#9b9ba6;--line:#34343c;--card:#1d1d22;--soft:#26262c;--acc:#7aa7ff;
+ --ok:#4ade80;--okbg:#14301f;--note:#facc15;--notebg:#352d10;--warn:#fb923c;--warnbg:#3a2314;--bad:#f87171;--badbg:#3a1818;--unk:#a1a1aa;--unkbg:#2a2a30;
+ --token:#6ea0ff;--data:#2dd4bf;--event:#fbbf24;--guard:#c4a1ff}}
+:root[data-theme=dark]{--bg:#141417;--fg:#ececf0;--mut:#9b9ba6;--line:#34343c;--card:#1d1d22;--soft:#26262c;--acc:#7aa7ff;
+ --ok:#4ade80;--okbg:#14301f;--note:#facc15;--notebg:#352d10;--warn:#fb923c;--warnbg:#3a2314;--bad:#f87171;--badbg:#3a1818;--unk:#a1a1aa;--unkbg:#2a2a30;
+ --token:#6ea0ff;--data:#2dd4bf;--event:#fbbf24;--guard:#c4a1ff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{padding:14px 16px 6px;max-width:1500px;margin:0 auto}
+h1{font-size:19px;margin:0}
+header p{margin:2px 0 0;color:var(--mut);font-size:13.5px}
+main{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(320px,1fr);gap:14px;max-width:1500px;margin:0 auto;padding:8px 16px 28px}
+@media (max-width:980px){main{grid-template-columns:1fr}}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:0 0 12px}
+h2{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--mut);margin:0 0 8px;font-weight:600}
+button{font:inherit;font-size:13.5px;color:var(--fg);background:var(--soft);border:1px solid var(--line);border-radius:7px;padding:4px 10px;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--acc);color:var(--acc)}button:disabled{opacity:.45;cursor:default}
+button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+input[type=number],input[type=text]{font:inherit;font-size:13.5px;width:64px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:2px 6px}
+input[type=text]{width:110px}
+.row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.palette button{text-align:left;padding:5px 9px}
+.palette small{display:block;color:var(--mut);font-size:11.5px}
+#stage{overflow:auto;border-radius:8px;background:var(--soft);border:1px solid var(--line);touch-action:none}
+svg text{font-family:inherit}
+.card rect.body{fill:var(--card);stroke:var(--line);stroke-width:1.2}
+.card.sel rect.body{stroke:var(--acc);stroke-width:2}
+.card .title{font-size:13px;font-weight:600;fill:var(--fg)}
+.card .sub{font-size:10.5px;fill:var(--mut)}
+.port{cursor:crosshair}
+.port .g{fill:var(--card);stroke:var(--mut);stroke-width:1.6}
+.port text{font-size:10.5px;fill:var(--fg);pointer-events:none}
+.port.lit .g{fill:var(--ok);stroke:var(--ok)}
+.port.lit text{font-weight:700}
+.port.dim{opacity:.35}
+.port.src .g{fill:var(--acc);stroke:var(--acc)}
+.port.target .g{stroke-width:3}
+.link{fill:none;stroke-width:2.4;cursor:pointer}
+.link.hot{stroke-width:4.4}
+.link.hit{stroke:transparent;stroke-width:14}
+.k-token{stroke:var(--token)}.k-data{stroke:var(--data)}.k-event{stroke:var(--event);stroke-dasharray:6 3}.k-guard{stroke:var(--guard);stroke-dasharray:2 4}
+.lg{display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:12px;color:var(--mut)}
+.lg i{display:inline-block;width:22px;height:0;border-top:3px solid}
+.chip{display:inline-block;padding:0 8px;border-radius:99px;font-size:11.5px;font-weight:600;line-height:1.7;white-space:nowrap}
+.c-ok,.c-proved,.c-consistent{background:var(--okbg);color:var(--ok)}
+.c-explained,.c-consistent_with_notes,.c-extended,.c-preserved{background:var(--notebg);color:var(--note)}
+.c-warn,.c-needs_attention,.c-changed{background:var(--warnbg);color:var(--warn)}
+.c-fail,.c-refuted,.c-inconsistent{background:var(--badbg);color:var(--bad)}
+.c-unknown,.c-inconclusive,.c-not_declared{background:var(--unkbg);color:var(--unk)}
+.verdict{border-radius:9px;padding:9px 12px;margin-bottom:8px}
+.verdict b{font-size:16px}
+.verdict.v-consistent{background:var(--okbg)}.verdict.v-consistent_with_notes{background:var(--notebg)}.verdict.v-needs_attention{background:var(--warnbg)}.verdict.v-inconsistent{background:var(--badbg)}.verdict.v-inconclusive{background:var(--unkbg)}
+.item{border:1px solid var(--line);border-radius:8px;padding:7px 10px;margin:0 0 7px;background:var(--bg)}
+.item.hot{border-color:var(--acc)}
+.item p{margin:3px 0 0;font-size:13.5px}
+.item ul{margin:4px 0 0;padding-left:18px;font-size:13px;color:var(--mut)}
+.mut{color:var(--mut)}.small{font-size:12.5px}
+code{font:12.5px ui-monospace,Menlo,Consolas,monospace;background:var(--soft);padding:0 4px;border-radius:4px;word-break:break-word}
+#marks{display:flex;flex-wrap:wrap;gap:5px}
+.mk{border:1px solid var(--line);border-radius:7px;padding:1px 8px;background:var(--bg);font-size:12.5px}
+.mk b{font-size:15px;margin-right:4px}.mk.on{border-color:var(--acc)}
+#fire button{margin:0 5px 5px 0}
+details summary{cursor:pointer;color:var(--mut);font-size:13px}
+.pre{white-space:pre-wrap;font:12px ui-monospace,Menlo,monospace;background:var(--soft);border-radius:6px;padding:6px 8px;max-height:200px;overflow:auto}
+.err{color:var(--bad)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Snap-together nets</h1>
+  <p>Add parts, drag from a port to join it to another, and read what the join does. Everything runs here, in your browser, on the pflow engine embedded in this page: no server, no network.</p>
+</header>
+<main>
+<div>
+  <section>
+    <h2>Parts <span class="mut" style="text-transform:none;letter-spacing:0">— click to add, or start from an example</span></h2>
+    <div class="row palette" id="palette"></div>
+    <div class="row" style="margin-top:8px" id="presets"></div>
+  </section>
+  <section>
+    <h2>Canvas</h2>
+    <div class="small mut" style="margin-bottom:6px">Drag a card by its title to move it. Drag from a port: the ports it can legally join light up green (dimmed ports cannot, and hovering says why). Click a link to remove it.</div>
+    <div id="stage"><svg id="svg" width="100%" role="img" aria-label="Parts and the links between them"></svg></div>
+    <div style="margin-top:6px">
+      <span class="lg"><i style="border-color:var(--token)"></i>token (share a place)</span>
+      <span class="lg"><i style="border-color:var(--data)"></i>data (observe)</span>
+      <span class="lg"><i style="border-color:var(--event);border-top-style:dashed"></i>event (fire together)</span>
+      <span class="lg"><i style="border-color:var(--guard);border-top-style:dotted"></i>guard (gate a transition)</span>
+      <span class="lg">○ place &nbsp;□ transition</span>
+    </div>
+    <div id="inspect" class="row" style="margin-top:8px"></div>
+  </section>
+  <section>
+    <h2>Play the composite</h2>
+    <div id="playmsg" class="small mut"></div>
+    <div id="marks"></div>
+    <div id="fire" style="margin-top:8px"></div>
+    <div class="row" style="margin-top:4px"><button id="reset">Reset</button><span id="log" class="small mut"></span></div>
+  </section>
+</div>
+<div>
+  <section id="proofsec">
+    <h2>What the joins do</h2>
+    <div id="proof"></div>
+  </section>
+  <section>
+    <h2>Check the proof yourself</h2>
+    <div class="small mut" style="margin-bottom:6px">The record above is data. Re-checking it uses two readers: the engine re-derives its answers, and a short separate script (plain arithmetic and replay on the flat net, no engine) re-checks every certificate.</div>
+    <div class="row"><button id="recheck">Re-check the record</button><button id="dl">Download record</button></div>
+    <div id="recheckout" class="small" style="margin-top:8px"></div>
+  </section>
+  <section>
+    <h2>The composite as an ordinary net</h2>
+    <div class="small mut">Joined parts flatten to one net that every pflow tool reads (simulate, reachability, invariants, verify). Copy it into the editor or any pflow MCP tool.</div>
+    <div class="row" style="margin-top:6px"><button id="copynet">Copy net JSON</button><span id="netinfo" class="small mut"></span></div>
+  </section>
+</div>
+</main>
+<script type="module">
+/*__ENGINE__*/
+/*__VERIFY__*/
+await init();
+/*__APP__*/
+</script>
+</body>
+</html>
