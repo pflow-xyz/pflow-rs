@@ -30,7 +30,7 @@ Claude Desktop / any stdio client:
 | `simulate` | Mass-action ODE (Tsit5) |
 | `stochastic` | Gillespie SSA, byte-exact with go-pflow at the same seed |
 | `reachability` | Bounded state-space search, as the hosted pflow.xyz/mcp `pflow_reachability`: state and edge count, bounded, dead markings, and the `deadlock_free`, `quasi_live` (L1) and `live` (L4) verdicts, each `true`, `false` or `"unknown"`, with a witness trace that replays with `fire`. Takes a loaded net or an inline `model`, `max_states` (2000, ≤ 20000), `max_tokens`, and `from` (`initial` or `current`) |
-| `artifact_html` | Write a self-contained interactive page for a loaded net (click-to-fire, ODE/SSA charts, engine embedded, no network) and return its path: publish it as an artifact |
+| `artifact_html` | Write a self-contained page for a loaded net and return its path: publish it as an artifact. `views` (default `["play"]`: click-to-fire, ODE/SSA charts) picks what it shows; every page carries a footer (document CID, versions, seed), the net as JSON-LD (`#pflow-net`, Download and Copy buttons) and an editor link; engine embedded, no network |
 | `ontology_describe`, `ontology_search`, `ontology_classes` | The pflow ontology ([CC0](https://ontology.pflow.xyz)), from a snapshot bundled in the package; `meta` in each reply names its version and commit |
 | `chyp_check`, `chyp_part`, `chyp_rule` | String-diagram rewriting and proof checking with [chyp-rs](https://github.com/akissinger/chyp) (an unofficial Rust port of part of Chyp) |
 

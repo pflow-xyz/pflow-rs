@@ -21,7 +21,8 @@ const engineVersion = JSON.parse(readFileSync(join(wasmPkg, 'package.json'), 'ut
 
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
-for (const f of ['server.mjs', 'ontology.mjs', 'chyp.mjs', 'hosted.mjs', 'hosted-tools.json', 'compose-tools.json', 'compose.mjs']) copyFileSync(join(here, f), join(outDir, f));
+for (const f of ['server.mjs', 'ontology.mjs', 'chyp.mjs', 'hosted.mjs', 'hosted-tools.json', 'compose-tools.json', 'compose.mjs', 'pages.mjs']) copyFileSync(join(here, f), join(outDir, f));
+cpSync(join(here, 'views'), join(outDir, 'views'), { recursive: true });
 
 // chyp-rs: `make wasm` in the chyp-rs checkout builds pkg/. Apache-2.0, so its
 // LICENSE, NOTICE and THIRD-PARTY-NOTICES travel with it.
@@ -59,7 +60,7 @@ writeFileSync(join(outDir, 'package.json'), JSON.stringify({
   repository: { type: 'git', url: 'git+https://github.com/pflow-xyz/pflow-rs.git', directory: 'crates/pflow-wasm/mcp' },
   type: 'module',
   bin: { 'pflow-mcp': 'server.mjs' },
-  files: ['server.mjs', 'ontology.mjs', 'chyp.mjs', 'hosted.mjs', 'hosted-tools.json', 'compose-tools.json', 'compose.mjs', 'compose-canvas.html', 'pflow-wasm.inline.js', 'pflow-wasm-hosted.inline.js', 'chyp/', 'ontology/', 'LICENSE', 'README.md'],
+  files: ['server.mjs', 'ontology.mjs', 'chyp.mjs', 'hosted.mjs', 'hosted-tools.json', 'compose-tools.json', 'compose.mjs', 'pages.mjs', 'views/', 'compose-canvas.html', 'pflow-wasm.inline.js', 'pflow-wasm-hosted.inline.js', 'chyp/', 'ontology/', 'LICENSE', 'README.md'],
   engines: { node: '>=18' },
   dependencies: { '@modelcontextprotocol/sdk': '^1.0.0', n3: '^1.17.0', zod: '^3.23.0' },
   publishConfig: { access: 'public' },

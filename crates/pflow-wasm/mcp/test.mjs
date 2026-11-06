@@ -99,7 +99,7 @@ r = await call('artifact_html', { net: 'coffee', path: join(dir, 'artifact-test.
 const { readFileSync, rmSync } = await import('node:fs');
 const html = readFileSync(r.json.path, 'utf8');
 rmSync(r.json.path);
-assert.ok(html.includes('<title>coffee</title>') && html.includes('new Net(MODEL)'));
+assert.ok(html.includes('<title>coffee</title>') && html.includes('new Net(netDoc)') && html.includes('id="pflow-net"'));
 assert.ok(!/\bexport\s/.test(html.split('<script type="module">')[1]), 'exports stripped');
 // the page's module must parse (node --check on an .mjs copy)
 const { spawnSync } = await import('node:child_process');

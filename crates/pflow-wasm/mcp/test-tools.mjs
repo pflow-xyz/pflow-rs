@@ -794,7 +794,10 @@ sec('13. artifact_html');
   check('artifact_html writes a file and returns its path + size', !r.err && existsSync(out), r.text.slice(0, 150));
   const html = existsSync(out) ? readFileSync(out, 'utf8') : '';
   console.log(`   size ${html.length} bytes, scripts: ${(html.match(/<script/g) || []).length}`);
-  check('page has no http(s) URL, no external src/href/import (static check)', !/https?:\/\//.test(html) && !/<link[^>]+href|<script[^>]+src|@import/.test(html), 'external reference found');
+  // The only http(s) URLs are the footer's <a href> links to pflow.xyz (clicked by a person, never fetched).
+  // and the JSON-LD @context / token IRIs inside the #pflow-net data block (identifiers, not requests).
+  const bare = html.replace(/<a href="https:\/\/pflow\.xyz\/[^"]*"/g, '<a').replace(/(<script type="application\/json" id="pflow-net">)[\s\S]*?<\/script>/, '$1</script>');
+  check('page has no http(s) URL but pflow.xyz links, no external src/href/import (static check)', !/https?:\/\//.test(bare) && !/<link[^>]+href|<script[^>]+src|@import/.test(bare), 'external reference found');
   check('the only fetch( is wasm-bindgen\'s fallback for a non-inline module argument, which init() with no argument never reaches', (html.match(/\bfetch\(/g) || []).length === 1 && /module_or_path = fetch\(module_or_path\)/.test(html), `${(html.match(/\bfetch\(/g) || []).length} fetch( calls`);
   console.log(`   mentions of 'fetch(': ${(html.match(/fetch\(/g) || []).length}, 'import.meta': ${(html.match(/import\.meta/g) || []).length}, 'http': ${(html.match(/https?:\/\//g) || []).length}`);
   check('page includes a title, marks, fire buttons', /<title>sir<\/title>/.test(html) && /id="tx"/.test(html));
