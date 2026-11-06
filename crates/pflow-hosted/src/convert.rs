@@ -69,7 +69,9 @@
 //!
 //! The CID is the single-threaded URDNA2015 canonicalisation, about cubic in
 //! the net's size (53 s at 200 places, bug B5). So it is computed here only
-//! for a net of at most [`EAGER_CID_MAX_PLACES`] places (or when `cid: true`);
+//! for a net of at most [`EAGER_CID_MAX_PLACES`] places and [`EAGER_CID_MAX_NODES`]
+//! nodes-plus-arcs (or when `cid: true`); the cost grows with every node and arc,
+//! not with places alone (10 places and 200 transitions took 56 s);
 //! above that `cid` is `null` with `cid_skipped` saying why, and the `cid`
 //! tool computes it on demand.
 
@@ -83,6 +85,11 @@ use crate::net::net_shape;
 
 /// A net with more places than this has no CID computed unless asked.
 pub const EAGER_CID_MAX_PLACES: usize = 50;
+
+/// A net whose places + transitions + arcs exceed this has no CID computed
+/// unless asked: canonicalisation cost follows the whole graph, not the place
+/// count alone.
+pub const EAGER_CID_MAX_NODES: usize = 250;
 
 const CONTEXT: &str = "https://pflow.xyz/schema";
 const BLACK: &str = "https://pflow.xyz/tokens/black";
@@ -123,7 +130,10 @@ pub(crate) fn run(args: &Value) -> Result<Value, String> {
     };
 
     let places = doc["places"].as_object().map_or(0, Map::len);
-    let compute = want_cid.unwrap_or(places <= EAGER_CID_MAX_PLACES);
+    let size = places
+        + doc.get("transitions").and_then(Value::as_object).map_or(0, Map::len)
+        + doc.get("arcs").and_then(Value::as_array).map_or(0, Vec::len);
+    let compute = want_cid.unwrap_or(places <= EAGER_CID_MAX_PLACES && size <= EAGER_CID_MAX_NODES);
     let mut out = Map::new();
     out.insert("shape".into(), json!(shape));
     out.insert("layout".into(), json!(layout));
@@ -149,7 +159,7 @@ pub(crate) fn run(args: &Value) -> Result<Value, String> {
             "cid: false".to_string()
         } else {
             format!(
-                "{places} places is over {EAGER_CID_MAX_PLACES}: sealing is about cubic in net size (53 s at 200 places), so it is left for the cid tool"
+                "{places} places and {size} places+transitions+arcs is over the limit ({EAGER_CID_MAX_PLACES} places, {EAGER_CID_MAX_NODES} in all): sealing is about cubic in net size (53 s at 200 places), so it is left for the cid tool"
             )
         };
         out.insert("cid_skipped".into(), json!(why));
@@ -795,6 +805,11 @@ mod tests {
         assert!(over["cid"].is_null());
         assert!(over["cid_skipped"].as_str().unwrap().contains("cubic"));
         assert!(over["net"]["places"].as_object().unwrap().len() > EAGER_CID_MAX_PLACES);
+        // few places, many transitions: the size guard stops it too
+        let wide: Vec<Value> = (0..EAGER_CID_MAX_NODES).map(|i| json!({"id": format!("t{i}")})).collect();
+        let w = run(&json!({"model": {"places": [{"id": "p", "initial": 1}], "transitions": wide, "arcs": []}})).unwrap();
+        assert!(w["cid"].is_null(), "many transitions must not be sealed eagerly");
+        assert!(w["cid_skipped"].as_str().unwrap().contains("cubic"));
         // and never when asked not to
         let never = run(&json!({"model": big(3), "cid": false})).unwrap();
         assert!(never["cid"].is_null());
