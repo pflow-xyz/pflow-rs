@@ -10,6 +10,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { buildPage, readMeta } from './pages.mjs';
+import { register as registerHosted, reachabilityGuarded, timeoutArg, withMarking } from './hosted.mjs';
 import { viewIds } from './views/index.mjs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -75,7 +76,6 @@ const snapshot = (net) => ({
   marking: net.marking(), enabled: net.enabled(),
 });
 
-tool('load_net',
 // Shared by load_net and load_example (examples.mjs): one path, so an example is
 // a net like any other.
 function loadNet({ model, name }) {
@@ -95,6 +95,7 @@ function loadNet({ model, name }) {
   return { name: key, ...snapshot(net), ...about };
 }
 
+tool('load_net',
   'Load a Petri net: pflow.xyz JSON-LD, or the array shape (places: [{id, initial}], arcs: [{from, to, weight, type}]). Replaces any net with the same name. Every other tool then reads it by name, whichever shape it came in. Also answers shape, layout ("given", or "synthesized" when the net had no coordinates), and the net\'s CID: the CID names the document, layout and arc order included. It is computed here for up to 50 places; a larger net answers cid null with cid_skipped, and the cid tool computes it on demand. A net that cannot be written as a pflow.xyz document (data places, constraints, timed transitions) answers unsupported and still runs locally. Nets with guards, stages or rate schedules, and arcs with a fractional weight, are refused.',
   { model: z.union([z.string(), z.record(z.string(), z.any())]).describe('The net as a JSON object or JSON text'),
     name: z.string().optional().describe('Name to keep it under; defaults to the model name, else "net"') },
@@ -153,15 +154,24 @@ tool('reachability',
     max_tokens: z.number().int().min(1).optional()
       .describe('Tokens in one place past which the net is called unbounded (default 1000)'),
     from: z.enum(['initial', 'current']).optional()
-      .describe('Start from the initial marking (default, as the hosted tool) or a loaded net\'s current one') },
-  ({ net, model, max_states, max_tokens, from }) => {
+      .describe('Start from the initial marking (default, as the hosted tool) or a loaded net\'s current one'),
+    timeout_ms: timeoutArg },
+  async ({ net, model, max_states, max_tokens, from, timeout_ms }) => {
+    // Runs in a worker thread (hosted.mjs): a search past timeout_ms is stopped and answers unknown.
     const options = { maxStates: max_states, maxTokens: max_tokens, from };
     if (model != null) {
       if (from === 'current') throw new Error('from "current" needs a loaded net, not an inline model');
-      const n = new Net(model);
-      try { return n.reachability(options); } finally { n.free?.(); }
+      return reachabilityGuarded(model, options, timeout_ms);
     }
-    return get(net).reachability(options);
+    const loaded = get(net);
+    let m = models.get(net ?? last);
+    if (from === 'current') {
+      // the worker has no marking of its own: hand it the current one as the initial
+      m = withMarking(m, loaded.marking());
+      if (!m) throw new Error('from "current": this net\'s shape cannot carry its marking to the search');
+      options.from = 'initial';
+    }
+    return reachabilityGuarded(m, options, timeout_ms);
   });
 
 // ---- artifact_html -------------------------------------------------------
@@ -191,13 +201,12 @@ tool('artifact_html',
 
 import { register as registerOntology } from './ontology.mjs';
 import { register as registerChyp } from './chyp.mjs';
-import { register as registerHosted } from './hosted.mjs';
 import { register as registerCompose } from './compose.mjs';
+import { register as registerExamples } from './examples.mjs';
 registerOntology(tool);
 registerChyp(tool);
 registerHosted(tool, { hosted, jsonld, last: () => last });
 registerCompose(tool, { meta });
+registerExamples(tool, { loadNet, hosted });
 
 await server.connect(new StdioServerTransport());
-import { register as registerExamples } from './examples.mjs';
-registerExamples(tool, { loadNet, hosted });
