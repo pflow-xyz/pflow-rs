@@ -76,25 +76,29 @@ const snapshot = (net) => ({
 });
 
 tool('load_net',
+// Shared by load_net and load_example (examples.mjs): one path, so an example is
+// a net like any other.
+function loadNet({ model, name }) {
+  const obj = typeof model === 'string' ? JSON.parse(model) : model;
+  const key = name ?? obj?.name ?? 'net';
+  const net = new Net(model);
+  let conv;
+  try {
+    conv = hosted('net_to_jsonld', { model: obj, name: key });
+  } catch (e) { net.free?.(); throw e; }
+  nets.get(key)?.free?.();
+  nets.set(key, net);
+  models.set(key, obj);
+  jsonld.set(key, { doc: conv.net, cid: conv.cid, unsupported: conv.unsupported });
+  last = key;
+  const { net: _doc, places: _n, ...about } = conv;
+  return { name: key, ...snapshot(net), ...about };
+}
+
   'Load a Petri net: pflow.xyz JSON-LD, or the array shape (places: [{id, initial}], arcs: [{from, to, weight, type}]). Replaces any net with the same name. Every other tool then reads it by name, whichever shape it came in. Also answers shape, layout ("given", or "synthesized" when the net had no coordinates), and the net\'s CID: the CID names the document, layout and arc order included. It is computed here for up to 50 places; a larger net answers cid null with cid_skipped, and the cid tool computes it on demand. A net that cannot be written as a pflow.xyz document (data places, constraints, timed transitions) answers unsupported and still runs locally. Nets with guards, stages or rate schedules, and arcs with a fractional weight, are refused.',
   { model: z.union([z.string(), z.record(z.string(), z.any())]).describe('The net as a JSON object or JSON text'),
     name: z.string().optional().describe('Name to keep it under; defaults to the model name, else "net"') },
-  ({ model, name }) => {
-    const obj = typeof model === 'string' ? JSON.parse(model) : model;
-    const key = name ?? obj?.name ?? 'net';
-    const net = new Net(model);
-    let conv;
-    try {
-      conv = hosted('net_to_jsonld', { model: obj, name: key });
-    } catch (e) { net.free?.(); throw e; }
-    nets.get(key)?.free?.();
-    nets.set(key, net);
-    models.set(key, obj);
-    jsonld.set(key, { doc: conv.net, cid: conv.cid, unsupported: conv.unsupported });
-    last = key;
-    const { net: _doc, places: _n, ...about } = conv;
-    return { name: key, ...snapshot(net), ...about };
-  });
+  (args) => loadNet(args));
 
 tool('list_nets', 'List loaded nets.', {},
   () => ({ current: last, nets: [...nets.keys()] }));
@@ -195,3 +199,5 @@ registerHosted(tool, { hosted, jsonld, last: () => last });
 registerCompose(tool, { meta });
 
 await server.connect(new StdioServerTransport());
+import { register as registerExamples } from './examples.mjs';
+registerExamples(tool, { loadNet, hosted });

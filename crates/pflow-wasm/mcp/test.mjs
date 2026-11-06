@@ -19,7 +19,7 @@ const tools = (await client.listTools()).tools.map((t) => t.name).sort();
 const HOSTED = ['bundle_add_link', 'bundle_candidates', 'bundle_example', 'bundle_flatten', 'bundle_incidence', 'bundle_run',
   'bundle_validate', 'check', 'cid', 'edit', 'export', 'incidence', 'info', 'invariants', 'sde', 'validate', 'verify', 'what_if'];
 const LOCAL = ['bundle_check_proof', 'bundle_net', 'bundle_parts', 'bundle_prove'];
-assert.deepEqual(tools, ['artifact_html', 'compose_canvas', 'chyp_check', 'chyp_part', 'chyp_rule', 'fire', 'list_nets', 'load_net',
+assert.deepEqual(tools, ['artifact_html', 'compose_canvas', 'chyp_check', 'chyp_part', 'chyp_rule', 'fire', 'list_examples', 'list_nets', 'load_example', 'load_net',
   'ontology_classes', 'ontology_describe', 'ontology_search', 'reachability', 'reset', 'simulate', 'state', 'stochastic',
   ...HOSTED, ...LOCAL].sort());
 const { version } = JSON.parse((await import('node:fs')).readFileSync(join(dir, 'package.json'), 'utf8'));

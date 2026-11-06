@@ -1,0 +1,86 @@
+{
+  "about": "Public curated nets from pflow-xyz examples/landing, copied unchanged. pflow_xyz_cid is the @id the file is published under; cid is what this engine seals the net to when loaded (without the file's author attribution, which pflow.xyz keeps outside the sealed document: with it removed 4 of 6 equal the published CID). The composition is derived at load time from bundle_example and bundle_net; its cid is from the local engine.",
+  "source": "https://github.com/pflow-xyz/pflow-xyz (examples/landing, public/examples.json)",
+  "examples": [
+    {
+      "id": "coffee-shop",
+      "title": "Coffee Shop",
+      "description": "Weighted arcs encode recipes, conservation laws guarantee you never oversell a latte.",
+      "file": "coffee-shop.jsonld",
+      "cid": "z4EBG9j65C4kUyj1PQ3fWUYoGEXjhpZBTkRSE1Ra78fnJV86n3a",
+      "pflow_xyz_cid": "z4EBG9j3NhEnaxZBEpXXCvyMbR9utkgUZoPBQFxS99qSehUwuBL",
+      "sha256": "c327bf83540cb130601758e652f256b055bdc1348323a912e1bdcf618bbe2b47",
+      "url": "https://pflow.xyz/?cid=z4EBG9j3NhEnaxZBEpXXCvyMbR9utkgUZoPBQFxS99qSehUwuBL",
+      "cid_matches_published": false,
+      "cid_note": "The engine seals this document to a different CID than the @id pflow.xyz stores it under (the file is as fetched from pflow.xyz/o/<cid>); the published CID is kept in pflow_xyz_cid and url."
+    },
+    {
+      "id": "tic-tac-toe",
+      "title": "Tic-Tac-Toe",
+      "description": "Every board position is a place. ODE heatmaps reveal optimal play from network topology alone.",
+      "file": "tic-tac-toe.jsonld",
+      "cid": "z4EBG9j1YQFZEQBpCn3ZjdpAuXpPnrKSDF5YXsW3q86znPztEoh",
+      "pflow_xyz_cid": "z4EBG9j1YQFZEQBpCn3ZjdpAuXpPnrKSDF5YXsW3q86znPztEoh",
+      "sha256": "fe0a80bc56ab5824a0e93940f4988a90faf7348e367bde02f3f1bcab042b8fbb",
+      "url": "https://pflow.xyz/?cid=z4EBG9j1YQFZEQBpCn3ZjdpAuXpPnrKSDF5YXsW3q86znPztEoh",
+      "cid_matches_published": true
+    },
+    {
+      "id": "enzyme-kinetics",
+      "title": "Enzyme Kinetics",
+      "description": "Four places, three transitions — mass-action kinetics produce Michaelis-Menten curves automatically.",
+      "file": "enzyme-kinetics.jsonld",
+      "cid": "z4EBG9j1aMiBny6hgTAKFXfXxTASCD5vT6NVY3opfQx4FfBf42a",
+      "pflow_xyz_cid": "z4EBG9j1aMiBny6hgTAKFXfXxTASCD5vT6NVY3opfQx4FfBf42a",
+      "sha256": "68191be8ce080724419f5093a6b3436dea9533931ae5b1f3388526913ae90bce",
+      "url": "https://pflow.xyz/?cid=z4EBG9j1aMiBny6hgTAKFXfXxTASCD5vT6NVY3opfQx4FfBf42a",
+      "cid_matches_published": true
+    },
+    {
+      "id": "predator-prey",
+      "title": "Predator-Prey",
+      "description": "Lotka-Volterra dynamics — two species, three reactions, and the ODE solver draws the phase portrait.",
+      "file": "predator-prey.jsonld",
+      "cid": "z4EBG9j7s3ri1DFxbBYpxYUhKtZf8ngA3nfw9849upqeQj85z9J",
+      "pflow_xyz_cid": "z4EBG9j7s3ri1DFxbBYpxYUhKtZf8ngA3nfw9849upqeQj85z9J",
+      "sha256": "3a8ae61b182cbd439a2a5c7f2f2fb261f213cb8532a120f1d09eb0ae23bc0875",
+      "url": "https://pflow.xyz/?cid=z4EBG9j7s3ri1DFxbBYpxYUhKtZf8ngA3nfw9849upqeQj85z9J",
+      "cid_matches_published": true
+    },
+    {
+      "id": "producer-consumer",
+      "title": "Producer-Consumer",
+      "description": "Bounded buffer concurrency — capacity constraints prevent overflow, token counts prove correctness.",
+      "file": "producer-consumer.jsonld",
+      "cid": "z4EBG9jDW9ike1veSLWu9Et2dMTiPEWTMkai8TkjUtEaUVtyrda",
+      "pflow_xyz_cid": "z4EBG9jDW9ike1veSLWu9Et2dMTiPEWTMkai8TkjUtEaUVtyrda",
+      "sha256": "cce4b057884463e7c92242cba2abc5b294fbcb4b55adc175f59837186fe9ab3c",
+      "url": "https://pflow.xyz/?cid=z4EBG9jDW9ike1veSLWu9Et2dMTiPEWTMkai8TkjUtEaUVtyrda",
+      "cid_matches_published": true
+    },
+    {
+      "id": "usdc-bridge",
+      "title": "USDC Bridge",
+      "description": "Cross-chain token flow — IBC to Noble, CCTP burn-and-mint to Base, all as one net.",
+      "file": "usdc-bridge.jsonld",
+      "cid": "z4EBG9j1Z1y1L75KpZs2kc43HtwgNjoNYoLJG6Cq4x4i27GmtRd",
+      "pflow_xyz_cid": "z4EBG9jC6HtPfeMtyA5yt6HuzDspMH2B15FQZ7mx3D2zeBwBU1f",
+      "sha256": "8df085328c314bd0b59382fccc5c1d610736aa6005fe74599bbf06cd830cd750",
+      "url": "https://pflow.xyz/?cid=z4EBG9jC6HtPfeMtyA5yt6HuzDspMH2B15FQZ7mx3D2zeBwBU1f",
+      "cid_matches_published": false,
+      "cid_note": "The engine seals this document to a different CID than the @id pflow.xyz stores it under (the file is as fetched from pflow.xyz/o/<cid>); the published CID is kept in pflow_xyz_cid and url."
+    },
+    {
+      "id": "order-flow-composition",
+      "title": "Order flow (composition)",
+      "kind": "composition",
+      "description": "bundle_example's default composition, orders + workers + payment joined by three event links, flattened with bundle_net into one net. Its CID is computed locally; it is not a published pflow.xyz net.",
+      "file": null,
+      "cid": "z4EBG9jAPqa6Lteh9vbZg9K2zm4QQnmteMbZA471btAFLP5RonY",
+      "pflow_xyz_cid": null,
+      "sha256": null,
+      "url": null,
+      "cid_matches_published": null
+    }
+  ]
+}
