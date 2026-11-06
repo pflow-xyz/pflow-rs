@@ -7,9 +7,11 @@
 // ctx = { key, title, model, doc, cid, engine: { hosted, net }, meta }.
 // Add a view: write views/<id>.mjs and list it here; nothing else changes.
 import play from './play.mjs';
+import proof from './proof.mjs';
 import whatif from './whatif.mjs';
+import analysis from './analysis.mjs';
 
-const all = [play, whatif];
+const all = [play, analysis, whatif, proof];
 export const registry = new Map(all.map((v) => [v.id, v]));
 export const viewIds = () => [...registry.keys()];
 
