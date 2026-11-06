@@ -99,9 +99,21 @@ fn every_hosted_answer_is_reproduced() {
             (Some(want), Ok(got)) => {
                 panic!("{file}: hosted refused ({want}), local answered {got}")
             }
+            // documented difference (bug B7): hosted truncates a fractional arc
+            // weight with Go's int(); the local tools refuse it, naming the arc
+            (None, Err(got)) if got.contains("is not a whole number") => {
+                assert!(file.contains("edge"), "{file}: {got}");
+                continue;
+            }
             (None, Err(got)) => panic!("{file}: hosted answered, local refused: {got}"),
             (None, Ok(mut got)) => {
                 let mut want = case["answer"].clone();
+                // hosted marshals Go's nil slice as null; here it is [] (bug B7)
+                for k in ["p_invariants", "t_invariants"] {
+                    if want.get(k) == Some(&Value::Null) {
+                        want[k] = json!([]);
+                    }
+                }
                 if tool == "validate" {
                     sort_issues(&mut want);
                     sort_issues(&mut got);
@@ -189,11 +201,7 @@ fn incidence_unfolds_colors_and_skips_tests() {
 fn invariants_render_as_go_pflow_does() {
     let v = ok("invariants", &with_net("sir.jsonld", json!({})));
     assert_eq!(v["p_invariants"][0]["equation"], "I + R + S == 10");
-    assert_eq!(
-        v["t_invariants"],
-        Value::Null,
-        "Go marshals an empty list as null"
-    );
+    assert_eq!(v["t_invariants"], json!([]), "none is [], not null (B7)");
     assert_eq!(v["conservative"], true);
     assert_eq!(
         call("invariants", &with_net("sir.jsonld", json!({"kind": "x"}))).unwrap_err(),

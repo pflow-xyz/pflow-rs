@@ -135,6 +135,7 @@ fn go_int(v: &Value) -> Option<i64> {
 
 pub(crate) fn run(args: &Value) -> Result<Value, String> {
     let doc = net_arg(args)?;
+    crate::net::whole_weights(&doc)?;
     let max = num_arg(args, "max_states", 2000.0, 1.0, MAX_STATES)? as usize;
     let props = parse_props(args.get("properties"))?;
 

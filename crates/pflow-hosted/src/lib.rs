@@ -25,6 +25,7 @@ pub mod what_if;
 // reads their shared `net` argument.
 mod check;
 mod cid;
+mod convert;
 mod export;
 mod incidence;
 mod info;
@@ -76,6 +77,8 @@ pub fn call(tool: &str, args: &Value) -> Result<Value, String> {
         "verify" => verify::run(args),
         "export" => export::run(args),
         "info" => info::run(args),
+        // Not a pflow.xyz tool, so not in TOOLS: load_net's converter (convert.rs).
+        "net_to_jsonld" => convert::run(args),
         _ => Err(format!("unknown tool {tool:?}")),
     }
 }

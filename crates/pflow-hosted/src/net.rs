@@ -111,6 +111,34 @@ pub(crate) fn net_shape(doc: &Map<String, Value>) -> Result<(), String> {
     Ok(())
 }
 
+/// Refuses an arc whose weight (the sum of its per-colour weights) is not a
+/// whole number, naming it. go-pflow truncates it with `int(...)`, which turned
+/// a half-token arc into no arc at all without a word; `load_net` refuses it
+/// too, so one net is read one way everywhere. Used by the tools that run the
+/// firing rule (`invariants`, `incidence`, `verify`; `check` only counts) and by `load_net`.
+pub(crate) fn whole_weights(doc: &Map<String, Value>) -> Result<(), String> {
+    let Some(Value::Array(arcs)) = doc.get("arcs") else {
+        return Ok(());
+    };
+    for (i, a) in arcs.iter().enumerate() {
+        let Some(m) = a.as_object() else { continue };
+        let sum = match m.get("weight") {
+            None | Some(Value::Null) => 1.0,
+            w => float_slice(w).iter().sum(),
+        };
+        if sum.fract() != 0.0 {
+            let s = |k: &str| m.get(k).and_then(Value::as_str).unwrap_or("?");
+            return Err(format!(
+                "net.arcs[{i}] {:?} -> {:?}: weight {} is not a whole number (a token count)",
+                s("source"),
+                s("target"),
+                go_g(sum)
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// `v` as Go's `json.Unmarshal` into `any` followed by `json.Marshal` leaves
 /// it: a number with an integral value is written without a fraction.
 pub(crate) fn go_value(v: &Value) -> Value {

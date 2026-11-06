@@ -4,7 +4,8 @@
 // server lists them, so a call written for pflow.xyz/mcp works here unchanged.
 //
 // One addition: wherever the hosted tool takes `net` (a pflow.xyz JSON-LD object),
-// this server also takes the name of a net loaded with load_net, and with no
+// this server also takes the name of a net loaded with load_net (in either shape:
+// load_net writes it as JSON-LD, crates/pflow-hosted/src/convert.rs), and with no
 // `net` at all uses the most recently loaded one (edit excepted: there no net
 // means an empty one, as hosted).
 import { readFileSync } from 'node:fs';
@@ -35,20 +36,24 @@ function zodOf(p = {}) {
   return p.description ? t.describe(p.description) : t;
 }
 
-/** The model a `net` argument names: an object as is, a string a loaded net's. */
-export function resolveNet(value, { models, last }) {
+/** The pflow.xyz JSON-LD a `net` argument names: an object as is, a string a
+ *  loaded net's (load_net writes every loaded net in that form). */
+export function resolveNet(value, { jsonld, last }) {
+  const named = (key) => {
+    const e = jsonld.get(key);
+    if (!e) throw new Error(`no net named "${key}"; loaded: ${[...jsonld.keys()].join(', ') || 'none'}`);
+    if (!e.doc) throw new Error(`net "${key}" cannot be written as a pflow.xyz net: ${e.unsupported}`);
+    return e.doc;
+  };
   if (value == null) {
     if (last() == null) throw new Error('net: give a pflow.xyz net, or load one with load_net first');
-    return models.get(last());
+    return named(last());
   }
-  if (typeof value === 'string') {
-    if (!models.has(value)) throw new Error(`no net named "${value}"; loaded: ${[...models.keys()].join(', ') || 'none'}`);
-    return models.get(value);
-  }
+  if (typeof value === 'string') return named(value);
   return value;
 }
 
-export function register(tool, { hosted, models, last }) {
+export function register(tool, { hosted, jsonld, last }) {
   for (const t of tools) {
     const props = t.inputSchema?.properties ?? {};
     const required = new Set(t.inputSchema?.required ?? []);
@@ -57,10 +62,24 @@ export function register(tool, { hosted, models, last }) {
       if (k === 'net') { shape.net = netArg; continue; }
       shape[k] = required.has(k) ? zodOf(p) : zodOf(p).optional();
     }
-    tool(t.name, t.description + LOCAL_NOTE, shape, (args) => {
+    let description = t.description + LOCAL_NOTE;
+    if (t.name === 'edit') {
+      shape.cid = z.boolean().optional().describe('false skips sealing the result (its CID), which is about cubic in net size: 6 s at 100 places. Default true');
+      description += ' Local addition: cid:false leaves the CID out of the answer.';
+    }
+    tool(t.name, description, shape, (args) => {
       const a = { ...args };
-      if ('net' in props && (t.name !== 'edit' || a.net != null)) a.net = resolveNet(a.net, { models, last });
-      return hosted(t.name, a);
+      let entry = null;
+      if ('net' in props && (t.name !== 'edit' || a.net != null)) {
+        const key = typeof a.net === 'string' ? a.net : a.net == null ? last() : null;
+        a.net = resolveNet(a.net, { jsonld, last });
+        entry = key != null ? jsonld.get(key) : null;
+      }
+      // a loaded net's CID is computed once
+      if (t.name === 'cid' && entry?.cid) return { cid: entry.cid };
+      const out = hosted(t.name, a);
+      if (t.name === 'cid' && entry && typeof out?.cid === 'string' && out.kind == null) entry.cid = out.cid;
+      return out;
     });
   }
 }

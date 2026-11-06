@@ -18,7 +18,11 @@ import init, { Net, hosted } from './pflow-wasm-hosted.inline.js';
 await init();
 
 const nets = new Map();
-const models = new Map(); // name -> model object, for artifact_html
+const models = new Map(); // name -> model object as loaded, for artifact_html
+// name -> what the pflow.xyz-named tools read: { doc } (the JSON-LD form of the
+// loaded net, sealed with its @id when the CID was computed) or { unsupported }
+// (why it cannot be written as one), plus cid and layout.
+const jsonld = new Map();
 let last = null;
 
 // The package has its own version (build.mjs); the engine's is version().
@@ -40,7 +44,8 @@ const tool = (name, description, shape, fn) =>
   });
 
 const netName = z.string().optional().describe('Net name; defaults to the most recently loaded');
-const rates = z.record(z.string(), z.number()).optional().describe('Per-transition rate overrides');
+const rates = z.record(z.string(), z.number().nullable()).optional()
+  .describe('Per-transition rate overrides. 0 switches the transition off (it never fires); null means unset (the net\'s own rate, else 1)');
 
 const snapshot = (net) => ({
   places: net.places(), transitions: net.transitions(),
@@ -48,28 +53,36 @@ const snapshot = (net) => ({
 });
 
 tool('load_net',
-  'Load a Petri net (pflow.xyz JSON). Replaces any net with the same name. Nets with guards, stages or rate schedules are refused.',
+  'Load a Petri net: pflow.xyz JSON-LD, or the array shape (places: [{id, initial}], arcs: [{from, to, weight, type}]). Replaces any net with the same name. Every other tool then reads it by name, whichever shape it came in. Also answers shape, layout ("given", or "synthesized" when the net had no coordinates), and the net\'s CID: the CID names the document, layout and arc order included. It is computed here for up to 50 places; a larger net answers cid null with cid_skipped, and the cid tool computes it on demand. A net that cannot be written as a pflow.xyz document (data places, constraints, timed transitions) answers unsupported and still runs locally. Nets with guards, stages or rate schedules, and arcs with a fractional weight, are refused.',
   { model: z.union([z.string(), z.record(z.string(), z.any())]).describe('The net as a JSON object or JSON text'),
     name: z.string().optional().describe('Name to keep it under; defaults to the model name, else "net"') },
   ({ model, name }) => {
-    const net = new Net(model);
     const obj = typeof model === 'string' ? JSON.parse(model) : model;
     const key = name ?? obj?.name ?? 'net';
+    const net = new Net(model);
+    let conv;
+    try {
+      conv = hosted('net_to_jsonld', { model: obj, name: key });
+    } catch (e) { net.free?.(); throw e; }
     nets.get(key)?.free?.();
     nets.set(key, net);
     models.set(key, obj);
+    jsonld.set(key, { doc: conv.net, cid: conv.cid, unsupported: conv.unsupported });
     last = key;
-    return { name: key, ...snapshot(net) };
+    const { net: _doc, places: _n, ...about } = conv;
+    return { name: key, ...snapshot(net), ...about };
   });
 
 tool('list_nets', 'List loaded nets.', {},
   () => ({ current: last, nets: [...nets.keys()] }));
 
 tool('state',
-  'Places, transitions, current marking and enabled transitions. For a pflow.xyz (JSON-LD) net, `info` adds the hosted pflow_info summary: name, colours, each place (initial, capacity, label), transition (rate, label) and arc; its marking and enabled are the initial ones.',
+  'Places, transitions, current marking and enabled transitions. For any loaded net `info` adds the hosted pflow_info summary: name, colours, each place (initial, capacity, label), transition (rate, label) and arc; its marking and enabled are the initial ones.',
   { net: netName }, ({ net }) => {
     const out = snapshot(get(net));
-    try { out.info = hosted('info', { net: models.get(net ?? last) }); } catch { /* not a JSON-LD net: no summary */ }
+    const entry = jsonld.get(net ?? last);
+    if (entry?.doc) out.info = hosted('info', { net: entry.doc });
+    else if (entry?.unsupported) out.info_unavailable = entry.unsupported;
     return out;
   });
 
@@ -231,7 +244,7 @@ import { register as registerHosted } from './hosted.mjs';
 import { register as registerCompose } from './compose.mjs';
 registerOntology(tool);
 registerChyp(tool);
-registerHosted(tool, { hosted, models, last: () => last });
+registerHosted(tool, { hosted, jsonld, last: () => last });
 registerCompose(tool);
 
 await server.connect(new StdioServerTransport());
