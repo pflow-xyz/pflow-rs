@@ -7,8 +7,7 @@ const css = `
 .mark b{font-size:20px;display:block;line-height:1.1}.mark span{color:var(--mut);font-size:12px}
 label{margin-right:12px;color:var(--mut);font-size:13px;display:inline-block}
 input[type=number]{font:inherit;width:70px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:3px 6px}
-svg{width:100%;height:auto;display:block}.leg{display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:var(--mut);margin-top:6px}
-.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px}#log{color:var(--mut);font-size:13px;min-height:1.4em}
+#log{color:var(--mut);font-size:13px;min-height:1.4em}
 `;
 
 const html = `

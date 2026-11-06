@@ -86,6 +86,45 @@ else {
     assert.deepEqual(requests, [], 'no network requests');
     assert.deepEqual(problems, [], 'no console errors');
     ok('transition off, refusal, phone width, no network, no console errors');
+    // the hidden attribute wins over the label's flex display, and the whatif-only legend has swatches
+    await page.locator('#wi-kind').selectOption('tokens');
+    assert.equal(await page.evaluate(() => getComputedStyle(document.getElementById('wi-tl')).display), 'none', 'transition picker hidden for a place change');
+    await page.locator('#wi-kind').selectOption('off');
+    assert.equal(await page.evaluate(() => getComputedStyle(document.getElementById('wi-pl')).display), 'none', 'place picker hidden for a transition change');
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.sw')).width), '10px', 'legend swatches are styled without the play view');
+    // a multi-colour net and a net with nothing to change each render a page, not a thrown error
+    const cases = {
+      colour: { '@context': 'https://pflow.xyz/schema', '@type': 'PetriNet', '@version': '1.1', name: 'col', token: ['https://pflow.xyz/tokens/black', 'https://pflow.xyz/tokens/red'],
+        places: { a: { '@type': 'Place', initial: [2, 1], capacity: [0, 0], x: 1, y: 1 }, b: { '@type': 'Place', initial: [0, 0], capacity: [0, 0], x: 2, y: 1 } },
+        transitions: { t: { '@type': 'Transition', x: 1, y: 2 } },
+        arcs: [{ '@type': 'Arrow', source: 'a', target: 't', weight: [1, 1] }, { '@type': 'Arrow', source: 't', target: 'b', weight: [1, 1] }] },
+      empty: { name: 'empty', places: [], transitions: [], arcs: [] },
+    };
+    for (const [k, model] of Object.entries(cases)) {
+      const lr = await call('load_net', { model });
+      assert.ok(!lr.error, `${k}: ${lr.text}`);
+      const f = join(dir, `whatif-${k}.html`);
+      const ar = await call('artifact_html', { net: model.name, views: ['whatif'], path: f });
+      assert.ok(!ar.error, ar.text);
+      const p2 = await browser.newPage({ viewport: { width: 375, height: 800 } });
+      await p2.route('http://page.test/q.html', (q) => q.fulfill({ status: 200, contentType: 'text/html', headers: { 'content-security-policy': CSP }, body: readFileSync(f, 'utf8') }));
+      await p2.goto('http://page.test/q.html');
+      await p2.waitForTimeout(1500);
+      const msg = await p2.locator('#wi-msg').innerText();
+      if (k === 'colour') {
+        assert.doesNotMatch(msg, /undefined|Cannot read/, 'multi-colour: no thrown error');
+        assert.ok(await p2.locator('#wi-table tbody tr').count() >= 2, 'multi-colour: the table has rows');
+        assert.ok(await p2.locator('#wi-ssa-a svg').count() === 1, 'multi-colour: charts drawn');
+        assert.doesNotMatch(await p2.locator('#wi-place').innerHTML(), /a\.black/, 'a colour component is not offered as a place');
+        assert.match(await p2.locator('#wi-note').innerText(), /several colours/);
+      } else {
+        assert.match(msg, /Nothing to change/, 'empty net: says there is nothing to change');
+        assert.doesNotMatch(msg, /rates/);
+      }
+      rmSync(f, { force: true });
+      await p2.close();
+    }
+    ok('multi-colour and empty nets, hidden controls, legend swatches');
   } finally { await browser.close(); }
 }
 rmSync(out, { force: true });

@@ -78,6 +78,8 @@ button:hover:not(:disabled){border-color:var(--acc);color:var(--acc)}button:disa
 details.pf-text{max-width:860px;margin:0 auto;padding:0 16px}details.pf-text summary{cursor:pointer;color:var(--mut);font-size:13px}
 details.pf-text textarea{width:100%;height:12em;margin-top:8px;font:12px ui-monospace,monospace;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px}
 #pf-err{color:#dc2626;font-size:13px}
+svg{width:100%;height:auto;display:block}.leg{display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:var(--mut);margin-top:6px}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px}
 `;
 
 const PRELUDE = `

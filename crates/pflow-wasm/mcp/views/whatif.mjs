@@ -13,6 +13,7 @@
 const css = `
 .wi-row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:end;margin:0 0 10px}
 .wi-row label{display:flex;flex-direction:column;gap:2px;margin:0;color:var(--mut);font-size:12px}
+.wi-row label[hidden]{display:none}
 .wi-row select,.wi-row input{font:inherit;font-size:14px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 6px;max-width:100%}
 .wi-row input[type=number]{width:76px}
 .wi-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -59,8 +60,11 @@ const wiBase=wiNet(netDoc);
 const wiPlaces=wiBase.places(), wiTrans=wiBase.transitions();
 const wiArr=Array.isArray(netDoc.places);
 // a place whose initial marking is a colour vector cannot take a single delta
-const wiInit=p=>{const v=wiArr?(netDoc.places.find(x=>x.id===p)||{}).initial:(netDoc.places[p]||{}).initial;return v};
-const wiSimple=p=>{const v=wiInit(p);return !Array.isArray(v)||v.length<=1};
+// the engine names a colour component 'a.red'; the document keys the place 'a'
+const wiIds=wiArr?netDoc.places.map(x=>x.id):Object.keys(netDoc.places);
+const wiBaseId=p=>wiIds.includes(p)?p:wiIds.filter(i=>p.startsWith(i+'.')).sort((a,b)=>b.length-a.length)[0];
+const wiInit=p=>{const id=wiBaseId(p);if(id===undefined)return undefined;return wiArr?(netDoc.places.find(x=>x.id===id)||{}).initial:(netDoc.places[id]||{}).initial};
+const wiSimple=p=>{const id=wiBaseId(p);if(id===undefined||id!==p)return false;const v=wiInit(p);return !Array.isArray(v)||v.length<=1};
 const wiOffer=wiPlaces.filter(wiSimple);
 const wiCount=p=>{let v=wiInit(p);if(Array.isArray(v))v=v[0];return typeof v==='number'?v:0};
 const wiOpt=(el,items)=>{el.innerHTML=items.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('')};
@@ -68,8 +72,10 @@ wiOpt($('wi-place'),wiOffer);wiOpt($('wi-trans'),wiTrans);
 const wiDefault=wiOffer.find(p=>wiCount(p)>0)||wiOffer[0];
 if(wiDefault)$('wi-place').value=wiDefault;
 if(wiOffer.length<wiPlaces.length)$('wi-note').textContent='Places that hold several colours are not offered here; the what_if tool takes a colour. Showing all '+wiPlaces.length+' places in the charts.';
-if(!wiOffer.length){$('wi-kind').value='off';$('wi-kind').querySelector('option[value=tokens]').disabled=true}
-if(!wiTrans.length){$('wi-kind').querySelector('option[value=off]').disabled=true}
+if(!wiOffer.length&&wiTrans.length){$('wi-kind').value='off';$('wi-kind').querySelector('option[value=tokens]').disabled=true}
+if(!wiTrans.length)$('wi-kind').querySelector('option[value=off]').disabled=true;
+const wiNothing=!wiOffer.length&&!wiTrans.length;
+if(wiNothing)$('wi-kind').disabled=true;
 const wiSync=()=>{const off=$('wi-kind').value==='off';$('wi-pl').hidden=off;$('wi-dl').hidden=off;$('wi-tl').hidden=!off};
 $('wi-kind').onchange=()=>{wiSync();wiRun()};wiSync();
 const wiChanged=(kind,place,delta)=>{
@@ -94,6 +100,7 @@ const wiSigned=v=>(v>0?'+':'')+wiFmt(v);
 function wiRun(){
   const msg=$('wi-msg');msg.textContent='';
   try{
+    if(wiNothing){msg.textContent='Nothing to change: this net has no transition to switch off and no single-colour place to add tokens to.';return}
     const kind=$('wi-kind').value,tEnd=num('wi-t',10),runs=Math.max(1,Math.round(num('wi-runs',16))),seed=Math.max(0,Math.round(num('wi-seed',7)));
     setSeed(seed);
     let bNet,rates={},label;
