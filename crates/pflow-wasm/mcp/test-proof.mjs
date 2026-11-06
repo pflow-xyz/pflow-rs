@@ -56,7 +56,7 @@ for (const [k, model] of Object.entries(nets)) {
 assert.ok(tool.dead.verdicts.some((v) => v.status === 'refuted' && v.counterexample?.trace?.length), 'dead has a refuted verdict with a trace');
 assert.ok(tool.grow.verdicts.some((v) => v.status === 'unknown'), 'grow has an unknown verdict');
 assert.ok(tool.ring.verdicts.some((v) => v.status === 'proved'));
-assert.match(tool.tok.truncated_reason ?? '', /token/, 'the engine says the token limit stopped the search');
+assert.equal(tool.tok.truncated, true, 'tok stops on its token limit');
 
 // static: the section, the module parses, nothing reaches the network, composes with play
 for (const k of Object.keys(nets)) {
@@ -133,7 +133,7 @@ else {
         } else assert.equal(cards[i].replay, null);
         if (v.status === 'unknown') assert.match(cards[i].text, /search was bounded/, `${k}/${v.property.kind}: unknown says the search was bounded`);
         else assert.ok(!/is not a pass/.test(cards[i].text));
-        if (v.status === 'unknown' && t.truncated_reason) assert.ok(cards[i].text.includes(t.truncated_reason), `${k}/${v.property.kind}: unknown gives the engine's reason`);
+        if (v.status === 'unknown' && k === 'tok') assert.match(cards[i].text, /token count exceeded limit/, `${k}/${v.property.kind}: unknown gives the engine's reason, not only the budget`);
         if (v.property.kind === 'deadlock-free') assert.match(cards[i].text, /reachability verdict in the analysis section/, `${k}: deadlock-free states its definition`);
       });
       const sum = await page.evaluate(() => ({ ...document.getElementById('pv-sum').dataset }));

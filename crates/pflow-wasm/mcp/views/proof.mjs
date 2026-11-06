@@ -190,7 +190,7 @@ export default {
     let result, error;
     if (!ctx.doc) error = 'this net cannot be written as pflow.xyz JSON-LD, which verify reads';
     else {
-      try { result = ctx.engine.hosted('verify', { net: ctx.doc, properties: PROPERTIES, max_states: MAX_STATES }); }
+      try { result = ctx.engine.hosted('verify', { net: ctx.doc, properties: PROPERTIES, max_states: MAX_STATES, explain_truncation: true }); }
       catch (e) { error = String(e?.message ?? e); }
     }
     return { css, html: html(composite), js: buildJs({ result, error, ctx, composite }) };
