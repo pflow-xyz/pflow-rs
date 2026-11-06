@@ -45,7 +45,7 @@ export function register(tool, { loadNet, hosted }) {
         // pflow.xyz keeps the author attribution and the @id outside the sealed document
         delete model.author; delete model['@id'];
       }
-      const out = loadNet({ model, name: name ?? e.id });
+      const out = loadNet({ model, name: name ?? e.id, cid: true }) /* curated and bounded: always sealed, so the recorded CID can be checked */;
       return { example: e.id, title: e.title, description: e.description, recorded_cid: e.cid,
         cid_matches_recorded: out.cid === e.cid, pflow_xyz_cid: e.pflow_xyz_cid ?? null,
         cid_matches_published: e.pflow_xyz_cid ? out.cid === e.pflow_xyz_cid : null,

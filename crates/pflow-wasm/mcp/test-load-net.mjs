@@ -70,6 +70,18 @@ const t0 = Date.now();
 assert.match((await ok('cid', { net: 'chain60' })).cid, /^z4EBG9j/);
 console.log(`   cid of 60 places on demand: ${Date.now() - t0} ms`);
 
+// few places, many transitions: the guard counts the whole graph, so load_net does not stall in sealing
+{
+  const wt = Array.from({ length: 300 }, (_, i) => ({ id: `t${i}` }));
+  const wa = wt.flatMap((t, i) => [{ from: `q${i % 5}`, to: t.id }, { from: t.id, to: `q${(i + 1) % 5}` }]);
+  const wp = Array.from({ length: 5 }, (_, i) => ({ id: `q${i}`, initial: i === 0 ? 1 : 0 }));
+  const t1 = Date.now();
+  const wide = await ok('load_net', { model: { name: 'wide', places: wp, transitions: wt, arcs: wa } });
+  assert.equal(wide.cid, null);
+  assert.match(wide.cid_skipped, /cubic/);
+  assert.ok(Date.now() - t1 < 5000, 'load_net of a wide net must not seal eagerly');
+}
+
 // edit cid:false
 const e1 = await ok('edit', { net: 'mutex', ops: [{ op: 'add_place', id: 'x' }], cid: false });
 assert.equal(e1.cid, undefined);
