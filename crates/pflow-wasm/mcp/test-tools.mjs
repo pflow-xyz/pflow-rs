@@ -38,17 +38,20 @@ const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
 
 // ---------------------------------------------------------------- harness
 const results = [];
+const fixedKnown = [];
 const timings = [];
 let section = '';
 const sec = (s) => { section = s; console.log(`\n== ${s}`); };
 function check(name, cond, detail = '', { known } = {}) {
   const status = cond ? 'pass' : known ? 'known' : 'FAIL';
   results.push({ section, name, status, detail: cond ? undefined : String(detail).slice(0, 400), known: known || undefined });
+  // a `known` check whose condition now holds is a fixed bug: flip it to a plain check
+  if (cond && known !== undefined && known !== false) { fixedKnown.push(name); console.log(`  FIXED known issue still marked known: ${name}`); }
   if (status !== 'pass') console.log(`  ${status === 'known' ? 'KNOWN' : 'FAIL '} ${name}${detail ? ' :: ' + String(detail).slice(0, 220) : ''}`);
 }
-async function call(name, args = {}) {
+async function call(name, args = {}, opts) {
   const t0 = performance.now();
-  const r = await client.callTool({ name, arguments: args });
+  const r = await client.callTool({ name, arguments: args }, undefined, opts);
   const ms = performance.now() - t0;
   timings.push({ tool: name, ms });
   const text = r.content?.[0]?.text ?? '';
@@ -129,8 +132,11 @@ const names = listed.map((t) => t.name).sort();
 const EXPECTED = ['artifact_html', 'bundle_add_link', 'bundle_candidates', 'bundle_example', 'bundle_flatten', 'bundle_incidence', 'bundle_run',
   'bundle_validate', 'check', 'chyp_check', 'chyp_part', 'chyp_rule', 'cid', 'edit', 'export', 'fire', 'incidence', 'info', 'invariants',
   'list_nets', 'load_net', 'ontology_classes', 'ontology_describe', 'ontology_search', 'reachability', 'reset', 'sde', 'simulate', 'state',
-  'stochastic', 'validate', 'verify', 'what_if'].sort();
-check('exactly the 33 documented tools', listed.length === 33 && eqArr(names, EXPECTED), names.join(','));
+  'stochastic', 'validate', 'verify', 'what_if',
+  'bundle_net', 'bundle_prove', 'bundle_check_proof', 'bundle_parts', 'compose_canvas', 'list_examples', 'load_example'].sort();
+// every documented tool is served and none is served twice; a tool added later is reported, not failed
+check(`all ${EXPECTED.length} documented tools are served (${listed.length} listed${listed.length > EXPECTED.length ? '; not in the suite yet: ' + names.filter((n) => !EXPECTED.includes(n)).join(', ') : ''})`,
+  EXPECTED.every((n) => names.includes(n)) && new Set(names).size === names.length, names.join(','));
 check('server reports the package version', client.getServerVersion().version === pkg.version, `${client.getServerVersion().version} vs ${pkg.version}`);
 check('every tool has a description of >20 chars (list_nets: "List loaded nets." is 16)', listed.every((t) => (t.description ?? '').length > 15), listed.filter((t) => (t.description ?? '').length <= 15).map((t) => t.name));
 // naming rough edge: the hosted tools say `net` = JSON-LD object *or* a loaded name; the local ones say `net` = a name. load_net says `model`.
@@ -440,9 +446,9 @@ sec('7. hosted-name tools (check, info, validate, incidence, invariants, verify,
   console.log(`   check(array shape) -> ${r.text.slice(0, 170).replace(/\s+/g, ' ')}`);
   await call('load_net', { model: simple, name: 'sir-simple' });
   r = await call('info', { net: 'sir-simple' });
-  check('info of a net loaded by name from the array shape works', !r.err, r.text, { known: r.err });
+  check('info of a net loaded by name from the array shape works (B3, fixed)', !r.err, r.text);
   r = await call('incidence', { net: 'sir-simple' });
-  check('incidence of a loaded array-shape net works', !r.err, r.text, { known: r.err });
+  check('incidence of a loaded array-shape net works (B3, fixed)', !r.err, r.text);
   // the same net as JSON-LD
   const ld = toJsonLd(simple);
   r = await call('check', { net: ld });
@@ -574,7 +580,7 @@ sec('7. hosted-name tools (check, info, validate, incidence, invariants, verify,
   check('export svg returns an svg', !r.err && /<svg/.test(r.text), r.text.slice(0, 100));
   for (const layout of ['circular', 'hierarchical', 'force-atlas-2']) { const a2 = await call('export', { net: ld, format: 'svg', layout }); check(`export svg layout ${layout} accepted`, !a2.err); }
   const s1 = (await call('export', { net: ld, format: 'svg', layout: 'circular' })).text, s2 = (await call('export', { net: ld, format: 'svg', layout: 'hierarchical' })).text;
-  check('svg layout argument changes the drawing (README: "accepted, not applied")', s1 !== s2, 'identical', { known: true });
+  check('svg layout argument changes the drawing (README: "accepted, not applied")', s1 !== s2, 'identical');
   r = await call('export', { net: ld, format: 'png' }); check('export format png is rejected', r.err, r.text);
   r = await call('check', { net: 'nope' }); check('check by unknown name errors, lists loaded', r.err && /loaded:/.test(r.text), r.text);
   r = await call('check', { net: 42 }); check('check of a number is a clean error', r.err, r.text);
@@ -609,7 +615,7 @@ sec('8. sde and what_if');
   check('SDE deterministic', r.text === (await call('sde', { net: toJsonLd(net('synthetic/sir')), t_end: 10, points: 5, seed: 3 })).text);
   r = await call('sde', { net: toJsonLd(net('synthetic/inhibitor-gate')) });
   check('SDE refuses an inhibitor net and points at pflow_ssa (hosted-only)', r.err && /inhibitor/.test(r.text), r.text.slice(0, 200));
-  check('...but pflow_ssa does not exist locally; the local equivalent is `stochastic` - message should say so', !/pflow_ssa/.test(r.text), r.text.slice(0, 250), { known: true });
+  check('...but pflow_ssa does not exist locally; the local equivalent is `stochastic` - message should say so', !/pflow_ssa/.test(r.text), r.text.slice(0, 250));
   r = await call('sde', { net: toJsonLd(net('synthetic/capacity')) }); check('SDE refuses a capacity on a producing place', r.err, r.text.slice(0, 160));
   r = await call('sde', { net: toJsonLd(net('synthetic/sir')), points: 1000 }); check('SDE points>500 rejected', r.err, r.text.slice(0, 120));
   r = await call('sde', { net: toJsonLd(net('synthetic/sir')), runs: 201 }); check('SDE runs>200 rejected', r.err, r.text.slice(0, 120));
@@ -798,7 +804,13 @@ sec('13. artifact_html');
   check('the only fetch( is wasm-bindgen\'s fallback for a non-inline module argument, which init() with no argument never reaches', (html.match(/\bfetch\(/g) || []).length === 1 && /module_or_path = fetch\(module_or_path\)/.test(html), `${(html.match(/\bfetch\(/g) || []).length} fetch( calls`);
   console.log(`   mentions of 'fetch(': ${(html.match(/fetch\(/g) || []).length}, 'import.meta': ${(html.match(/import\.meta/g) || []).length}, 'http': ${(html.match(/https?:\/\//g) || []).length}`);
   check('page includes a title, marks, fire buttons', /<title>sir<\/title>/.test(html) && /id="tx"/.test(html));
-  check('page says nothing about proofs, invariants or checks (no verify surface)', !/invariant|deadlock|proof|verified/i.test(html.replace(/<script[\s\S]*?<\/script>/g, '')), 'has proof text', { known: true });
+  { // the default play page has no verify surface by design; the analysis view is it, with the engine's verdicts
+    const textOf = (h) => h.replace(/<script[\s\S]*?<\/script>/g, '');
+    const an = await call('artifact_html', { net: 'sir', views: ['analysis'], path: join(dir, 'tt-analysis.html') });
+    const ah = an.json?.path && existsSync(an.json.path) ? readFileSync(an.json.path, 'utf8') : '';
+    if (an.json?.path) rmSync(an.json.path, { force: true });
+    check('the play page has no verify text; views ["analysis"] adds the invariants and verdicts', !/invariant|deadlock|proof|verified/i.test(textOf(html)) && /invariant/i.test(ah) && /deadlock/i.test(ah) && ah.length > html.length - 1000, an.text.slice(0, 200));
+  }
   // regression (report B2): the chart read `series[p].values || series[p]`, but an ODE series is
   // an array and an array's own .values is Array.prototype.values (a function, always truthy), so
   // every page threw "not iterable" and drew nothing. Static check always; the real thing in
@@ -853,6 +865,61 @@ sec('13. artifact_html');
   if (r.json?.path && existsSync(r.json.path)) rmSync(r.json.path);
 }
 
+// ================================================================= 13b. timeout_ms
+sec('13b. timeout_ms on reachability, validate and verify (worker thread)');
+{
+  const big = net('synthetic/toggles-16'), bigLd = toJsonLd(big);
+  const unknownAll = (v) => v.verdicts?.length > 0 && v.verdicts.every((x) => x.status === 'unknown');
+  for (const t of ['reachability', 'validate', 'verify']) {
+    const props = listed.find((x) => x.name === t).inputSchema.properties;
+    check(`${t} takes timeout_ms`, 'timeout_ms' in props, Object.keys(props));
+  }
+  let r = await call('reachability', { model: big, max_states: 20000, timeout_ms: 150 });
+  check('reachability past timeout_ms answers unknown, truncated, timed_out, with the reason, quickly',
+    !r.err && r.json?.complete === false && r.json.truncated === true && r.json.timed_out === true && /timed out after 150 ms/.test(r.json.truncated_reason ?? '')
+    && /^unknown/.test(String(r.json.bounded)) && r.json.deadlock_free === 'unknown' && r.json.live === 'unknown' && r.json.quasi_live === 'unknown' && r.ms < 5000,
+    `${r.ms.toFixed(0)} ms ${r.text.slice(0, 300)}`);
+  r = await call('reachability', { model: net('synthetic/mutex') });
+  check('...and the next call works (a fresh worker)', !r.err && r.json?.complete === true && r.json.timed_out === undefined, r.text.slice(0, 200));
+  r = await call('verify', { net: bigLd, properties: [{ kind: 'deadlock-free' }, { kind: 'bounded' }], max_states: 20000, timeout_ms: 150 });
+  check('verify past timeout_ms: every verdict unknown, truncated, timed_out, the reason in each',
+    !r.err && unknownAll(r.json) && r.json.truncated === true && r.json.timed_out === true && r.json.proved === 0 && r.json.refuted === 0
+    && r.json.verdicts.every((x) => /timed out/.test(x.detail ?? '')) && r.ms < 5000, `${r.ms.toFixed(0)} ms ${r.text.slice(0, 300)}`);
+  r = await call('validate', { net: bigLd, reachability: true, max_states: 20000, timeout_ms: 150 });
+  check('validate past timeout_ms: valid is "unknown", truncated, timed_out, with the reason',
+    !r.err && r.json?.valid === 'unknown' && r.json.truncated === true && r.json.timed_out === true && /timed out/.test(r.json.truncated_reason ?? ''), `${r.ms.toFixed(0)} ms ${r.text.slice(0, 300)}`);
+  // inside the limit the answers are the engine's own, byte for byte what the call gave before the limit existed
+  const quiet = await call('verify', { net: toJsonLd(net('synthetic/mutex')), properties: [{ kind: 'bounded' }] });
+  check('a call inside its limit is not marked timed out', !quiet.err && quiet.json?.timed_out === undefined && quiet.json?.verdicts?.[0]?.status === 'proved', quiet.text.slice(0, 200));
+  // the server stays responsive while a search runs
+  const slow = call('reachability', { model: big, max_states: 20000, timeout_ms: 3000 });
+  await new Promise((res) => setTimeout(res, 300));
+  const t0 = performance.now(), ln = await call('list_nets'), lat = performance.now() - t0;
+  const sl = await slow;
+  check(`list_nets answers in ${lat.toFixed(0)} ms (< 1000) while a reachability search is running`, !ln.err && lat < 1000, lat);
+  check('...and that search was stopped at its limit', sl.json?.timed_out === true && sl.ms < 8000, `${sl.ms.toFixed(0)} ms ${sl.text.slice(0, 200)}`);
+  // calls queue behind one another: two at once both answer
+  const [a, b] = await Promise.all([call('reachability', { model: net('synthetic/ring-50') }), call('verify', { net: toJsonLd(net('synthetic/mutex')), properties: [{ kind: 'bounded' }] })]);
+  check('two concurrent guarded calls both answer', !a.err && a.json?.states === 50 && !b.err && b.json?.verdicts?.[0]?.status === 'proved', `${a.text.slice(0, 100)} | ${b.text.slice(0, 100)}`);
+  // bounds
+  r = await call('reachability', { model: big, timeout_ms: 0 }); check('timeout_ms 0 is a schema error', r.err, r.text.slice(0, 120));
+  r = await call('verify', { net: bigLd, properties: [{ kind: 'bounded' }], timeout_ms: 120001 }); check('timeout_ms above 120000 is a schema error', r.err, r.text.slice(0, 120));
+  // from "current" runs in the worker too: it must start from the loaded net's current marking
+  await call('load_net', { model: { name: 'line', places: [{ id: 'a', initial: 1 }, { id: 'b' }, { id: 'c' }], transitions: [{ id: 't1' }, { id: 't2' }], arcs: [{ from: 'a', to: 't1' }, { from: 't1', to: 'b' }, { from: 'b', to: 't2' }, { from: 't2', to: 'c' }] } });
+  const fromStart = await call('reachability', { net: 'line' });
+  await call('fire', { net: 'line', transition: 't1' });
+  const fromNow = await call('reachability', { net: 'line', from: 'current' });
+  const stillInitial = await call('reachability', { net: 'line' });
+  check('reachability from "current" starts at the current marking; the default stays the initial one',
+    fromStart.json?.states === 3 && fromNow.json?.states === 2 && fromNow.json.from?.b === 1 && stillInitial.json?.states === 3,
+    `${fromStart.json?.states} ${fromNow.json?.states} ${JSON.stringify(fromNow.json?.from)} ${stillInitial.json?.states}`);
+  // JSON-LD loaded nets carry the marking too
+  await call('load_net', { model: toJsonLd({ name: 'line-ld', places: [{ id: 'a', initial: 1 }, { id: 'b' }, { id: 'c' }], transitions: [{ id: 't1' }, { id: 't2' }], arcs: [{ from: 'a', to: 't1' }, { from: 't1', to: 'b' }, { from: 'b', to: 't2' }, { from: 't2', to: 'c' }] }) });
+  await call('fire', { net: 'line-ld', transition: 't1' });
+  r = await call('reachability', { net: 'line-ld', from: 'current' });
+  check('...also for a net loaded as pflow.xyz JSON-LD', !r.err && r.json?.states === 2, r.text.slice(0, 200));
+}
+
 // ================================================================= 14. timing + summary
 sec('14. timing');
 {
@@ -864,7 +931,9 @@ sec('14. timing');
   if (!QUICK) {
     const chain = toJsonLd(net('synthetic/chain-200'));
     const t0 = performance.now();
-    const r = await call('cid', { net: chain });
+    // cid is about cubic and runs on the server's own thread (53 s at 200 places, B5): a request
+    // that outlasts the SDK's 60 s timeout is the known failure, not a crashed suite.
+    const r = await call('cid', { net: chain }, { timeout: 120000 }).catch((e) => ({ err: true, text: String(e?.message ?? e) }));
     const s = (performance.now() - t0) / 1000;
     check(`cid of a 200-place/200-transition net returns in < 5 s (took ${s.toFixed(1)} s)`, !r.err && s < 5, `${s.toFixed(1)} s`, { known: true });
   }
@@ -872,6 +941,7 @@ sec('14. timing');
 
 await client.close();
 const tally = results.reduce((a, r) => ((a[r.status] = (a[r.status] ?? 0) + 1), a), {});
+if (fixedKnown.length) console.log(`\n${fixedKnown.length} known check(s) now pass: flip them to plain checks`);
 console.log(`\n${results.length} checks: ${tally.pass ?? 0} pass, ${tally.known ?? 0} known-issue, ${tally.FAIL ?? 0} FAIL  (pflow-mcp ${pkg.version})`);
 if (jsonOut) writeFileSync(jsonOut, JSON.stringify({ package: pkg.version, dir, tally, results, timings: timings.map((t) => ({ ...t, ms: Math.round(t.ms * 10) / 10 })) }, null, 1));
 process.exit(tally.FAIL ? 1 : 0);

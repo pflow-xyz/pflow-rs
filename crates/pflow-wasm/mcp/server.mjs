@@ -9,6 +9,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { register as registerHosted, reachabilityGuarded, timeoutArg, withMarking } from './hosted.mjs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // The engine with the pflow.xyz/mcp tools built in (make wasm-mcp-engine). The
@@ -126,15 +127,24 @@ tool('reachability',
     max_tokens: z.number().int().min(1).optional()
       .describe('Tokens in one place past which the net is called unbounded (default 1000)'),
     from: z.enum(['initial', 'current']).optional()
-      .describe('Start from the initial marking (default, as the hosted tool) or a loaded net\'s current one') },
-  ({ net, model, max_states, max_tokens, from }) => {
+      .describe('Start from the initial marking (default, as the hosted tool) or a loaded net\'s current one'),
+    timeout_ms: timeoutArg },
+  async ({ net, model, max_states, max_tokens, from, timeout_ms }) => {
+    // Runs in a worker thread (hosted.mjs): a search past timeout_ms is stopped and answers unknown.
     const options = { maxStates: max_states, maxTokens: max_tokens, from };
     if (model != null) {
       if (from === 'current') throw new Error('from "current" needs a loaded net, not an inline model');
-      const n = new Net(model);
-      try { return n.reachability(options); } finally { n.free?.(); }
+      return reachabilityGuarded(model, options, timeout_ms);
     }
-    return get(net).reachability(options);
+    const loaded = get(net);
+    let m = models.get(net ?? last);
+    if (from === 'current') {
+      // the worker has no marking of its own: hand it the current one as the initial
+      m = withMarking(m, loaded.marking());
+      if (!m) throw new Error('from "current": this net\'s shape cannot carry its marking to the search');
+      options.from = 'initial';
+    }
+    return reachabilityGuarded(m, options, timeout_ms);
   });
 
 // ---- artifact_html -------------------------------------------------------
@@ -240,8 +250,8 @@ tool('artifact_html',
 
 import { register as registerOntology } from './ontology.mjs';
 import { register as registerChyp } from './chyp.mjs';
-import { register as registerHosted } from './hosted.mjs';
 import { register as registerCompose } from './compose.mjs';
+import { register as registerExamples } from './examples.mjs';
 registerOntology(tool);
 registerChyp(tool);
 registerHosted(tool, { hosted, jsonld, last: () => last });

@@ -77,10 +77,23 @@ wasm-mcp: wasm-npm wasm-mcp-engine
 	node crates/pflow-wasm/mcp/build.mjs $(NPM_OUT) $(MCP_OUT) $(MCP_ENGINE_OUT)
 	cd $(MCP_OUT) && npm install --omit=dev --no-audit --no-fund --package-lock=false
 
+# The whole suite against the built package: test.mjs (smoke, copied beside the
+# package to resolve its SDK), every other test-*.mjs in crates/pflow-wasm/mcp
+# (test-tools.mjs: all tools over test-corpus/, with `known` checks for open
+# bugs; the rest per feature), and the corpus check: test-corpus/generate.mjs
+# must reproduce the committed synthetic and refused nets. Every suite runs
+# even after one fails; the target fails if any did.
 wasm-mcp-test: wasm-mcp
-	cp crates/pflow-wasm/mcp/test.mjs $(MCP_OUT)/test.mjs   # resolves the SDK from the package's node_modules
-	node $(MCP_OUT)/test.mjs $(MCP_OUT); rc=$$?; rm -f $(MCP_OUT)/test.mjs; exit $$rc
-	cd $(MCP_OUT) && npm pack --dry-run 2>&1 | grep -E 'total files|package size|unpacked'
+	@rc=0; M=crates/pflow-wasm/mcp; \
+	cp $$M/test.mjs $(MCP_OUT)/test.mjs; \
+	echo "== test.mjs"; node $(MCP_OUT)/test.mjs $(MCP_OUT) || { echo "FAILED: test.mjs"; rc=1; }; \
+	for t in $$(cd $$M && ls test-*.mjs); do \
+	  echo "== $$t"; node $$M/$$t $(MCP_OUT) || { echo "FAILED: $$t"; rc=1; }; \
+	done; \
+	echo "== test-corpus"; node $$M/test-corpus/generate.mjs >/dev/null && \
+	  git diff --exit-code --stat -- $$M/test-corpus/synthetic $$M/test-corpus/refused || { echo "FAILED: test-corpus/generate.mjs does not reproduce the committed corpus"; rc=1; }; \
+	(cd $(MCP_OUT) && npm pack --dry-run 2>&1 | grep -E 'total files|package size|unpacked'); \
+	exit $$rc
 
 # Network: the built server's `reachability` against pflow.xyz/mcp's
 # pflow_reachability on tests/reachability/nets. The offline guard is
