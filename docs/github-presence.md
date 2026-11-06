@@ -51,7 +51,7 @@ Title: `pflow-mcp 0.5.0: publish what Claude builds`
 >
 > **Fixes** from the 0.4.0 test report (B3, B4, B5), and a smaller ontology snapshot.
 >
-> **Limits.** Guards, stages and rate schedules are refused, not approximated. A composition's CID is refused locally. No SPARQL (use the hosted server).
+> **Limits.** Guards, stages and rate schedules are refused, not approximated. A composition's CID is refused locally. No SPARQL (the separate ontology server, ontology.pflow.xyz, has `sparql_query`; pflow.xyz/mcp does not).
 
 ## CHANGELOG entry
 

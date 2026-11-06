@@ -78,7 +78,8 @@ package; update the package to refresh it. Nets live in memory for the life of t
 - **Compositions:** a composition's `cid` is refused locally (the local sealer does not
   seal a JSON-LD set). `bundle_net` writes it as an ordinary net, which has a CID.
 - **No SPARQL.** `ontology_describe`, `ontology_search` and `ontology_classes` read the
-  snapshot; for SPARQL use the hosted server.
+  snapshot; for SPARQL use the separate ontology server (ontology.pflow.xyz, its
+  `sparql_query` tool), which is not part of pflow.xyz/mcp.
 - **Bounded searches:** `reachability`, `validate` and `verify` stop at a state budget and
   say so. `timeout_ms` (default 10000, max 120000) *(0.5.0)* stops a long search in a
   worker thread; the answer is `unknown`, with `timed_out: true`.
@@ -93,7 +94,8 @@ package; update the package to refresh it. Nets live in memory for the life of t
 | Network | none after install | every call |
 | Shareable pages | `artifact_html` with the engine embedded, published by Claude | `pflow_artifact` |
 | Tool names and answers | the same names (without `pflow_`) and answer shapes, held to captured hosted answers | the reference |
-| SPARQL, `rate_scan`, `optimize`, game tools, `save` | no | yes |
+| `rate_scan`, `optimize`, game tools, `save` | no | yes |
+| SPARQL over the ontology | no | not in pflow.xyz/mcp: the separate ontology server's `sparql_query` |
 
 The hosted server is a demo of the same tools; this package is the one to adopt. Its
 answers are checked against the hosted ones (`make wasm-mcp-crosscheck-tools`).
@@ -133,6 +135,9 @@ uses the most recently loaded one (`edit` excepted: no net means an empty one).
 | `sde` | Chemical Langevin SDE, seeded, the same doubles as pflow-native's `sim.sde` |
 | `what_if` | One place's tokens changed, both arms on one seed through the scenario SSA |
 | `bundle_example`, `bundle_validate`, `bundle_add_link`, `bundle_candidates`, `bundle_flatten`, `bundle_run`, `bundle_incidence` | Compositions (PetriNetBundle): the parts catalog, link checks and candidates, flattening into one net, firing a script on it, its incidence matrix and constraint checks |
+| `bundle_net` | The flattened composition written as an ordinary pflow.xyz net, so `simulate`, `reachability`, `verify`, `cid` and the rest read it (and it has a CID) |
+| `bundle_prove`, `bundle_check_proof` | Judge what each link does to the parts it joins (conservation laws preserved, extended or changed, with replayable witnesses), and re-check such a record against its bundle by arithmetic and replay |
+| `bundle_parts` | The catalog of thirteen parts to snap together: parameters, ports, the conservation law each carries and the joins that are legal |
 
 How they are held to the hosted answers: `sde`, `what_if` and the `bundle_*` tools
 replay pflow.xyz's pflow-native goldens exactly (186 cases); `edit` and the
@@ -153,7 +158,7 @@ when `complete` is `false`: the search stopped at its budget (`truncated` says
 which), and only a witness makes a verdict `false`.
 
 Everything runs offline after install. The ontology is a snapshot: update the package to
-refresh it, or use the hosted server for SPARQL.
+refresh it, or use the ontology server (ontology.pflow.xyz, `sparql_query`) for SPARQL.
 
 Nets live in memory for the life of the process. Nets with guards, stages or rate
 schedules are refused rather than run as a different net. Needs Node 18+.

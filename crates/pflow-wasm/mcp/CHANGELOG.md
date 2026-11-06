@@ -8,11 +8,12 @@ The offline MCP as the adoption path: one command, and Claude publishes the page
 - `list_examples` and `load_example`: the six public pflow.xyz nets plus the `bundle_example` composition as one net, offline. Four of the six recompute to their published CID; coffee-shop and usdc-bridge do not (the local CID is reported, the published one is kept in `pflow_xyz_cid`).
 - `timeout_ms` (default 10000, max 120000) on `reachability`, `validate` and `verify`: the search runs in a worker thread and is stopped at the limit; the answer is `unknown` with `timed_out: true`.
 - `load_net` writes every net as JSON-LD, so `info` and `incidence` work on array-shape nets; rate 0 switches a transition off; the eager CID is capped (bug fixes B3, B4, B5 from the 0.4.0 test report).
+- The eager CID guard counts places, transitions and arcs (250 in all, 50 places), so a net with few places and many transitions no longer stalls `load_net`; `verify` answers `truncated_reason` (the engine's reason a search stopped), which the proof view shows; a negative rate in a pflow.xyz document is refused as the array shape refuses it; example pages link the CID pflow.xyz publishes the net under.
 - The bundled ontology snapshot ships only `core.ttl` and `symbols.ttl` (about 180 KB smaller); a test compares the ontology's pattern entries with `bundle_parts`.
 - Server instructions steer Claude to build pages with `artifact_html` and publish them with its own Artifact tool.
 - `make wasm-mcp-test` runs every `test-*.mjs`, a corpus check and `npm pack`.
 
-Unchanged limits: guards, stages and rate schedules are refused; a composition's `cid` is refused; no SPARQL.
+Unchanged limits: guards, stages and rate schedules are refused; a composition's `cid` is refused; no SPARQL (the ontology server's `sparql_query` does that; pflow.xyz/mcp has no SPARQL tool).
 
 ## 0.4.0
 
