@@ -37,7 +37,13 @@ for (const e of examples) {
   for (const tool of ['check', 'info', 'cid']) await ok(tool, { net: e.id });
   const page = await ok('artifact_html', { net: e.id, path: join(dir, `ex-${e.id}.html`) });
   const html = readFileSync(page.path, 'utf8');
-  assert.ok(html.includes(`?cid=${loaded.cid}`), `${e.id}: page lacks the pflow.xyz ?cid= link`);
+  // the editor link names the CID pflow.xyz publishes the net under; a local CID it does not store is never linked
+  const linked = rec.pflow_xyz_cid ?? loaded.cid;
+  assert.ok(html.includes(`href="https://pflow.xyz/?cid=${linked}"`), `${e.id}: page lacks the pflow.xyz ?cid= link`);
+  if (rec.pflow_xyz_cid && !loaded.cid_matches_published) {
+    assert.ok(!html.includes(`?cid=${loaded.cid}`), `${e.id}: page links a CID pflow.xyz does not store`);
+    assert.ok(html.includes('id="pf-published"') && html.includes(rec.pflow_xyz_cid), `${e.id}: page states the published-CID mismatch`);
+  } else assert.ok(!html.includes('id="pf-published"'), `${e.id}: no mismatch note when the CIDs agree`);
   assert.ok(html.includes('pflow-net'), `${e.id}: page lacks #pflow-net`);
   console.log(`ok  ${e.id}  ${loaded.cid.slice(0, 14)}…  ${html.length} bytes`);
 }

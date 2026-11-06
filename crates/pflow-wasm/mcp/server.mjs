@@ -78,7 +78,7 @@ const snapshot = (net) => ({
 
 // Shared by load_net and load_example (examples.mjs): one path, so an example is
 // a net like any other.
-function loadNet({ model, name, cid }) {
+function loadNet({ model, name, cid, published }) {
   const obj = typeof model === 'string' ? JSON.parse(model) : model;
   const key = name ?? obj?.name ?? 'net';
   const net = new Net(model);
@@ -89,7 +89,9 @@ function loadNet({ model, name, cid }) {
   nets.get(key)?.free?.();
   nets.set(key, net);
   models.set(key, obj);
-  jsonld.set(key, { doc: conv.net, cid: conv.cid, unsupported: conv.unsupported });
+  // published: the CID pflow.xyz stores this net under (a built-in example), when it has one
+  jsonld.set(key, { doc: conv.net, cid: conv.cid, unsupported: conv.unsupported,
+    ...(published ? { published, publishedMatches: conv.cid === published } : {}) });
   last = key;
   const { net: _doc, places: _n, ...about } = conv;
   return { name: key, ...snapshot(net), ...about };
@@ -191,6 +193,7 @@ tool('artifact_html',
     const entry = jsonld.get(key) ?? {};
     const html = buildPage({
       net: { key, title: title ?? model?.name ?? key, model, doc: entry.doc, cid: entry.cid ?? null,
+        published: entry.published, publishedMatches: entry.publishedMatches,
         cidNote: entry.cid ? 'The CID names the document: layout, arc order and name included.' : undefined },
       viewIds: views, meta, engine: { hosted, net: (n) => get(n ?? key) },
     });

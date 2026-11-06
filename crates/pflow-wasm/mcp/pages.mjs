@@ -55,14 +55,19 @@ export const FOOTER_CSS = `
 `;
 
 // ctx: { cid, cidNote, meta, seed, composeCid, netLinks, actions }
-export function footerHtml({ cid, cidNote, meta, seed, composeCid, editorLink, actions }) {
+export function footerHtml({ cid, cidNote, meta, seed, composeCid, editorLink, actions, published, publishedMatches }) {
   const rows = [];
   if (cid !== undefined) {
     rows.push(`<div class="pf-row">document CID: ${cid ? `<code id="pf-cid">${escHtml(cid)}</code>` : `<span id="pf-cid" title="${escHtml(cidNote ?? '')}">not computed</span>`}${cid && cidNote ? ` <span title="${escHtml(cidNote)}">(names the document, layout included)</span>` : ''}</div>`);
   }
   rows.push(`<div class="pf-row">pflow-mcp ${escHtml(meta.pkg)} &middot; engine ${escHtml(meta.engine)} &middot; ontology snapshot ${escHtml(meta.ontology)}${seed != null ? ` &middot; seed <span id="f-seed">${escHtml(seed)}</span>` : ''}</div>`);
   const links = [];
-  if (editorLink && cid) links.push(`<a href="${EDITOR}?cid=${encodeURIComponent(cid)}" target="_blank" rel="noopener">Open this net in the pflow.xyz editor</a>`);
+  // a built-in example links to the CID pflow.xyz publishes it under; the local CID is shown with the mismatch
+  const target = published || cid;
+  if (published && publishedMatches === false) {
+    rows.push(`<div class="pf-row" id="pf-published">pflow.xyz publishes this net as <code>${escHtml(published)}</code>; this engine seals the same document to the CID above, so the link below opens the published copy.</div>`);
+  }
+  if (editorLink && target) links.push(`<a href="${EDITOR}?cid=${encodeURIComponent(target)}" target="_blank" rel="noopener">Open this net in the pflow.xyz editor</a>`);
   if (composeCid) links.push(`<a href="${EDITOR}compose.html?cid=${encodeURIComponent(composeCid)}" target="_blank" rel="noopener">Open this composition on pflow.xyz</a>`);
   if (links.length) rows.push(`<div class="pf-row">${links.join(' &middot; ')}</div>`);
   return `<footer class="pf-foot">${rows.join('')}${actions ?? ''}</footer>`;
@@ -116,7 +121,8 @@ export function buildPage({ net, viewIds, meta, engine }) {
   // else the net as it was loaded (the page then says nothing about a CID).
   const payload = net.doc ?? net.model;
   const actions = `<div><button id="pf-download">Download net</button><button id="pf-copy">Copy as text</button><span id="pf-err" role="status"></span></div>`;
-  const footer = footerHtml({ cid: net.cid ?? null, cidNote: net.cidNote, meta, seed, editorLink: !!net.doc, actions });
+  const footer = footerHtml({ cid: net.cid ?? null, cidNote: net.cidNote, meta, seed, editorLink: !!net.doc, actions,
+    published: net.published, publishedMatches: net.publishedMatches });
   const scripts = parts.map((p) => `try{\n{\n${p.js ?? ''}\n}\n}catch(e){$('pf-err').textContent='view ${p.id}: '+String(e&&e.message||e)}`).join('\n');
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">

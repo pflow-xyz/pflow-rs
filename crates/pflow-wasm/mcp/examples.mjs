@@ -6,7 +6,8 @@
 // seals the net to the CID pflow.xyz publishes it under). load_example goes through the same loader as
 // load_net, so the net gets its JSON-LD, its CID (recomputed here, never read from
 // the index), and every tool, artifact_html included, works on it. A page built
-// from one carries the https://pflow.xyz/?cid= link to the public net.
+// from one carries the https://pflow.xyz/?cid= link to the public net: to the CID pflow.xyz publishes it
+// under, and where this engine seals the net to another CID the page says so (cid_matches_published false).
 //
 // The composition is bundle_example's default PetriNetBundle, flattened with
 // bundle_net into one net; its CID is the local one, recorded in index.json, and
@@ -45,7 +46,7 @@ export function register(tool, { loadNet, hosted }) {
         // pflow.xyz keeps the author attribution and the @id outside the sealed document
         delete model.author; delete model['@id'];
       }
-      const out = loadNet({ model, name: name ?? e.id, cid: true }) /* curated and bounded: always sealed, so the recorded CID can be checked */;
+      const out = loadNet({ model, name: name ?? e.id, cid: true, published: e.pflow_xyz_cid }) /* curated and bounded: always sealed, so the recorded CID can be checked */;
       return { example: e.id, title: e.title, description: e.description, recorded_cid: e.cid,
         cid_matches_recorded: out.cid === e.cid, pflow_xyz_cid: e.pflow_xyz_cid ?? null,
         cid_matches_published: e.pflow_xyz_cid ? out.cid === e.pflow_xyz_cid : null,
