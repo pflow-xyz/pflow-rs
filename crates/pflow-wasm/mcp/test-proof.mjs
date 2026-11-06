@@ -41,6 +41,8 @@ const nets = {
     arcs: [{ from: 'p', to: 't' }, { from: 't', to: 'q' }, { from: 'q', to: 'u' }, { from: 'u', to: 'p' }] },
   // a source: unbounded, the search stops at its budget
   grow: { name: 'grow', places: [{ id: 'p' }], transitions: [{ id: 't' }], arcs: [{ from: 't', to: 'p' }] },
+  // stops on the token-count limit, far below the state budget: the page must give the engine's reason
+  tok: { name: 'tok', places: [{ id: 'a', initial: 1 }], transitions: [{ id: 't' }], arcs: [{ from: 'a', to: 't' }, { from: 't', to: 'a', weight: 2 }] },
 };
 const files = {}, tool = {}, cids = {};
 for (const [k, model] of Object.entries(nets)) {
@@ -54,6 +56,7 @@ for (const [k, model] of Object.entries(nets)) {
 assert.ok(tool.dead.verdicts.some((v) => v.status === 'refuted' && v.counterexample?.trace?.length), 'dead has a refuted verdict with a trace');
 assert.ok(tool.grow.verdicts.some((v) => v.status === 'unknown'), 'grow has an unknown verdict');
 assert.ok(tool.ring.verdicts.some((v) => v.status === 'proved'));
+assert.match(tool.tok.truncated_reason ?? '', /token/, 'the engine says the token limit stopped the search');
 
 // static: the section, the module parses, nothing reaches the network, composes with play
 for (const k of Object.keys(nets)) {
@@ -130,6 +133,8 @@ else {
         } else assert.equal(cards[i].replay, null);
         if (v.status === 'unknown') assert.match(cards[i].text, /search was bounded/, `${k}/${v.property.kind}: unknown says the search was bounded`);
         else assert.ok(!/is not a pass/.test(cards[i].text));
+        if (v.status === 'unknown' && t.truncated_reason) assert.ok(cards[i].text.includes(t.truncated_reason), `${k}/${v.property.kind}: unknown gives the engine's reason`);
+        if (v.property.kind === 'deadlock-free') assert.match(cards[i].text, /reachability verdict in the analysis section/, `${k}: deadlock-free states its definition`);
       });
       const sum = await page.evaluate(() => ({ ...document.getElementById('pv-sum').dataset }));
       for (const s of ['proved', 'refuted', 'unknown']) assert.equal(sum[s], String(t[s]), `${k}: ${s} count`);

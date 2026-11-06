@@ -100,6 +100,8 @@ function pvCheck(v){
     :'replayed on the embedded engine: it reaches '+pvMark(r.marking)+', not the stated marking'};
 }
 const R=PV.result;
+// why the engine stopped: its own reason when it gave one, else the state budget
+const pvWhy=()=>R&&R.truncated_reason?' ('+R.truncated_reason+'; '+R.state_count+' states explored, budget '+PV.maxStates+')':' (budget '+PV.maxStates+' states)';
 const rows=R?(R.verdicts||[]).map(v=>({v,chk:pvCheck(v)})):[];
 const cnt=s=>rows.filter(x=>x.v.status===s).length;
 function pvText(){
@@ -123,7 +125,8 @@ function pvText(){
       if(c.marking)L.push('   ends at: '+pvMark(c.marking));
       if(chk)L.push('   '+(chk.ok?'replay: reproduced':'replay: NOT reproduced')+' ('+chk.text+')');
     }
-    if(v.status==='unknown')L.push('   unknown is not a pass: the search was bounded at '+PV.maxStates+' states.');
+    if(v.status==='unknown')L.push('   unknown is not a pass: the search was bounded'+pvWhy()+'.');
+    if(v.property.kind==='deadlock-free')L.push('   note: verify treats a marking with nothing enabled as finished only when it is empty; the reachability verdict in the analysis section counts any such marking as a deadlock, so the two can differ.');
   });
   L.push('');
   L.push('summary: '+cnt('proved')+' proved, '+cnt('refuted')+' refuted, '+cnt('unknown')+' unknown');
@@ -134,7 +137,7 @@ function pvText(){
 function pvRender(){
   const b=$('pv-body');
   if(!R){b.innerHTML='<p class="pv-d">Verification did not run: '+esc(PV.error||'no result')+'</p>';return}
-  let s='<p class="pv-sum" id="pv-sum" data-proved="'+cnt('proved')+'" data-refuted="'+cnt('refuted')+'" data-unknown="'+cnt('unknown')+'" data-states="'+esc(R.state_count)+'" data-truncated="'+!!R.truncated+'">'+cnt('proved')+' proved, '+cnt('refuted')+' refuted, '+cnt('unknown')+' unknown. Search budget '+PV.maxStates+' states; '+esc(R.state_count)+' explored'+(R.truncated?', truncated: the search was bounded.':', complete.')+'</p>';
+  let s='<p class="pv-sum" id="pv-sum" data-proved="'+cnt('proved')+'" data-refuted="'+cnt('refuted')+'" data-unknown="'+cnt('unknown')+'" data-states="'+esc(R.state_count)+'" data-truncated="'+!!R.truncated+'">'+cnt('proved')+' proved, '+cnt('refuted')+' refuted, '+cnt('unknown')+' unknown. Search budget '+PV.maxStates+' states; '+esc(R.state_count)+' explored'+(R.truncated?', truncated: the search was bounded'+esc(R.truncated_reason?' ('+R.truncated_reason+')':'')+'.':', complete.')+'</p>';
   for(const {v,chk} of rows){
     const st=['proved','refuted'].includes(v.status)?v.status:'unknown';
     s+='<div class="pv-v" data-kind="'+esc(v.property.kind)+'" data-status="'+esc(v.status)+'"><div class="pv-h"><b>'+esc(v.property.kind)+'</b><span class="pv-s pv-'+st+'">'+esc(st)+'</span>'+(v.method?'<span class="pv-m">'+esc(v.method)+'</span>':'')+'</div>';
@@ -146,7 +149,8 @@ function pvRender(){
       if(c.trace)s+='<p class="pv-t">counterexample: <code>'+(c.trace.length?c.trace.map(esc).join(' &rarr; '):'(initial marking)')+'</code>'+(c.marking?'<br>ends at: <code>'+esc(pvMark(c.marking))+'</code>':'')+'</p>';
       if(chk)s+='<p class="pv-t '+(chk.ok?'pv-ok':'pv-bad')+'" data-replay="'+(chk.ok?'ok':'bad')+'">'+(chk.ok?'Replay reproduced. ':'Replay NOT reproduced. ')+esc(chk.text)+'</p>';
     }
-    if(st==='unknown')s+='<p class="pv-t pv-unknown">Unknown is not a pass: the search was bounded (budget '+PV.maxStates+' states).</p>';
+    if(st==='unknown')s+='<p class="pv-t pv-unknown">Unknown is not a pass: the search was bounded'+esc(pvWhy())+'.</p>';
+    if(v.property.kind==='deadlock-free')s+='<p class="pv-t pv-def">Definition used here (verify): a marking with nothing enabled counts as finished only when it is empty. The reachability verdict in the analysis section counts any marking with nothing enabled as a deadlock, so the two can differ for the same net.</p>';
     s+='</div>';
   }
   b.innerHTML=s;

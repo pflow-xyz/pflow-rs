@@ -125,6 +125,7 @@ function runReach(){
   if(!r.complete)note='The search was bounded'+(r.truncated?' ('+r.truncated+')':'')+': it stopped at '+r.states+' states, so no verdict above is true and a false one rests on its witness alone. Raise max states, up to 20000, to look further.';
   else note='The search saw every reachable marking ('+r.states+' states, '+r.edges+' edges).';
   if(r.dead_transitions&&r.dead_transitions.length)note+=' Transitions that never fire: '+r.dead_transitions.join(', ')+'.';
+  note+=' In this section a marking with nothing enabled counts as a deadlock, an empty one included; the deadlock-free check in the proof section (verify) treats an empty marking as finished, so the two verdicts can differ for one net.';
   $('an-reach-note').textContent=note;
   const w=r.witness,box=$('an-witness');
   if(!w){box.innerHTML='<p class="an-note">No witness: the engine found no deadlock or closed region'+(r.complete?'.':' in the part of the space it searched.')+'</p>';rpTrace=[];return}
