@@ -23,7 +23,20 @@ let last = null;
 
 // The package has its own version (build.mjs); the engine's is version().
 const pkgVersion = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
-const server = new McpServer({ name: 'pflow-mcp', version: pkgVersion });
+// Read by the client at connect time and given to the model. It steers Claude to
+// the engine's own pages instead of a hand-written one, whose verdicts would be
+// the model's judgment and not the engine's.
+const INSTRUCTIONS = `pflow-mcp: a Petri net engine (WebAssembly, offline). Nets are pflow.xyz JSON-LD.
+
+To show a net, a simulation or a proof, build the page with a tool and publish what it returns as a Claude artifact, with your own Artifact tool. This server only writes a local HTML file: it does not host, serve or publish anything, and it makes no network requests. Do not hand-write the page.
+- One net: load_net (or edit to build one), then artifact_html. It writes a self-contained page (click-to-fire token game, ODE and SSA charts, engine embedded, no network) and returns a file path. Pass that file's path to the Artifact tool and publish it unchanged. The HTML is not returned inline; do not ask for it with inline=true unless you must.
+- A composition (PetriNetBundle: parts joined by typed links): bundle_example, bundle_validate, bundle_candidates and bundle_add_link to build it, then compose_canvas for the snap-together page. The page re-checks proofs itself, with no engine.
+
+Verdicts come from the engine. Report a result of reachability, verify, validate, invariants, bundle_prove or bundle_check_proof only as the tool returned it, with its evidence or witness trace. A verdict of "unknown" stays "unknown": say the search was bounded, and never turn it into true. If you state a conclusion the engine did not return, call it your own judgment.
+
+Nets with guards, stages or rate schedules are refused, not run as a different net. Nets live in memory for the life of the process.`;
+
+const server = new McpServer({ name: 'pflow-mcp', version: pkgVersion }, { instructions: INSTRUCTIONS });
 
 const ok = (value) => ({ content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] });
 const fail = (e) => ({ isError: true, content: [{ type: 'text', text: String(e?.message ?? e) }] });
