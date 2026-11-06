@@ -116,7 +116,7 @@ export function buildPage({ net, viewIds, meta, engine }) {
   const ctx = { key: net.key, title: net.title, model: net.model, doc: net.doc, cid: net.cid, engine, meta };
   const parts = views.map((v) => ({ id: v.id, ...v.buildSection(ctx) }));
   const seed = parts.find((p) => p.seed != null)?.seed;
-  const title = escHtml(net.title).slice(0, 200);
+  const title = escHtml(String(net.title).slice(0, 200)); // cut before escaping: never mid-entity
   // What the page reads from: the JSON-LD document when the net can be one,
   // else the net as it was loaded (the page then says nothing about a CID).
   const payload = net.doc ?? net.model;

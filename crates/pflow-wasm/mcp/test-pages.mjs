@@ -59,6 +59,18 @@ assert.ok(!/<iframe|<script[^>]+src=|<link[^>]+href=|fetch\(|XMLHttpRequest/.tes
 assert.ok(/prefers-color-scheme:dark/.test(html) && /name="viewport"/.test(html));
 ok('shell: footer, buttons, editor link, themes');
 
+// a long title is cut before it is escaped, never in the middle of an entity
+{
+  const longTitle = 'x'.repeat(199) + '&' + 'tail';
+  const tr = await call('artifact_html', { net: 'coffee', title: longTitle, path: out });
+  assert.ok(!tr.error, tr.text);
+  const th = readFileSync(out, 'utf8');
+  const t = th.match(/<title>([\s\S]*?)<\/title>/)[1];
+  assert.ok(!/&(?![a-z]+;|#\d+;)/.test(t), `title has a bare or cut entity: ${t.slice(-12)}`);
+  assert.ok(t.endsWith('&amp;'), 'the & survives as a whole entity');
+}
+ok('long title is not cut mid-entity');
+
 // #pflow-net round-trips through load_net with the same CID
 const block = html.match(/<script type="application\/json" id="pflow-net">([\s\S]*?)<\/script>/)[1];
 const doc = JSON.parse(block);
