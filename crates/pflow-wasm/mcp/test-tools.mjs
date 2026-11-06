@@ -149,9 +149,9 @@ sec('2. load_net / fire / reset / state / list_nets');
   r = await call('load_net', { model: { name: 'x', places: [{ id: 'a', initial: 1 }], transitions: [{ id: 't' }], arcs: [{ from: 'a', to: 't' }] }, name: 'net' });
   check('load_net `name` argument overrides the model name', r.json?.name === 'net', r.text);
   r = await call('load_net', { model: { places: [{ id: 'a', initial: 1 }], transitions: [{ id: 't' }], arcs: [{ from: 'a', to: 't' }] }, name: 'anon' });
-  check('a model without its own `name` loads when load_net is given `name` (the tool description says name defaults to model name, else "net")', !r.err, r.text, { known: true });
+  check('a model without its own `name` loads when load_net is given `name` (B7, fixed)', !r.err, r.text);
   r = await call('list_nets');
-  check('list_nets lists them with the last as current', r.json.current === 'net' && ['mutex', 'sir', 'net'].every((n) => r.json.nets.includes(n)), r.text);
+  check('list_nets lists them with the last as current', r.json.current === 'anon' && ['mutex', 'sir', 'net', 'anon'].every((n) => r.json.nets.includes(n)), r.text);
   r = await call('fire', { transition: 'req1', net: 'mutex' });
   check('fire moves tokens and reports enabled', r.json?.marking?.wait1 === 1 && r.json.marking.idle1 === 0 && r.json.enabled.includes('enter1'), r.text);
   r = await call('fire', { transition: 'enter1', net: 'mutex' });
@@ -161,7 +161,7 @@ sec('2. load_net / fire / reset / state / list_nets');
   check('fire of an unknown transition is an error', r.err, r.text);
   r = await call('state', { net: 'mutex' });
   check('state shows the current marking after firing', r.json?.marking?.crit1 === 1 && r.json.marking.lock === 0, r.text);
-  check('state on a simple-shape net has no `info` (no hosted summary without JSON-LD)', r.json?.info === undefined, 'info present');
+  check('state on an array-shape net carries `info` (B3, fixed: load_net stores the JSON-LD form)', r.json?.info?.places?.length > 0, r.text.slice(0, 200));
   r = await call('reset', { net: 'mutex' });
   check('reset restores the initial marking', r.json?.marking?.lock === 1 && r.json.marking.crit1 === 0, r.text);
   r = await call('state', { net: 'missing' });
@@ -205,7 +205,7 @@ for (const [file, re] of [['guard', /guard/], ['stages', /stage/], ['schedule', 
   check('load_net of a wrong-typed model is a clean schema error', r.err, r.text);
   r = await call('load_net', { model: net('synthetic/weight-edge') });
   check('a fractional arc weight in the array shape is refused with a reason', r.err && /0\.5|integer|i64/.test(r.text), r.text);
-  check('...but the message does not say which arc / that weights must be integers', !/arc/i.test(r.text), r.text, { known: true });
+  check('...and the message names the arc (B7, fixed)', /arcs\[\d+\]/.test(r.text) && /whole number/.test(r.text), r.text);
   r = await call('load_net', { model: { name: 'negrate', places: [{ id: 'a', initial: 1 }], transitions: [{ id: 't', rate: -1 }], arcs: [{ from: 'a', to: 't' }] } });
   check('a negative rate is refused', r.err && /rate/.test(r.text), r.text);
   r = await call('load_net', { model: { name: 'shared-id', places: [{ id: 'a', initial: 1 }], transitions: [{ id: 'a', rate: 1 }], arcs: [] } });
@@ -408,14 +408,14 @@ sec('6. stochastic (SSA) vs go-pflow goldens');
   r = await call('stochastic', { net: 'sir', realizations: 0 }); check('realizations 0 is handled (error or default), not a crash', true); console.log(`   realizations 0 -> ${r.err ? 'error: ' + r.text.slice(0, 80) : 'ok'}`);
   r = await call('stochastic', { net: 'sir', horizon: 0 }); console.log(`   horizon 0 -> ${r.err ? 'error: ' + r.text.slice(0, 80) : 'ok'}`);
   r = await call('stochastic', { net: 'sir', rates: { infect: 0 }, horizon: 20, samples: 3, seed: 1 });
-  check('rates {infect: 0} switches infection off (S stays 99)', r.json?.final?.S === 99, JSON.stringify(r.json?.final), { known: true });
+  check('rates {infect: 0} switches infection off (S stays 99)', r.json?.final?.S === 99, JSON.stringify(r.json?.final), ); // B4, fixed
   r = await call('stochastic', { net: 'sir', rates: { infect: 1e-9 }, horizon: 20, samples: 3, seed: 1 });
   check('rates {infect: 1e-9} does switch it (so 0 is being read as "unset" and falling back to the net rate)', r.json?.final?.S === 99, JSON.stringify(r.json?.final));
   r = await call('simulate', { net: 'decay', rates: { d: 0 }, tEnd: 4 });
-  check('ODE rates {d: 0} holds a at 100', near(r.json?.final?.a, 100, 1e-9), JSON.stringify(r.json?.final), { known: true });
+  check('ODE rates {d: 0} holds a at 100', near(r.json?.final?.a, 100, 1e-9), JSON.stringify(r.json?.final));
   await call('load_net', { model: { name: 'zero-rate', places: [{ id: 'a', initial: 5 }, { id: 'b' }], transitions: [{ id: 't', rate: 0 }], arcs: [{ from: 'a', to: 't' }, { from: 't', to: 'b' }] } });
   r = await call('stochastic', { net: 'zero-rate', horizon: 10, samples: 3 });
-  check('a model transition with rate 0 never fires (a stays 5)', r.json?.final?.a === 5, JSON.stringify(r.json?.final), { known: true });
+  check('a model transition with rate 0 never fires (a stays 5)', r.json?.final?.a === 5, JSON.stringify(r.json?.final)); // B4, fixed
   // gated nets are honoured by SSA
   await call('load_net', { model: net('synthetic/inhibitor-gate'), name: 'inh' });
   r = await call('stochastic', { net: 'inh', horizon: 50, samples: 5, seed: 1 });
@@ -497,7 +497,7 @@ sec('7. hosted-name tools (check, info, validate, incidence, invariants, verify,
   { // fractional weight: load_net refuses; the hosted tools truncate it like Go's int()
     const we = toJsonLd(net('synthetic/weight-edge'));
     const a1 = await call('invariants', { net: we }); const a2 = await call('check', { net: we }); const a3 = await call('incidence', { net: we });
-    check('a fractional weight (0.5) is refused by load_net but silently accepted (truncated to 0) by invariants/check/incidence', a2.err, `check ok; invariants: ${a1.text.slice(0, 120).replace(/\s+/g, ' ')}; incidence: ${a3.text.slice(0, 160).replace(/\s+/g, ' ')}`, { known: true });
+    check('a fractional weight (0.5) is refused by load_net and by invariants/incidence alike, naming the arc (B7, fixed)', a1.err && a3.err && /arcs\[\d+\]/.test(a1.text), `${a1.text.slice(0, 120)}; ${a2.text.slice(0, 120)}; ${a3.text.slice(0, 120)}`);
     const vv0 = await call('validate', { net: we }); console.log(`   validate(weight 0.5): ${vv0.text.slice(0, 220).replace(/\s+/g, ' ')}`);
   }
   // hand-checked invariants

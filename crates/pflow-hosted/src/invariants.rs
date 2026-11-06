@@ -6,7 +6,7 @@
 //! Shapes as hosted: `p_invariants` is a list of `{equation, coefficients,
 //! value}` (`equation` is go-pflow's `Invariant.String`, `"a + 2*b == 3"`),
 //! `t_invariants` a list of `{firing_multiset, counts}` (`"{t1, 2*t2}"`); an
-//! empty list is `null`, as Go marshals a nil slice.
+//! empty list is `[]` (hosted answers `null`, Go's nil slice; bug B7).
 
 use pflow_reachability::{InvariantAnalyzer, Marking};
 use serde_json::{json, Map, Value};
@@ -15,6 +15,7 @@ use crate::net::{expand, int_map, model_of, net_arg, petri_net, start_marking};
 
 pub(crate) fn run(args: &Value) -> Result<Value, String> {
     let doc = net_arg(args)?;
+    crate::net::whole_weights(&doc)?;
     let kind = match args.get("kind").and_then(Value::as_str).unwrap_or("") {
         "" => "both",
         k @ ("p" | "t" | "both") => k,
@@ -64,10 +65,8 @@ fn conservative(an: &InvariantAnalyzer) -> bool {
     (0..transitions.len()).all(|t| (0..places.len()).map(|p| matrix[p][t]).sum::<i64>() == 0)
 }
 
+/// An empty list stays `[]` (hosted marshals Go's nil slice as `null`: a
+/// documented difference, bug B7).
 fn nil_if_empty(list: Vec<Value>) -> Value {
-    if list.is_empty() {
-        Value::Null
-    } else {
-        Value::Array(list)
-    }
+    Value::Array(list)
 }

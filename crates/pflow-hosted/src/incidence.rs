@@ -11,6 +11,7 @@ use crate::net::{expand, model_of, net_arg, petri_net};
 
 pub(crate) fn run(args: &Value) -> Result<Value, String> {
     let doc = net_arg(args)?;
+    crate::net::whole_weights(&doc)?;
     let (expanded, _) = expand(&petri_net(&doc));
     let model = model_of(&expanded);
     let (matrix, places, transitions) = InvariantAnalyzer::new(&model).incidence_matrix();
