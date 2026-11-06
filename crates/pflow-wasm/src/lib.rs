@@ -48,7 +48,9 @@ fn parse_model(text: &str) -> Result<(Model, HashSet<String>), String> {
                             off.insert(t.id.clone());
                         }
                         Some(r) if r > 0.0 && r.is_finite() => t.rate = r,
-                        _ => {}
+                        // the array shape refuses a negative rate; the document shape must too
+                        Some(r) => return Err(format!("transition {:?}: bad rate {}", t.id, r)),
+                        None => {}
                     }
                 }
             }
@@ -1103,6 +1105,15 @@ mod tests {
         assert_eq!((a, b), (5.0, 0.0));
         let (a, _) = finals(&c.simulate_json(r#"{"tEnd":1,"maxPoints":2}"#).unwrap());
         assert!(a > 3.0, "e at 0.3 only: {a}");
+    }
+
+    /// A negative rate is refused in both shapes (the document shape used to treat it as unset).
+    #[test]
+    fn a_negative_rate_is_refused_in_both_shapes() {
+        let e = Core::new(r#"{"places":[{"id":"a"}],"transitions":[{"id":"t","rate":-1}],"arcs":[{"from":"a","to":"t"}]}"#).err().unwrap();
+        assert!(e.contains("bad rate -1"), "{e}");
+        let e = Core::new(r#"{"@context":"https://pflow.xyz/schema","places":{"a":{}},"transitions":{"t":{"rate":-1}},"arcs":[{"source":"a","target":"t"}]}"#).err().unwrap();
+        assert!(e.contains("bad rate -1"), "{e}");
     }
 
     /// B7: a fractional weight is refused with the arc named, in either shape.
