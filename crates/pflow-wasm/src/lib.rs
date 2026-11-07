@@ -28,19 +28,106 @@ use wasm_bindgen::prelude::*;
 
 /// Reads a model: Shape A (the pflow.xyz editor document) or Shape B
 /// (`pflow_metamodel::Model`), and refuses what these engines would otherwise
-/// get silently wrong.
-fn parse_model(text: &str) -> Result<Model, String> {
+/// get silently wrong. Also returns the transitions whose rate is an explicit
+/// `0`: off, where an absent or `null` rate is unset (the typed model keeps
+/// both as 0, which the engines read as the default rate).
+fn parse_model(text: &str) -> Result<(Model, HashSet<String>), String> {
     let bytes = text.as_bytes();
+    let mut off = HashSet::new();
     let model = if pflow_parser::is_pflow_json(bytes) {
-        pflow_parser::model_from_json(bytes)
+        let mut model = pflow_parser::model_from_json(bytes)
             .map_err(|e| format!("Shape A parse error: {e}"))?
-            .0
+            .0;
+        // `model_from_json` drops a transition's `rate`; the hosted tools and
+        // go-pflow read it, so the local engines do too.
+        if let Ok(Value::Object(doc)) = serde_json::from_str::<Value>(text) {
+            if let Some(Value::Object(ts)) = doc.get("transitions") {
+                for t in &mut model.transitions {
+                    match ts.get(&t.id).and_then(|n| n.get("rate")).and_then(Value::as_f64) {
+                        Some(r) if r == 0.0 => {
+                            off.insert(t.id.clone());
+                        }
+                        Some(r) if r > 0.0 && r.is_finite() => t.rate = r,
+                        // the array shape refuses a negative rate; the document shape must too
+                        Some(r) => return Err(format!("transition {:?}: bad rate {}", t.id, r)),
+                        None => {}
+                    }
+                }
+            }
+            whole_weights_a(&doc)?;
+        }
+        model
     } else {
-        serde_json::from_str::<Model>(text)
+        let mut v: Value = serde_json::from_str(text)
+            .map_err(|e| format!("not a recognized model (Shape A or Shape B JSON): {e}"))?;
+        prepare_shape_b(&mut v, &mut off)?;
+        serde_json::from_value::<Model>(v)
             .map_err(|e| format!("not a recognized model (Shape A or Shape B JSON): {e}"))?
     };
     check_model(&model)?;
-    Ok(model)
+    Ok((model, off))
+}
+
+/// Shape B as the typed model reads it: a missing `name` is empty, a whole
+/// weight written `2.0` is 2, a fractional one is refused with the arc named,
+/// a `null` rate is absent and a rate of `0` is noted in `off`.
+fn prepare_shape_b(v: &mut Value, off: &mut HashSet<String>) -> Result<(), String> {
+    let Some(obj) = v.as_object_mut() else { return Ok(()) };
+    if obj.get("name").is_none_or(Value::is_null) {
+        obj.insert("name".into(), json!(""));
+    }
+    if let Some(Value::Array(arcs)) = obj.get_mut("arcs") {
+        for (i, a) in arcs.iter_mut().enumerate() {
+            let Some(a) = a.as_object_mut() else { continue };
+            if let Some(w) = a.get("weight").and_then(Value::as_f64) {
+                if w.fract() != 0.0 || !w.is_finite() {
+                    let s = |k: &str| a.get(k).and_then(Value::as_str).unwrap_or("?").to_string();
+                    return Err(format!(
+                        "arcs[{i}] {:?} -> {:?}: weight {w} is not a whole number (a token count)",
+                        s("from"),
+                        s("to")
+                    ));
+                }
+                a.insert("weight".into(), json!(w as i64));
+            }
+        }
+    }
+    if let Some(Value::Array(ts)) = obj.get_mut("transitions") {
+        for t in ts.iter_mut().filter_map(Value::as_object_mut) {
+            if t.get("rate").is_some_and(Value::is_null) {
+                t.remove("rate");
+            }
+            if t.get("rate").and_then(Value::as_f64) == Some(0.0) {
+                if let Some(id) = t.get("id").and_then(Value::as_str) {
+                    off.insert(id.to_string());
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// A Shape A arc whose weight is not a whole number: `model_from_json`
+/// truncates it with `int(...)`, which turns a half-token arc into none.
+fn whole_weights_a(doc: &serde_json::Map<String, Value>) -> Result<(), String> {
+    if let Some(Value::Array(arcs)) = doc.get("arcs") {
+        for (i, a) in arcs.iter().enumerate() {
+            let sum: f64 = match a.get("weight") {
+                Some(Value::Array(w)) => w.iter().filter_map(Value::as_f64).sum(),
+                Some(Value::Number(n)) => n.as_f64().unwrap_or(1.0),
+                _ => 1.0,
+            };
+            if sum.fract() != 0.0 {
+                let s = |k: &str| a.get(k).and_then(Value::as_str).unwrap_or("?").to_string();
+                return Err(format!(
+                    "arcs[{i}] {:?} -> {:?}: weight {sum} is not a whole number (a token count)",
+                    s("source"),
+                    s("target")
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The firing rule does not evaluate guards and the portable SSA has no stages
@@ -150,6 +237,15 @@ fn ssa_model(model: &Model, marking: &Marking, rates: &HashMap<String, f64>) -> 
         .filter(|p| p.is_token())
         .map(|p| p.id.as_str())
         .collect();
+    // The portable SSA reads rate 0 as the default 1, so a transition that is
+    // off (rate 0) is left out with its arcs: it can never fire, which is what
+    // a zero propensity is, and no random number is spent on it either way.
+    let off: HashSet<&str> = model
+        .transitions
+        .iter()
+        .filter(|t| t.delay <= 0.0 && rates.get(&t.id) == Some(&0.0))
+        .map(|t| t.id.as_str())
+        .collect();
     SsaModel {
         places: model
             .places
@@ -164,6 +260,7 @@ fn ssa_model(model: &Model, marking: &Marking, rates: &HashMap<String, f64>) -> 
         transitions: model
             .transitions
             .iter()
+            .filter(|t| !off.contains(t.id.as_str()))
             .map(|t| SsaTransition {
                 id: t.id.clone(),
                 rate: rates.get(&t.id).copied().unwrap_or(t.rate),
@@ -174,6 +271,7 @@ fn ssa_model(model: &Model, marking: &Marking, rates: &HashMap<String, f64>) -> 
             .arcs
             .iter()
             .filter(|a| tokens.contains(a.from.as_str()) || tokens.contains(a.to.as_str()))
+            .filter(|a| !off.contains(a.from.as_str()) && !off.contains(a.to.as_str()))
             .map(|a| SsaArc {
                 from: a.from.clone(),
                 to: a.to.clone(),
@@ -194,7 +292,7 @@ fn ssa_model(model: &Model, marking: &Marking, rates: &HashMap<String, f64>) -> 
 struct SimulateOptions {
     t_end: Option<f64>,
     max_points: Option<usize>,
-    rates: HashMap<String, f64>,
+    rates: HashMap<String, Option<f64>>,
     contextual: Option<String>,
 }
 
@@ -205,7 +303,7 @@ struct StochasticOptions {
     samples: Option<usize>,
     realizations: Option<usize>,
     seed: Option<u64>,
-    rates: HashMap<String, f64>,
+    rates: HashMap<String, Option<f64>>,
 }
 
 #[derive(Deserialize, Default)]
@@ -248,13 +346,15 @@ fn parse_options<T: for<'a> Deserialize<'a> + Default>(
 pub struct Core {
     model: Model,
     marking: Marking,
+    /// Transitions whose rate the model sets to an explicit 0: off.
+    off: HashSet<String>,
 }
 
 impl Core {
     pub fn new(model_json: &str) -> Result<Core, String> {
-        let model = parse_model(model_json)?;
+        let (model, off) = parse_model(model_json)?;
         let marking = model.initial_marking();
-        Ok(Core { model, marking })
+        Ok(Core { model, marking, off })
     }
 
     fn marking_map(&self) -> BTreeMap<&str, i64> {
@@ -395,9 +495,26 @@ impl Core {
 
     /// The model's own rates with `overrides` on top. A rate for a transition
     /// the net does not have is an error, not something to ignore.
-    fn rates(&self, overrides: &HashMap<String, f64>) -> Result<HashMap<String, f64>, String> {
+    ///
+    /// A rate of 0 is off: the transition never fires in `simulate` and
+    /// `stochastic`. `null` (or no entry) is unset: the model's own rate, else
+    /// 1. (The portable SSA reads 0 as "default", so `ssa_model` drops an off
+    /// transition instead of passing its 0 on.)
+    fn rates(&self, overrides: &HashMap<String, Option<f64>>) -> Result<HashMap<String, f64>, String> {
         let mut rates = stochastic::rates(&self.model);
+        for id in &self.off {
+            rates.insert(id.clone(), 0.0);
+        }
         for (id, r) in overrides {
+            let Some(r) = r else {
+                // unset: back to the model's own
+                if self.off.contains(id) {
+                    rates.insert(id.clone(), 0.0);
+                } else if self.model.transition_by_id(id).is_none() {
+                    return Err(format!("rates: no transition {id:?}"));
+                }
+                continue;
+            };
             if self.model.transition_by_id(id).is_none() {
                 return Err(format!("rates: no transition {id:?}"));
             }
@@ -938,6 +1055,76 @@ mod tests {
         let slow = parsed(&c.simulate_json(r#"{"tEnd":1}"#).unwrap());
         let fast = parsed(&c.simulate_json(r#"{"tEnd":1,"rates":{"t":5}}"#).unwrap());
         assert!(fast["final"]["b"].as_f64() > slow["final"]["b"].as_f64());
+    }
+
+    const TWO: &str = r#"{"places":[{"id":"a","initial":5},{"id":"b"}],
+      "transitions":[{"id":"d","rate":0},{"id":"e","rate":0.3}],
+      "arcs":[{"from":"a","to":"d"},{"from":"d","to":"b"},{"from":"a","to":"e"},{"from":"e","to":"b"}]}"#;
+
+    fn finals(json: &str) -> (f64, f64) {
+        let v = parsed(json);
+        (v["final"]["a"].as_f64().unwrap(), v["final"]["b"].as_f64().unwrap())
+    }
+
+    /// B4: a rate of 0 is off, null is unset, in both engines, from an override
+    /// and from the model; B7: the model needs no `name`.
+    #[test]
+    fn rate_zero_is_off_and_null_is_unset() {
+        let c = Core::new(TWO).unwrap(); // no name, d has "rate": 0
+        // the model's own zero: d is off, e (0.3) drains a
+        let (_, b) = finals(&c.stochastic_json(r#"{"horizon":200,"samples":2}"#).unwrap());
+        assert_eq!(b, 5.0);
+        let (a, _) = finals(&c.simulate_json(r#"{"tEnd":200,"maxPoints":2,"rates":{"e":0}}"#).unwrap());
+        assert_eq!(a, 5.0, "both off: nothing moves in the ODE");
+        let (a, b) = finals(&c.stochastic_json(r#"{"horizon":200,"samples":2,"rates":{"e":0}}"#).unwrap());
+        assert_eq!((a, b), (5.0, 0.0), "both off: nothing fires in the SSA");
+        // null is unset: e back to its own 0.3, d stays off
+        let (a, _) = finals(&c.stochastic_json(r#"{"horizon":200,"samples":2,"rates":{"e":null}}"#).unwrap());
+        assert_eq!(a, 0.0);
+        // an override of a model-off transition turns it on
+        let c2 = Core::new(r#"{"places":[{"id":"a","initial":5},{"id":"b"}],"transitions":[{"id":"d","rate":0}],"arcs":[{"from":"a","to":"d"},{"from":"d","to":"b"}]}"#).unwrap();
+        let (_, b) = finals(&c2.stochastic_json(r#"{"horizon":200,"samples":2,"rates":{"d":2}}"#).unwrap());
+        assert_eq!(b, 5.0);
+        let (a, _) = finals(&c2.stochastic_json(r#"{"horizon":200,"samples":2}"#).unwrap());
+        assert_eq!(a, 5.0);
+        // absent rate is the default 1
+        let c3 = Core::new(r#"{"places":[{"id":"a","initial":5},{"id":"b"}],"transitions":[{"id":"d"},{"id":"x","rate":null}],"arcs":[{"from":"a","to":"d"},{"from":"d","to":"b"}]}"#).unwrap();
+        let (a, _) = finals(&c3.stochastic_json(r#"{"horizon":200,"samples":2}"#).unwrap());
+        assert_eq!(a, 0.0);
+    }
+
+    /// A pflow.xyz net's transition `rate` is read, 0 included, as the hosted
+    /// tools read it.
+    #[test]
+    fn shape_a_rates_are_read() {
+        let doc = r#"{"@context":"https://pflow.xyz/schema","places":{"a":{"initial":[5]},"b":{"initial":[0]}},
+          "transitions":{"d":{"rate":0},"e":{"rate":0.3}},
+          "arcs":[{"source":"a","target":"d"},{"source":"d","target":"b"},{"source":"a","target":"e"},{"source":"e","target":"b"}]}"#;
+        let c = Core::new(doc).unwrap();
+        let (a, b) = finals(&c.stochastic_json(r#"{"horizon":200,"samples":2,"rates":{"e":0}}"#).unwrap());
+        assert_eq!((a, b), (5.0, 0.0));
+        let (a, _) = finals(&c.simulate_json(r#"{"tEnd":1,"maxPoints":2}"#).unwrap());
+        assert!(a > 3.0, "e at 0.3 only: {a}");
+    }
+
+    /// A negative rate is refused in both shapes (the document shape used to treat it as unset).
+    #[test]
+    fn a_negative_rate_is_refused_in_both_shapes() {
+        let e = Core::new(r#"{"places":[{"id":"a"}],"transitions":[{"id":"t","rate":-1}],"arcs":[{"from":"a","to":"t"}]}"#).err().unwrap();
+        assert!(e.contains("bad rate -1"), "{e}");
+        let e = Core::new(r#"{"@context":"https://pflow.xyz/schema","places":{"a":{}},"transitions":{"t":{"rate":-1}},"arcs":[{"source":"a","target":"t"}]}"#).err().unwrap();
+        assert!(e.contains("bad rate -1"), "{e}");
+    }
+
+    /// B7: a fractional weight is refused with the arc named, in either shape.
+    #[test]
+    fn fractional_weights_are_refused_by_arc() {
+        let e = Core::new(r#"{"places":[{"id":"a"}],"transitions":[{"id":"t"}],"arcs":[{"from":"a","to":"t"},{"from":"a","to":"t","weight":0.5}]}"#).err().unwrap();
+        assert!(e.contains("arcs[1]") && e.contains("0.5"), "{e}");
+        let e = Core::new(r#"{"@context":"https://pflow.xyz/schema","places":{"a":{}},"transitions":{"t":{}},"arcs":[{"source":"a","target":"t","weight":[0.5]}]}"#).err().unwrap();
+        assert!(e.contains("arcs[0]") && e.contains("0.5"), "{e}");
+        // 2.0 is a whole 2
+        Core::new(r#"{"places":[{"id":"a"}],"transitions":[{"id":"t"}],"arcs":[{"from":"a","to":"t","weight":2.0}]}"#).unwrap();
     }
 
     // ---- reachability ----------------------------------------------------

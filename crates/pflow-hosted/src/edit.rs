@@ -119,8 +119,11 @@ pub fn edit(args: &Value) -> Result<Value, String> {
     let mut out =
         json!({ "net": net, "applied": ops.len(), "results": results, "summary": summary });
     let raw = serde_json::to_vec(&out["net"]).map_err(|e| e.to_string())?;
-    if let Ok((cid, _)) = pflow_tokenmodel::canonical_cid::compute_cid(&raw) {
-        out["cid"] = json!(cid);
+    // `cid: false` skips the seal, which is quadratic in net size (bug B5).
+    if args.get("cid") != Some(&Value::Bool(false)) {
+        if let Ok((cid, _)) = pflow_tokenmodel::canonical_cid::compute_cid(&raw) {
+            out["cid"] = json!(cid);
+        }
     }
     if let Err(e) = pflow_parser::model_from_json(&raw) {
         out["warning"] = json!(format!("pflow-rs cannot read the result yet: {e}"));

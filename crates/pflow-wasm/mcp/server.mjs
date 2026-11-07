@@ -9,16 +9,25 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { register as registerHosted, reachabilityGuarded, timeoutArg, withMarking } from './hosted.mjs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // The engine with the pflow.xyz/mcp tools built in (make wasm-mcp-engine). The
 // browser build, ./pflow-wasm.inline.js, is only read as text for artifact_html.
-import init, { Net, hosted } from './pflow-wasm-hosted.inline.js';
+import init, { Net as Net0, hosted as hosted0 } from './pflow-wasm-hosted.inline.js';
 
 await init();
+// Mutable so a trapped instance can be replaced (restartEngine below).
+let Net = Net0;
+let hosted = hosted0;
+let engineRestarts = 0;
 
 const nets = new Map();
-const models = new Map(); // name -> model object, for artifact_html
+const models = new Map(); // name -> model object as loaded, for artifact_html
+// name -> what the pflow.xyz-named tools read: { doc } (the JSON-LD form of the
+// loaded net, sealed with its @id when the CID was computed) or { unsupported }
+// (why it cannot be written as one), plus cid and layout.
+const jsonld = new Map();
 let last = null;
 
 // The package has its own version (build.mjs); the engine's is version().
@@ -34,13 +43,42 @@ const get = (name) => {
   if (!net) throw new Error(`no net named "${key}"; loaded: ${[...nets.keys()].join(', ') || 'none'}`);
   return net;
 };
+// A WebAssembly trap (an out-of-bounds access, unreachable, a stack overflow)
+// leaves the instance unusable: its stack pointer and heap are wherever the trap
+// left them, and every later call can fail ("memory access out of bounds"; report
+// B1). So on a trap the engine is instantiated afresh, from a new module
+// instance, and every loaded net is rebuilt from the model it was loaded from
+// (at its initial marking: the trapped instance's markings cannot be trusted).
+const isTrap = (e) => (typeof WebAssembly !== 'undefined' && e instanceof WebAssembly.RuntimeError)
+  || (e instanceof RangeError && /call stack/i.test(String(e.message)));
+async function restartEngine() {
+  engineRestarts += 1;
+  const m = await import(new URL(`./pflow-wasm-hosted.inline.js?instance=${engineRestarts}`, import.meta.url).href);
+  await m.default();
+  Net = m.Net; hosted = m.hosted;
+  const lost = [];
+  for (const [key, model] of models) {
+    try { nets.set(key, new Net(model)); } catch { nets.delete(key); models.delete(key); jsonld.delete(key); lost.push(key); }
+  }
+  if (last != null && !nets.has(last)) last = nets.keys().next().value ?? null;
+  return lost;
+}
 const tool = (name, description, shape, fn) =>
   server.registerTool(name, { description, inputSchema: shape }, async (args) => {
-    try { return ok(await fn(args)); } catch (e) { return fail(e); }
+    try { return ok(await fn(args)); } catch (e) {
+      if (!isTrap(e)) return fail(e);
+      let note;
+      try {
+        const lost = await restartEngine();
+        note = `the engine was restarted and loaded nets were reset to their initial marking${lost.length ? ` (could not reload: ${lost.join(', ')})` : ''}; retry, with smaller limits if it was a large search`;
+      } catch (e2) { note = `restarting the engine failed too (${e2?.message ?? e2}); restart the server`; }
+      return fail(`${name}: the engine trapped (${e?.message ?? e}); ${note}`);
+    }
   });
 
 const netName = z.string().optional().describe('Net name; defaults to the most recently loaded');
-const rates = z.record(z.string(), z.number()).optional().describe('Per-transition rate overrides');
+const rates = z.record(z.string(), z.number().nullable()).optional()
+  .describe('Per-transition rate overrides. 0 switches the transition off (it never fires); null means unset (the net\'s own rate, else 1)');
 
 const snapshot = (net) => ({
   places: net.places(), transitions: net.transitions(),
@@ -48,28 +86,43 @@ const snapshot = (net) => ({
 });
 
 tool('load_net',
-  'Load a Petri net (pflow.xyz JSON). Replaces any net with the same name. Nets with guards, stages or rate schedules are refused.',
+  'Load a Petri net: pflow.xyz JSON-LD, or the array shape (places: [{id, initial}], arcs: [{from, to, weight, type}]). Replaces any net with the same name. Every other tool then reads it by name, whichever shape it came in. Also answers shape, layout ("given", or "synthesized" when the net had no coordinates), and the net\'s CID: the CID names the document, layout and arc order included. It is computed here for up to 50 places and 250 places+transitions+arcs in all (cost follows the whole graph); a larger net answers cid null with cid_skipped, and the cid tool computes it on demand. A net that cannot be written as a pflow.xyz document (data places, constraints, timed transitions) answers unsupported and still runs locally. Nets with guards, stages or rate schedules, and arcs with a fractional weight, are refused.',
   { model: z.union([z.string(), z.record(z.string(), z.any())]).describe('The net as a JSON object or JSON text'),
     name: z.string().optional().describe('Name to keep it under; defaults to the model name, else "net"') },
   ({ model, name }) => {
-    const net = new Net(model);
     const obj = typeof model === 'string' ? JSON.parse(model) : model;
     const key = name ?? obj?.name ?? 'net';
+    const net = new Net(model);
+    let conv;
+    try {
+      conv = hosted('net_to_jsonld', { model: obj, name: key });
+    } catch (e) { net.free?.(); throw e; }
     nets.get(key)?.free?.();
     nets.set(key, net);
     models.set(key, obj);
+    jsonld.set(key, { doc: conv.net, cid: conv.cid, unsupported: conv.unsupported });
     last = key;
-    return { name: key, ...snapshot(net) };
+    const { net: _doc, places: _n, ...about } = conv;
+    return { name: key, ...snapshot(net), ...about };
   });
 
 tool('list_nets', 'List loaded nets.', {},
-  () => ({ current: last, nets: [...nets.keys()] }));
+  () => ({ current: last, nets: [...nets.keys()], ...(engineRestarts ? { engine_restarts: engineRestarts } : {}) }));
+
+// Test hook (PFLOW_MCP_TEST_HOOKS=1 only): raise a WebAssembly trap inside a tool
+// call, so the restart path is exercised without depending on a real overflow.
+if (process.env.PFLOW_MCP_TEST_HOOKS === '1') {
+  tool('__test_trap', 'Test only: raise a WebAssembly.RuntimeError inside a tool call.', {},
+    () => { throw new WebAssembly.RuntimeError('memory access out of bounds (test hook)'); });
+}
 
 tool('state',
-  'Places, transitions, current marking and enabled transitions. For a pflow.xyz (JSON-LD) net, `info` adds the hosted pflow_info summary: name, colours, each place (initial, capacity, label), transition (rate, label) and arc; its marking and enabled are the initial ones.',
+  'Places, transitions, current marking and enabled transitions. For any loaded net `info` adds the hosted pflow_info summary: name, colours, each place (initial, capacity, label), transition (rate, label) and arc; its marking and enabled are the initial ones.',
   { net: netName }, ({ net }) => {
     const out = snapshot(get(net));
-    try { out.info = hosted('info', { net: models.get(net ?? last) }); } catch { /* not a JSON-LD net: no summary */ }
+    const entry = jsonld.get(net ?? last);
+    if (entry?.doc) out.info = hosted('info', { net: entry.doc });
+    else if (entry?.unsupported) out.info_unavailable = entry.unsupported;
     return out;
   });
 
@@ -113,15 +166,24 @@ tool('reachability',
     max_tokens: z.number().int().min(1).optional()
       .describe('Tokens in one place past which the net is called unbounded (default 1000)'),
     from: z.enum(['initial', 'current']).optional()
-      .describe('Start from the initial marking (default, as the hosted tool) or a loaded net\'s current one') },
-  ({ net, model, max_states, max_tokens, from }) => {
+      .describe('Start from the initial marking (default, as the hosted tool) or a loaded net\'s current one'),
+    timeout_ms: timeoutArg },
+  async ({ net, model, max_states, max_tokens, from, timeout_ms }) => {
+    // Runs in a worker thread (hosted.mjs): a search past timeout_ms is stopped and answers unknown.
     const options = { maxStates: max_states, maxTokens: max_tokens, from };
     if (model != null) {
       if (from === 'current') throw new Error('from "current" needs a loaded net, not an inline model');
-      const n = new Net(model);
-      try { return n.reachability(options); } finally { n.free?.(); }
+      return reachabilityGuarded(model, options, timeout_ms);
     }
-    return get(net).reachability(options);
+    const loaded = get(net);
+    let m = models.get(net ?? last);
+    if (from === 'current') {
+      // the worker has no marking of its own: hand it the current one as the initial
+      m = withMarking(m, loaded.marking());
+      if (!m) throw new Error('from "current": this net\'s shape cannot carry its marking to the search');
+      options.from = 'initial';
+    }
+    return reachabilityGuarded(m, options, timeout_ms);
   });
 
 // ---- artifact_html -------------------------------------------------------
@@ -227,11 +289,10 @@ tool('artifact_html',
 
 import { register as registerOntology } from './ontology.mjs';
 import { register as registerChyp } from './chyp.mjs';
-import { register as registerHosted } from './hosted.mjs';
 import { register as registerCompose } from './compose.mjs';
 registerOntology(tool);
 registerChyp(tool);
-registerHosted(tool, { hosted, models, last: () => last });
+registerHosted(tool, { hosted: (...a) => hosted(...a), jsonld, last: () => last });
 registerCompose(tool);
 
 await server.connect(new StdioServerTransport());
