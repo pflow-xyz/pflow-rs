@@ -14,9 +14,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // The engine with the pflow.xyz/mcp tools built in (make wasm-mcp-engine). The
 // browser build, ./pflow-wasm.inline.js, is only read as text for artifact_html.
-import init, { Net, hosted } from './pflow-wasm-hosted.inline.js';
+import init, { Net as Net0, hosted as hosted0 } from './pflow-wasm-hosted.inline.js';
 
 await init();
+// Mutable so a trapped instance can be replaced (restartEngine below).
+let Net = Net0;
+let hosted = hosted0;
+let engineRestarts = 0;
 
 const nets = new Map();
 const models = new Map(); // name -> model object as loaded, for artifact_html
@@ -39,9 +43,37 @@ const get = (name) => {
   if (!net) throw new Error(`no net named "${key}"; loaded: ${[...nets.keys()].join(', ') || 'none'}`);
   return net;
 };
+// A WebAssembly trap (an out-of-bounds access, unreachable, a stack overflow)
+// leaves the instance unusable: its stack pointer and heap are wherever the trap
+// left them, and every later call can fail ("memory access out of bounds"; report
+// B1). So on a trap the engine is instantiated afresh, from a new module
+// instance, and every loaded net is rebuilt from the model it was loaded from
+// (at its initial marking: the trapped instance's markings cannot be trusted).
+const isTrap = (e) => (typeof WebAssembly !== 'undefined' && e instanceof WebAssembly.RuntimeError)
+  || (e instanceof RangeError && /call stack/i.test(String(e.message)));
+async function restartEngine() {
+  engineRestarts += 1;
+  const m = await import(new URL(`./pflow-wasm-hosted.inline.js?instance=${engineRestarts}`, import.meta.url).href);
+  await m.default();
+  Net = m.Net; hosted = m.hosted;
+  const lost = [];
+  for (const [key, model] of models) {
+    try { nets.set(key, new Net(model)); } catch { nets.delete(key); models.delete(key); jsonld.delete(key); lost.push(key); }
+  }
+  if (last != null && !nets.has(last)) last = nets.keys().next().value ?? null;
+  return lost;
+}
 const tool = (name, description, shape, fn) =>
   server.registerTool(name, { description, inputSchema: shape }, async (args) => {
-    try { return ok(await fn(args)); } catch (e) { return fail(e); }
+    try { return ok(await fn(args)); } catch (e) {
+      if (!isTrap(e)) return fail(e);
+      let note;
+      try {
+        const lost = await restartEngine();
+        note = `the engine was restarted and loaded nets were reset to their initial marking${lost.length ? ` (could not reload: ${lost.join(', ')})` : ''}; retry, with smaller limits if it was a large search`;
+      } catch (e2) { note = `restarting the engine failed too (${e2?.message ?? e2}); restart the server`; }
+      return fail(`${name}: the engine trapped (${e?.message ?? e}); ${note}`);
+    }
   });
 
 const netName = z.string().optional().describe('Net name; defaults to the most recently loaded');
@@ -75,7 +107,14 @@ tool('load_net',
   });
 
 tool('list_nets', 'List loaded nets.', {},
-  () => ({ current: last, nets: [...nets.keys()] }));
+  () => ({ current: last, nets: [...nets.keys()], ...(engineRestarts ? { engine_restarts: engineRestarts } : {}) }));
+
+// Test hook (PFLOW_MCP_TEST_HOOKS=1 only): raise a WebAssembly trap inside a tool
+// call, so the restart path is exercised without depending on a real overflow.
+if (process.env.PFLOW_MCP_TEST_HOOKS === '1') {
+  tool('__test_trap', 'Test only: raise a WebAssembly.RuntimeError inside a tool call.', {},
+    () => { throw new WebAssembly.RuntimeError('memory access out of bounds (test hook)'); });
+}
 
 tool('state',
   'Places, transitions, current marking and enabled transitions. For any loaded net `info` adds the hosted pflow_info summary: name, colours, each place (initial, capacity, label), transition (rate, label) and arc; its marking and enabled are the initial ones.',
@@ -251,10 +290,9 @@ tool('artifact_html',
 import { register as registerOntology } from './ontology.mjs';
 import { register as registerChyp } from './chyp.mjs';
 import { register as registerCompose } from './compose.mjs';
-import { register as registerExamples } from './examples.mjs';
 registerOntology(tool);
 registerChyp(tool);
-registerHosted(tool, { hosted, jsonld, last: () => last });
+registerHosted(tool, { hosted: (...a) => hosted(...a), jsonld, last: () => last });
 registerCompose(tool);
 
 await server.connect(new StdioServerTransport());

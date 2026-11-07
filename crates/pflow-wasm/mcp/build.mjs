@@ -16,7 +16,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 // The package's own version, independent of the workspace (pflow-wasm's) one:
 // the MCP surface changes on its own schedule. Bump it here; npm refuses a
 // version it already has.
-const version = '0.5.0';
+const version = '0.4.1';
 const engineVersion = JSON.parse(readFileSync(join(wasmPkg, 'package.json'), 'utf8')).version;
 
 rmSync(outDir, { recursive: true, force: true });
@@ -51,6 +51,7 @@ copyFileSync(join(hostedPkg, 'pflow-wasm.inline.js'), join(outDir, 'pflow-wasm-h
 execFileSync(process.execPath, [join(here, '..', 'compose', 'build.mjs'), hostedPkg, join(outDir, 'compose-canvas.html')], { stdio: 'inherit' });
 copyFileSync(join(wasmPkg, 'LICENSE'), join(outDir, 'LICENSE'));
 copyFileSync(join(here, 'README.md'), join(outDir, 'README.md'));
+copyFileSync(join(here, 'CHANGELOG.md'), join(outDir, 'CHANGELOG.md'));
 writeFileSync(join(outDir, 'package.json'), JSON.stringify({
   name: '@pflow-xyz/pflow-mcp',
   version,
@@ -59,7 +60,7 @@ writeFileSync(join(outDir, 'package.json'), JSON.stringify({
   repository: { type: 'git', url: 'git+https://github.com/pflow-xyz/pflow-rs.git', directory: 'crates/pflow-wasm/mcp' },
   type: 'module',
   bin: { 'pflow-mcp': 'server.mjs' },
-  files: ['server.mjs', 'ontology.mjs', 'chyp.mjs', 'hosted.mjs', 'hosted-tools.json', 'compose-tools.json', 'compose.mjs', 'compose-canvas.html', 'pflow-wasm.inline.js', 'pflow-wasm-hosted.inline.js', 'chyp/', 'ontology/', 'LICENSE', 'README.md'],
+  files: ['server.mjs', 'ontology.mjs', 'chyp.mjs', 'hosted.mjs', 'hosted-tools.json', 'compose-tools.json', 'compose.mjs', 'compose-canvas.html', 'pflow-wasm.inline.js', 'pflow-wasm-hosted.inline.js', 'chyp/', 'ontology/', 'LICENSE', 'README.md', 'CHANGELOG.md'],
   engines: { node: '>=18' },
   dependencies: { '@modelcontextprotocol/sdk': '^1.0.0', n3: '^1.17.0', zod: '^3.23.0' },
   publishConfig: { access: 'public' },

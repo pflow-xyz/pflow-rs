@@ -20,7 +20,7 @@ pflow.xyz/mcp has a composition canvas and `pflow_bundle_*` tools: parts (subnet
 | 3. Browser assembly | one HTML file, engine embedded, no network; 13-part catalog | `pflow-wasm/compose/`, `pflow-hosted/src/bundle/parts.rs` |
 | 4. Chyp | not done (see below) | |
 
-Tools are in pflow-rs (`pflow-hosted`, so also in the wasm `hosted` build and `@pflow-xyz/pflow-mcp` 0.5.0). Their Go ports and the hosted registration are described under [go-pflow and pflow-xyz](#go-pflow-and-pflow-xyz).
+Tools are in pflow-rs (`pflow-hosted`, so also in the wasm `hosted` build and `@pflow-xyz/pflow-mcp` 0.4.1). Their Go ports and the hosted registration are described under [go-pflow and pflow-xyz](#go-pflow-and-pflow-xyz).
 
 ### 1. A composite as an ordinary net
 
@@ -129,7 +129,7 @@ Local branches `val/run-520d030a` in both repos, nothing pushed.
 ```bash
 cargo test -p pflow-hosted                      # incl. composite goldens (tests/fixtures/composite/)
 make wasm-compose-test                          # builds the engine + page; goldens, JS checker, Chrome e2e
-make wasm-mcp-test                              # @pflow-xyz/pflow-mcp 0.5.0 (needs CHYP_PKG, ONTOLOGY_DIR in a worktree)
+make wasm-mcp-test                              # @pflow-xyz/pflow-mcp 0.4.1 (needs CHYP_PKG, ONTOLOGY_DIR in a worktree)
 ```
 
 Regenerating the composite goldens (a reviewed change to the tools, never to make a test pass): `REGEN_COMPOSITE=1 cargo test -p pflow-hosted --test composite_goldens`.
