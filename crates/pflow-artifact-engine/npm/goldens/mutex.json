@@ -1,0 +1,268 @@
+{
+ "engine_sha256": "e8bdeed0081ba5811e4828b3788b41347a2a6eec0b1a6cf165d4af21c7e114f8",
+ "net": "mutex.json",
+ "calls": [
+  {
+   "fn": "analyze",
+   "req": {},
+   "reply": {
+    "bounded": true,
+    "complete": true,
+    "dead_markings": [],
+    "deadlock_free": true,
+    "edge_count": 4,
+    "engine": "pflow-rs pflow-reachability (wasm32, artifact probe)",
+    "live": true,
+    "max_tokens": {
+     "cs1": 1,
+     "cs2": 1,
+     "idle1": 1,
+     "idle2": 1,
+     "lock": 1
+    },
+    "not_live": [],
+    "p_invariants": [
+     {
+      "coefficients": {
+       "cs2": 1,
+       "idle2": 1
+      },
+      "places": [
+       "cs2",
+       "idle2"
+      ],
+      "render": "cs2 + idle2 == 1",
+      "value": 1
+     },
+     {
+      "coefficients": {
+       "cs1": 1,
+       "idle1": 1
+      },
+      "places": [
+       "cs1",
+       "idle1"
+      ],
+      "render": "cs1 + idle1 == 1",
+      "value": 1
+     },
+     {
+      "coefficients": {
+       "cs1": 1,
+       "cs2": 1,
+       "lock": 1
+      },
+      "places": [
+       "cs1",
+       "cs2",
+       "lock"
+      ],
+      "render": "cs1 + cs2 + lock == 1",
+      "value": 1
+     }
+    ],
+    "p_truncated": false,
+    "quasi_live": true,
+    "state_count": 3,
+    "t_invariants": [
+     {
+      "counts": {
+       "enter2": 1,
+       "exit2": 1
+      },
+      "render": "{enter2, exit2}",
+      "transitions": [
+       "enter2",
+       "exit2"
+      ]
+     },
+     {
+      "counts": {
+       "enter1": 1,
+       "exit1": 1
+      },
+      "render": "{enter1, exit1}",
+      "transitions": [
+       "enter1",
+       "exit1"
+      ]
+     }
+    ],
+    "t_truncated": false,
+    "witness": null
+   }
+  },
+  {
+   "fn": "analyze",
+   "req": {
+    "max_states": 5
+   },
+   "reply": {
+    "bounded": true,
+    "complete": true,
+    "dead_markings": [],
+    "deadlock_free": true,
+    "edge_count": 4,
+    "engine": "pflow-rs pflow-reachability (wasm32, artifact probe)",
+    "live": true,
+    "max_tokens": {
+     "cs1": 1,
+     "cs2": 1,
+     "idle1": 1,
+     "idle2": 1,
+     "lock": 1
+    },
+    "not_live": [],
+    "p_invariants": [
+     {
+      "coefficients": {
+       "cs2": 1,
+       "idle2": 1
+      },
+      "places": [
+       "cs2",
+       "idle2"
+      ],
+      "render": "cs2 + idle2 == 1",
+      "value": 1
+     },
+     {
+      "coefficients": {
+       "cs1": 1,
+       "idle1": 1
+      },
+      "places": [
+       "cs1",
+       "idle1"
+      ],
+      "render": "cs1 + idle1 == 1",
+      "value": 1
+     },
+     {
+      "coefficients": {
+       "cs1": 1,
+       "cs2": 1,
+       "lock": 1
+      },
+      "places": [
+       "cs1",
+       "cs2",
+       "lock"
+      ],
+      "render": "cs1 + cs2 + lock == 1",
+      "value": 1
+     }
+    ],
+    "p_truncated": false,
+    "quasi_live": true,
+    "state_count": 3,
+    "t_invariants": [
+     {
+      "counts": {
+       "enter2": 1,
+       "exit2": 1
+      },
+      "render": "{enter2, exit2}",
+      "transitions": [
+       "enter2",
+       "exit2"
+      ]
+     },
+     {
+      "counts": {
+       "enter1": 1,
+       "exit1": 1
+      },
+      "render": "{enter1, exit1}",
+      "transitions": [
+       "enter1",
+       "exit1"
+      ]
+     }
+    ],
+    "t_truncated": false,
+    "witness": null
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {},
+   "reply": {
+    "enabled": [
+     "enter1",
+     "enter2"
+    ],
+    "marking": {
+     "cs1": 0,
+     "cs2": 0,
+     "idle1": 1,
+     "idle2": 1,
+     "lock": 1
+    }
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "enter1"
+   },
+   "reply": {
+    "enabled": [
+     "exit1"
+    ],
+    "marking": {
+     "cs1": 1,
+     "cs2": 0,
+     "idle1": 0,
+     "idle2": 1,
+     "lock": 0
+    }
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "exit1"
+   },
+   "reply": {
+    "error": "exit1 needs 1 token(s) on cs1, have 0"
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "enter2"
+   },
+   "reply": {
+    "enabled": [
+     "exit2"
+    ],
+    "marking": {
+     "cs1": 0,
+     "cs2": 1,
+     "idle1": 1,
+     "idle2": 0,
+     "lock": 0
+    }
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "exit2"
+   },
+   "reply": {
+    "error": "exit2 needs 1 token(s) on cs2, have 0"
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "__no_such_transition__"
+   },
+   "reply": {
+    "error": "no transition \"__no_such_transition__\" in model \"mutex\""
+   }
+  }
+ ]
+}

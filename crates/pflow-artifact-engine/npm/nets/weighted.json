@@ -1,0 +1,100 @@
+{
+ "@context": "https://pflow.xyz/schema",
+ "@type": "PetriNet",
+ "@version": "1.1",
+ "name": "weighted",
+ "places": {
+  "raw": {
+   "@type": "Place",
+   "initial": [
+    4
+   ],
+   "capacity": [
+    0
+   ],
+   "x": 0,
+   "y": 0
+  },
+  "pair": {
+   "@type": "Place",
+   "initial": [
+    0
+   ],
+   "capacity": [
+    0
+   ],
+   "x": 0,
+   "y": 0
+  },
+  "full": {
+   "@type": "Place",
+   "initial": [
+    0
+   ],
+   "capacity": [
+    0
+   ],
+   "x": 0,
+   "y": 0
+  }
+ },
+ "transitions": {
+  "make": {
+   "@type": "Transition",
+   "x": 0,
+   "y": 0
+  },
+  "pack": {
+   "@type": "Transition",
+   "x": 0,
+   "y": 0
+  }
+ },
+ "arcs": [
+  {
+   "@type": "Arrow",
+   "source": "raw",
+   "target": "make",
+   "weight": [
+    2
+   ],
+   "inhibitTransition": false
+  },
+  {
+   "@type": "Arrow",
+   "source": "make",
+   "target": "pair",
+   "weight": [
+    1
+   ],
+   "inhibitTransition": false
+  },
+  {
+   "@type": "Arrow",
+   "source": "pair",
+   "target": "pack",
+   "weight": [
+    1
+   ],
+   "inhibitTransition": false
+  },
+  {
+   "@type": "Arrow",
+   "source": "pack",
+   "target": "full",
+   "weight": [
+    1
+   ],
+   "inhibitTransition": false
+  },
+  {
+   "@type": "Arrow",
+   "source": "full",
+   "target": "make",
+   "weight": [
+    1
+   ],
+   "inhibitTransition": true
+  }
+ ]
+}

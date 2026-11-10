@@ -1,0 +1,567 @@
+{
+ "engine_sha256": "e8bdeed0081ba5811e4828b3788b41347a2a6eec0b1a6cf165d4af21c7e114f8",
+ "net": "philosophers3.json",
+ "calls": [
+  {
+   "fn": "analyze",
+   "req": {},
+   "reply": {
+    "bounded": true,
+    "complete": true,
+    "dead_markings": [
+     {
+      "eat0": 0,
+      "eat1": 0,
+      "eat2": 0,
+      "fork0": 0,
+      "fork1": 0,
+      "fork2": 0,
+      "hasL0": 1,
+      "hasL1": 1,
+      "hasL2": 1,
+      "think0": 0,
+      "think1": 0,
+      "think2": 0
+     }
+    ],
+    "deadlock_free": false,
+    "edge_count": 27,
+    "engine": "pflow-rs pflow-reachability (wasm32, artifact probe)",
+    "live": false,
+    "max_tokens": {
+     "eat0": 1,
+     "eat1": 1,
+     "eat2": 1,
+     "fork0": 1,
+     "fork1": 1,
+     "fork2": 1,
+     "hasL0": 1,
+     "hasL1": 1,
+     "hasL2": 1,
+     "think0": 1,
+     "think1": 1,
+     "think2": 1
+    },
+    "not_live": [
+     "put0",
+     "put1",
+     "put2",
+     "takeL0",
+     "takeL1",
+     "takeL2",
+     "takeR0",
+     "takeR1",
+     "takeR2"
+    ],
+    "p_invariants": [
+     {
+      "coefficients": {
+       "eat2": 1,
+       "hasL2": 1,
+       "think2": 1
+      },
+      "places": [
+       "eat2",
+       "hasL2",
+       "think2"
+      ],
+      "render": "eat2 + hasL2 + think2 == 1",
+      "value": 1
+     },
+     {
+      "coefficients": {
+       "eat1": 1,
+       "hasL1": 1,
+       "think1": 1
+      },
+      "places": [
+       "eat1",
+       "hasL1",
+       "think1"
+      ],
+      "render": "eat1 + hasL1 + think1 == 1",
+      "value": 1
+     },
+     {
+      "coefficients": {
+       "eat0": 1,
+       "hasL0": 1,
+       "think0": 1
+      },
+      "places": [
+       "eat0",
+       "hasL0",
+       "think0"
+      ],
+      "render": "eat0 + hasL0 + think0 == 1",
+      "value": 1
+     },
+     {
+      "coefficients": {
+       "eat1": 1,
+       "eat2": 1,
+       "fork2": 1,
+       "hasL2": 1
+      },
+      "places": [
+       "eat1",
+       "eat2",
+       "fork2",
+       "hasL2"
+      ],
+      "render": "eat1 + eat2 + fork2 + hasL2 == 1",
+      "value": 1
+     },
+     {
+      "coefficients": {
+       "eat0": 1,
+       "eat2": 1,
+       "fork0": 1,
+       "hasL0": 1
+      },
+      "places": [
+       "eat0",
+       "eat2",
+       "fork0",
+       "hasL0"
+      ],
+      "render": "eat0 + eat2 + fork0 + hasL0 == 1",
+      "value": 1
+     },
+     {
+      "coefficients": {
+       "eat0": 1,
+       "eat1": 1,
+       "fork1": 1,
+       "hasL1": 1
+      },
+      "places": [
+       "eat0",
+       "eat1",
+       "fork1",
+       "hasL1"
+      ],
+      "render": "eat0 + eat1 + fork1 + hasL1 == 1",
+      "value": 1
+     }
+    ],
+    "p_truncated": false,
+    "quasi_live": true,
+    "state_count": 14,
+    "t_invariants": [
+     {
+      "counts": {
+       "put2": 1,
+       "takeL2": 1,
+       "takeR2": 1
+      },
+      "render": "{put2, takeL2, takeR2}",
+      "transitions": [
+       "put2",
+       "takeL2",
+       "takeR2"
+      ]
+     },
+     {
+      "counts": {
+       "put1": 1,
+       "takeL1": 1,
+       "takeR1": 1
+      },
+      "render": "{put1, takeL1, takeR1}",
+      "transitions": [
+       "put1",
+       "takeL1",
+       "takeR1"
+      ]
+     },
+     {
+      "counts": {
+       "put0": 1,
+       "takeL0": 1,
+       "takeR0": 1
+      },
+      "render": "{put0, takeL0, takeR0}",
+      "transitions": [
+       "put0",
+       "takeL0",
+       "takeR0"
+      ]
+     }
+    ],
+    "t_truncated": false,
+    "witness": {
+     "kind": "deadlock",
+     "marking": {
+      "eat0": 0,
+      "eat1": 0,
+      "eat2": 0,
+      "fork0": 0,
+      "fork1": 0,
+      "fork2": 0,
+      "hasL0": 1,
+      "hasL1": 1,
+      "hasL2": 1,
+      "think0": 0,
+      "think1": 0,
+      "think2": 0
+     },
+     "never_fires": [
+      "put0",
+      "put1",
+      "put2",
+      "takeL0",
+      "takeL1",
+      "takeL2",
+      "takeR0",
+      "takeR1",
+      "takeR2"
+     ],
+     "region_size": 1,
+     "trace": [
+      "takeL0",
+      "takeL1",
+      "takeL2"
+     ]
+    }
+   }
+  },
+  {
+   "fn": "analyze",
+   "req": {
+    "max_states": 5
+   },
+   "reply": {
+    "bounded": true,
+    "complete": false,
+    "dead_markings": [],
+    "deadlock_free": "unknown",
+    "edge_count": 6,
+    "engine": "pflow-rs pflow-reachability (wasm32, artifact probe)",
+    "live": "unknown",
+    "max_tokens": {
+     "eat0": 1,
+     "eat1": 0,
+     "eat2": 0,
+     "fork0": 1,
+     "fork1": 1,
+     "fork2": 1,
+     "hasL0": 1,
+     "hasL1": 1,
+     "hasL2": 1,
+     "think0": 1,
+     "think1": 1,
+     "think2": 1
+    },
+    "not_live": [],
+    "p_invariants": [
+     {
+      "coefficients": {
+       "eat2": 1,
+       "hasL2": 1,
+       "think2": 1
+      },
+      "places": [
+       "eat2",
+       "hasL2",
+       "think2"
+      ],
+      "render": "eat2 + hasL2 + think2 == 1",
+      "value": 1
+     },
+     {
+      "coefficients": {
+       "eat1": 1,
+       "hasL1": 1,
+       "think1": 1
+      },
+      "places": [
+       "eat1",
+       "hasL1",
+       "think1"
+      ],
+      "render": "eat1 + hasL1 + think1 == 1",
+      "value": 1
+     },
+     {
+      "coefficients": {
+       "eat0": 1,
+       "hasL0": 1,
+       "think0": 1
+      },
+      "places": [
+       "eat0",
+       "hasL0",
+       "think0"
+      ],
+      "render": "eat0 + hasL0 + think0 == 1",
+      "value": 1
+     },
+     {
+      "coefficients": {
+       "eat1": 1,
+       "eat2": 1,
+       "fork2": 1,
+       "hasL2": 1
+      },
+      "places": [
+       "eat1",
+       "eat2",
+       "fork2",
+       "hasL2"
+      ],
+      "render": "eat1 + eat2 + fork2 + hasL2 == 1",
+      "value": 1
+     },
+     {
+      "coefficients": {
+       "eat0": 1,
+       "eat2": 1,
+       "fork0": 1,
+       "hasL0": 1
+      },
+      "places": [
+       "eat0",
+       "eat2",
+       "fork0",
+       "hasL0"
+      ],
+      "render": "eat0 + eat2 + fork0 + hasL0 == 1",
+      "value": 1
+     },
+     {
+      "coefficients": {
+       "eat0": 1,
+       "eat1": 1,
+       "fork1": 1,
+       "hasL1": 1
+      },
+      "places": [
+       "eat0",
+       "eat1",
+       "fork1",
+       "hasL1"
+      ],
+      "render": "eat0 + eat1 + fork1 + hasL1 == 1",
+      "value": 1
+     }
+    ],
+    "p_truncated": false,
+    "quasi_live": "unknown",
+    "state_count": 7,
+    "t_invariants": [
+     {
+      "counts": {
+       "put2": 1,
+       "takeL2": 1,
+       "takeR2": 1
+      },
+      "render": "{put2, takeL2, takeR2}",
+      "transitions": [
+       "put2",
+       "takeL2",
+       "takeR2"
+      ]
+     },
+     {
+      "counts": {
+       "put1": 1,
+       "takeL1": 1,
+       "takeR1": 1
+      },
+      "render": "{put1, takeL1, takeR1}",
+      "transitions": [
+       "put1",
+       "takeL1",
+       "takeR1"
+      ]
+     },
+     {
+      "counts": {
+       "put0": 1,
+       "takeL0": 1,
+       "takeR0": 1
+      },
+      "render": "{put0, takeL0, takeR0}",
+      "transitions": [
+       "put0",
+       "takeL0",
+       "takeR0"
+      ]
+     }
+    ],
+    "t_truncated": false,
+    "witness": null
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {},
+   "reply": {
+    "enabled": [
+     "takeL0",
+     "takeL1",
+     "takeL2"
+    ],
+    "marking": {
+     "eat0": 0,
+     "eat1": 0,
+     "eat2": 0,
+     "fork0": 1,
+     "fork1": 1,
+     "fork2": 1,
+     "hasL0": 0,
+     "hasL1": 0,
+     "hasL2": 0,
+     "think0": 1,
+     "think1": 1,
+     "think2": 1
+    }
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "takeL0"
+   },
+   "reply": {
+    "enabled": [
+     "takeL1",
+     "takeL2",
+     "takeR0"
+    ],
+    "marking": {
+     "eat0": 0,
+     "eat1": 0,
+     "eat2": 0,
+     "fork0": 0,
+     "fork1": 1,
+     "fork2": 1,
+     "hasL0": 1,
+     "hasL1": 0,
+     "hasL2": 0,
+     "think0": 0,
+     "think1": 1,
+     "think2": 1
+    }
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "takeR0"
+   },
+   "reply": {
+    "error": "takeR0 needs 1 token(s) on hasL0, have 0"
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "put0"
+   },
+   "reply": {
+    "error": "put0 needs 1 token(s) on eat0, have 0"
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "takeL1"
+   },
+   "reply": {
+    "enabled": [
+     "takeL0",
+     "takeL2",
+     "takeR1"
+    ],
+    "marking": {
+     "eat0": 0,
+     "eat1": 0,
+     "eat2": 0,
+     "fork0": 1,
+     "fork1": 0,
+     "fork2": 1,
+     "hasL0": 0,
+     "hasL1": 1,
+     "hasL2": 0,
+     "think0": 1,
+     "think1": 0,
+     "think2": 1
+    }
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "takeR1"
+   },
+   "reply": {
+    "error": "takeR1 needs 1 token(s) on hasL1, have 0"
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "put1"
+   },
+   "reply": {
+    "error": "put1 needs 1 token(s) on eat1, have 0"
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "takeL2"
+   },
+   "reply": {
+    "enabled": [
+     "takeL0",
+     "takeL1",
+     "takeR2"
+    ],
+    "marking": {
+     "eat0": 0,
+     "eat1": 0,
+     "eat2": 0,
+     "fork0": 1,
+     "fork1": 1,
+     "fork2": 0,
+     "hasL0": 0,
+     "hasL1": 0,
+     "hasL2": 1,
+     "think0": 1,
+     "think1": 1,
+     "think2": 0
+    }
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "takeR2"
+   },
+   "reply": {
+    "error": "takeR2 needs 1 token(s) on hasL2, have 0"
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "put2"
+   },
+   "reply": {
+    "error": "put2 needs 1 token(s) on eat2, have 0"
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "__no_such_transition__"
+   },
+   "reply": {
+    "error": "no transition \"__no_such_transition__\" in model \"Dining philosophers (3)\""
+   }
+  }
+ ]
+}

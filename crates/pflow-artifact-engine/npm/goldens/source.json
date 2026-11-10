@@ -1,0 +1,91 @@
+{
+ "engine_sha256": "e8bdeed0081ba5811e4828b3788b41347a2a6eec0b1a6cf165d4af21c7e114f8",
+ "net": "source.json",
+ "calls": [
+  {
+   "fn": "analyze",
+   "req": {},
+   "reply": {
+    "bounded": false,
+    "complete": false,
+    "dead_markings": [],
+    "deadlock_free": "unknown",
+    "edge_count": 1000,
+    "engine": "pflow-rs pflow-reachability (wasm32, artifact probe)",
+    "live": "unknown",
+    "max_tokens": {
+     "p": 1000
+    },
+    "not_live": [],
+    "p_invariants": [],
+    "p_truncated": false,
+    "quasi_live": "unknown",
+    "state_count": 1001,
+    "t_invariants": [],
+    "t_truncated": false,
+    "witness": null
+   }
+  },
+  {
+   "fn": "analyze",
+   "req": {
+    "max_states": 5
+   },
+   "reply": {
+    "bounded": true,
+    "complete": false,
+    "dead_markings": [],
+    "deadlock_free": "unknown",
+    "edge_count": 4,
+    "engine": "pflow-rs pflow-reachability (wasm32, artifact probe)",
+    "live": "unknown",
+    "max_tokens": {
+     "p": 4
+    },
+    "not_live": [],
+    "p_invariants": [],
+    "p_truncated": false,
+    "quasi_live": "unknown",
+    "state_count": 5,
+    "t_invariants": [],
+    "t_truncated": false,
+    "witness": null
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {},
+   "reply": {
+    "enabled": [
+     "t"
+    ],
+    "marking": {
+     "p": 0
+    }
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "t"
+   },
+   "reply": {
+    "enabled": [
+     "t"
+    ],
+    "marking": {
+     "p": 1
+    }
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "__no_such_transition__"
+   },
+   "reply": {
+    "error": "no transition \"__no_such_transition__\" in model \"source\""
+   }
+  }
+ ]
+}

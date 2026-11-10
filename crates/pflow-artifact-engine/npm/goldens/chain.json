@@ -1,0 +1,165 @@
+{
+ "engine_sha256": "e8bdeed0081ba5811e4828b3788b41347a2a6eec0b1a6cf165d4af21c7e114f8",
+ "net": "chain.json",
+ "calls": [
+  {
+   "fn": "analyze",
+   "req": {},
+   "reply": {
+    "bounded": true,
+    "complete": true,
+    "dead_markings": [
+     {
+      "a": 0,
+      "b": 3
+     }
+    ],
+    "deadlock_free": false,
+    "edge_count": 3,
+    "engine": "pflow-rs pflow-reachability (wasm32, artifact probe)",
+    "live": false,
+    "max_tokens": {
+     "a": 3,
+     "b": 3
+    },
+    "not_live": [
+     "t"
+    ],
+    "p_invariants": [
+     {
+      "coefficients": {
+       "a": 1,
+       "b": 1
+      },
+      "places": [
+       "a",
+       "b"
+      ],
+      "render": "a + b == 3",
+      "value": 3
+     }
+    ],
+    "p_truncated": false,
+    "quasi_live": true,
+    "state_count": 4,
+    "t_invariants": [],
+    "t_truncated": false,
+    "witness": {
+     "kind": "deadlock",
+     "marking": {
+      "a": 0,
+      "b": 3
+     },
+     "never_fires": [
+      "t"
+     ],
+     "region_size": 1,
+     "trace": [
+      "t",
+      "t",
+      "t"
+     ]
+    }
+   }
+  },
+  {
+   "fn": "analyze",
+   "req": {
+    "max_states": 5
+   },
+   "reply": {
+    "bounded": true,
+    "complete": true,
+    "dead_markings": [
+     {
+      "a": 0,
+      "b": 3
+     }
+    ],
+    "deadlock_free": false,
+    "edge_count": 3,
+    "engine": "pflow-rs pflow-reachability (wasm32, artifact probe)",
+    "live": false,
+    "max_tokens": {
+     "a": 3,
+     "b": 3
+    },
+    "not_live": [
+     "t"
+    ],
+    "p_invariants": [
+     {
+      "coefficients": {
+       "a": 1,
+       "b": 1
+      },
+      "places": [
+       "a",
+       "b"
+      ],
+      "render": "a + b == 3",
+      "value": 3
+     }
+    ],
+    "p_truncated": false,
+    "quasi_live": true,
+    "state_count": 4,
+    "t_invariants": [],
+    "t_truncated": false,
+    "witness": {
+     "kind": "deadlock",
+     "marking": {
+      "a": 0,
+      "b": 3
+     },
+     "never_fires": [
+      "t"
+     ],
+     "region_size": 1,
+     "trace": [
+      "t",
+      "t",
+      "t"
+     ]
+    }
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {},
+   "reply": {
+    "enabled": [
+     "t"
+    ],
+    "marking": {
+     "a": 3,
+     "b": 0
+    }
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "t"
+   },
+   "reply": {
+    "enabled": [
+     "t"
+    ],
+    "marking": {
+     "a": 2,
+     "b": 1
+    }
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "__no_such_transition__"
+   },
+   "reply": {
+    "error": "no transition \"__no_such_transition__\" in model \"chain\""
+   }
+  }
+ ]
+}

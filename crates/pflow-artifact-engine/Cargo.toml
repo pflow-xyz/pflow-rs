@@ -1,0 +1,21 @@
+[package]
+name = "pflow-artifact-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "pflow-rs reachability, invariants and firing as a zero-import wasm32 module (JSON in, JSON out), for pages that cannot fetch a .wasm"
+# Distributed on npm as @pflow-xyz/engine (make engine-npm), not on crates.io.
+# Moved here from pflow-xyz's experiments/artifact-wasm/engine, the module that
+# pflow_artifact's engine "wasm-inline" embeds; same source, same ABI.
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pflow-metamodel = { path = "../pflow-metamodel" }
+pflow-parser = { path = "../pflow-parser" }
+pflow-reachability = { path = "../pflow-reachability" }
+serde_json = "1"

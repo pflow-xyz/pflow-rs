@@ -1,0 +1,270 @@
+{
+ "engine_sha256": "e8bdeed0081ba5811e4828b3788b41347a2a6eec0b1a6cf165d4af21c7e114f8",
+ "net": "livelock.json",
+ "calls": [
+  {
+   "fn": "analyze",
+   "req": {},
+   "reply": {
+    "bounded": true,
+    "complete": true,
+    "dead_markings": [],
+    "deadlock_free": true,
+    "edge_count": 5,
+    "engine": "pflow-rs pflow-reachability (wasm32, artifact probe)",
+    "live": false,
+    "max_tokens": {
+     "p": 1,
+     "q": 1,
+     "r": 1,
+     "s": 1
+    },
+    "not_live": [
+     "t",
+     "u",
+     "x"
+    ],
+    "p_invariants": [
+     {
+      "coefficients": {
+       "p": 1,
+       "q": 1,
+       "r": 1,
+       "s": 1
+      },
+      "places": [
+       "p",
+       "q",
+       "r",
+       "s"
+      ],
+      "render": "p + q + r + s == 1",
+      "value": 1
+     }
+    ],
+    "p_truncated": false,
+    "quasi_live": true,
+    "state_count": 4,
+    "t_invariants": [
+     {
+      "counts": {
+       "v": 1,
+       "w": 1
+      },
+      "render": "{v, w}",
+      "transitions": [
+       "v",
+       "w"
+      ]
+     },
+     {
+      "counts": {
+       "t": 1,
+       "u": 1
+      },
+      "render": "{t, u}",
+      "transitions": [
+       "t",
+       "u"
+      ]
+     }
+    ],
+    "t_truncated": false,
+    "witness": {
+     "kind": "livelock",
+     "marking": {
+      "p": 0,
+      "q": 0,
+      "r": 1,
+      "s": 0
+     },
+     "never_fires": [
+      "t",
+      "u",
+      "x"
+     ],
+     "region_size": 2,
+     "trace": [
+      "x"
+     ]
+    }
+   }
+  },
+  {
+   "fn": "analyze",
+   "req": {
+    "max_states": 5
+   },
+   "reply": {
+    "bounded": true,
+    "complete": true,
+    "dead_markings": [],
+    "deadlock_free": true,
+    "edge_count": 5,
+    "engine": "pflow-rs pflow-reachability (wasm32, artifact probe)",
+    "live": false,
+    "max_tokens": {
+     "p": 1,
+     "q": 1,
+     "r": 1,
+     "s": 1
+    },
+    "not_live": [
+     "t",
+     "u",
+     "x"
+    ],
+    "p_invariants": [
+     {
+      "coefficients": {
+       "p": 1,
+       "q": 1,
+       "r": 1,
+       "s": 1
+      },
+      "places": [
+       "p",
+       "q",
+       "r",
+       "s"
+      ],
+      "render": "p + q + r + s == 1",
+      "value": 1
+     }
+    ],
+    "p_truncated": false,
+    "quasi_live": true,
+    "state_count": 4,
+    "t_invariants": [
+     {
+      "counts": {
+       "v": 1,
+       "w": 1
+      },
+      "render": "{v, w}",
+      "transitions": [
+       "v",
+       "w"
+      ]
+     },
+     {
+      "counts": {
+       "t": 1,
+       "u": 1
+      },
+      "render": "{t, u}",
+      "transitions": [
+       "t",
+       "u"
+      ]
+     }
+    ],
+    "t_truncated": false,
+    "witness": {
+     "kind": "livelock",
+     "marking": {
+      "p": 0,
+      "q": 0,
+      "r": 1,
+      "s": 0
+     },
+     "never_fires": [
+      "t",
+      "u",
+      "x"
+     ],
+     "region_size": 2,
+     "trace": [
+      "x"
+     ]
+    }
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {},
+   "reply": {
+    "enabled": [
+     "t",
+     "x"
+    ],
+    "marking": {
+     "p": 1,
+     "q": 0,
+     "r": 0,
+     "s": 0
+    }
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "t"
+   },
+   "reply": {
+    "enabled": [
+     "u"
+    ],
+    "marking": {
+     "p": 0,
+     "q": 1,
+     "r": 0,
+     "s": 0
+    }
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "u"
+   },
+   "reply": {
+    "error": "u needs 1 token(s) on q, have 0"
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "x"
+   },
+   "reply": {
+    "enabled": [
+     "v"
+    ],
+    "marking": {
+     "p": 0,
+     "q": 0,
+     "r": 1,
+     "s": 0
+    }
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "v"
+   },
+   "reply": {
+    "error": "v needs 1 token(s) on r, have 0"
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "w"
+   },
+   "reply": {
+    "error": "w needs 1 token(s) on s, have 0"
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "__no_such_transition__"
+   },
+   "reply": {
+    "error": "no transition \"__no_such_transition__\" in model \"livelock\""
+   }
+  }
+ ]
+}

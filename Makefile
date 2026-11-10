@@ -1,5 +1,5 @@
 # The npm package @pflow-xyz/pflow-wasm. Everything else here is plain cargo.
-.PHONY: wasm-compose wasm-compose-test wasm-npm wasm-npm-test wasm-npm-publish wasm-mcp-engine wasm-mcp wasm-mcp-test wasm-mcp-crosscheck wasm-mcp-crosscheck-tools wasm-mcp-publish
+.PHONY: wasm-compose wasm-compose-test wasm-npm wasm-npm-test wasm-npm-publish wasm-mcp-engine wasm-mcp wasm-mcp-test wasm-mcp-crosscheck wasm-mcp-crosscheck-tools wasm-mcp-publish engine-npm engine-npm-test engine-npm-publish
 
 # Must equal the wasm-bindgen dependency in crates/pflow-wasm/Cargo.toml.
 WASM_BINDGEN_VERSION := 0.2.129
@@ -113,3 +113,24 @@ wasm-mcp-crosscheck-tools: wasm-mcp
 # version (crates/pflow-wasm/mcp/build.mjs), and versions cannot be republished.
 wasm-mcp-publish: wasm-mcp-test
 	cd $(MCP_OUT) && npm publish --access public
+
+# @pflow-xyz/engine: pflow-reachability as one script that embeds its wasm and
+# defines the global PflowEngine (crates/pflow-artifact-engine). For pages that
+# may load a script from a CDN but not fetch a .wasm (claude.ai artifacts).
+# Its version is its own, set in crates/pflow-artifact-engine/npm/build.mjs.
+# The remaps keep home and checkout paths out of the module's panic strings.
+ENGINE_OPT := target/pflow-artifact-engine.opt.wasm
+ENGINE_OUT := target/npm/engine
+ENGINE_RUSTFLAGS := --remap-path-prefix=$(CURDIR)=pflow-rs --remap-path-prefix=$(HOME)=~ --remap-path-prefix=$(shell rustc --print sysroot)=/rust
+engine-npm:
+	RUSTFLAGS="$(ENGINE_RUSTFLAGS)" cargo build --profile wasm-release -p pflow-artifact-engine --target wasm32-unknown-unknown --target-dir target/engine-build
+	npx --yes --package=binaryen@$(BINARYEN_VERSION) -- wasm-opt -Oz $(WASM_FEATURES) -o $(ENGINE_OPT) target/engine-build/wasm32-unknown-unknown/wasm-release/pflow_artifact_engine.wasm
+	node crates/pflow-artifact-engine/npm/build.mjs $(ENGINE_OPT) $(ENGINE_OUT)
+
+engine-npm-test: engine-npm
+	node crates/pflow-artifact-engine/npm/test.mjs $(ENGINE_OUT)
+	cd $(ENGINE_OUT) && npm pack --dry-run
+
+# Needs `npm login` as an owner of the @pflow-xyz scope; versions cannot be republished.
+engine-npm-publish: engine-npm-test
+	cd $(ENGINE_OUT) && npm publish --access public

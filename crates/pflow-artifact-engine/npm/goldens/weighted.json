@@ -1,0 +1,194 @@
+{
+ "engine_sha256": "e8bdeed0081ba5811e4828b3788b41347a2a6eec0b1a6cf165d4af21c7e114f8",
+ "net": "weighted.json",
+ "calls": [
+  {
+   "fn": "analyze",
+   "req": {},
+   "reply": {
+    "bounded": true,
+    "complete": true,
+    "dead_markings": [
+     {
+      "full": 1,
+      "pair": 0,
+      "raw": 2
+     },
+     {
+      "full": 2,
+      "pair": 0,
+      "raw": 0
+     }
+    ],
+    "deadlock_free": false,
+    "edge_count": 5,
+    "engine": "pflow-rs pflow-reachability (wasm32, artifact probe)",
+    "live": false,
+    "max_tokens": {
+     "full": 2,
+     "pair": 2,
+     "raw": 4
+    },
+    "not_live": [
+     "make",
+     "pack"
+    ],
+    "p_invariants": [
+     {
+      "coefficients": {
+       "full": 2,
+       "pair": 2,
+       "raw": 1
+      },
+      "places": [
+       "full",
+       "pair",
+       "raw"
+      ],
+      "render": "2*full + 2*pair + raw == 4",
+      "value": 4
+     }
+    ],
+    "p_truncated": false,
+    "quasi_live": true,
+    "state_count": 6,
+    "t_invariants": [],
+    "t_truncated": false,
+    "witness": {
+     "kind": "deadlock",
+     "marking": {
+      "full": 1,
+      "pair": 0,
+      "raw": 2
+     },
+     "never_fires": [
+      "make",
+      "pack"
+     ],
+     "region_size": 1,
+     "trace": [
+      "make",
+      "pack"
+     ]
+    }
+   }
+  },
+  {
+   "fn": "analyze",
+   "req": {
+    "max_states": 5
+   },
+   "reply": {
+    "bounded": true,
+    "complete": false,
+    "dead_markings": [
+     {
+      "full": 1,
+      "pair": 0,
+      "raw": 2
+     }
+    ],
+    "deadlock_free": false,
+    "edge_count": 4,
+    "engine": "pflow-rs pflow-reachability (wasm32, artifact probe)",
+    "live": false,
+    "max_tokens": {
+     "full": 1,
+     "pair": 2,
+     "raw": 4
+    },
+    "not_live": [
+     "make",
+     "pack"
+    ],
+    "p_invariants": [
+     {
+      "coefficients": {
+       "full": 2,
+       "pair": 2,
+       "raw": 1
+      },
+      "places": [
+       "full",
+       "pair",
+       "raw"
+      ],
+      "render": "2*full + 2*pair + raw == 4",
+      "value": 4
+     }
+    ],
+    "p_truncated": false,
+    "quasi_live": "unknown",
+    "state_count": 5,
+    "t_invariants": [],
+    "t_truncated": false,
+    "witness": {
+     "kind": "deadlock",
+     "marking": {
+      "full": 1,
+      "pair": 0,
+      "raw": 2
+     },
+     "never_fires": [
+      "make",
+      "pack"
+     ],
+     "region_size": 1,
+     "trace": [
+      "make",
+      "pack"
+     ]
+    }
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {},
+   "reply": {
+    "enabled": [
+     "make"
+    ],
+    "marking": {
+     "full": 0,
+     "pair": 0,
+     "raw": 4
+    }
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "make"
+   },
+   "reply": {
+    "enabled": [
+     "make",
+     "pack"
+    ],
+    "marking": {
+     "full": 0,
+     "pair": 1,
+     "raw": 2
+    }
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "pack"
+   },
+   "reply": {
+    "error": "pack needs 1 token(s) on pair, have 0"
+   }
+  },
+  {
+   "fn": "fire",
+   "req": {
+    "transition": "__no_such_transition__"
+   },
+   "reply": {
+    "error": "no transition \"__no_such_transition__\" in model \"weighted\""
+   }
+  }
+ ]
+}
