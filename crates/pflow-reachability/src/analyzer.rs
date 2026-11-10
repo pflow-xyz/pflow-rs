@@ -29,6 +29,10 @@ pub struct AnalysisResult<'m> {
     pub graph: Graph<'m>,
     pub state_count: usize,
     pub edge_count: usize,
+    /// False once a marking exceeded the token limit; otherwise true, *even
+    /// when the search stopped at the state limit first* (go-pflow's
+    /// `Result.Bounded`, kept for parity). That true is "no evidence of
+    /// unboundedness", not a proof: use [`Self::bounded_verdict`] for an answer.
     pub bounded: bool,
     pub max_tokens: HashMap<String, i64>,
     pub max_depth: i64,
@@ -65,6 +69,23 @@ pub struct AnalysisResult<'m> {
     pub confirmed_dead: Vec<String>,
     pub fired_transitions: Vec<String>,
     pub exploration_stats: ExplorationStats,
+}
+
+impl AnalysisResult<'_> {
+    /// Boundedness as a verdict: false when a marking exceeded the token limit,
+    /// true only when the whole state space was explored, and unknown when the
+    /// search stopped at the state limit first (it saw no unbounded marking,
+    /// but has not seen every marking either). The same rule as the liveness
+    /// verdicts.
+    pub fn bounded_verdict(&self) -> Verdict {
+        if !self.bounded {
+            Verdict::False
+        } else if self.is_complete {
+            Verdict::True
+        } else {
+            Verdict::Unknown
+        }
+    }
 }
 
 /// A three-valued answer: a search that stopped early has not seen every state,
@@ -1047,9 +1068,36 @@ mod tests {
             ..Default::default()
         };
         let analyzer = Analyzer::new(&model).with_max_tokens(5);
+        assert_eq!(analyzer.analyze().bounded_verdict(), Verdict::False);
         let result = analyzer.build_graph();
         assert!(!result.bounded);
         assert!(result.truncated);
+    }
+
+    #[test]
+    fn state_limit_before_token_limit_leaves_boundedness_unknown() {
+        // The same growing net, but the state budget runs out long before
+        // the token limit: no unbounded marking was seen, and not every
+        // marking was either.
+        let model = Model {
+            name: "unbounded".into(),
+            places: vec![
+                Place { id: "p0".into(), initial: 1, ..Default::default() },
+                Place { id: "p1".into(), ..Default::default() },
+            ],
+            transitions: vec![Transition { id: "t0".into(), ..Default::default() }],
+            arcs: vec![
+                Arc { from: "p0".into(), to: "t0".into(), ..Default::default() },
+                Arc { from: "t0".into(), to: "p0".into(), ..Default::default() },
+                Arc { from: "t0".into(), to: "p1".into(), ..Default::default() },
+            ],
+            ..Default::default()
+        };
+        let r = Analyzer::new(&model).with_max_states(5).analyze();
+        assert!(!r.is_complete);
+        assert!(r.bounded, "the bool keeps go-pflow's meaning");
+        assert_eq!(r.bounded_verdict(), Verdict::Unknown);
+        assert_eq!(Analyzer::new(&chain_model()).analyze().bounded_verdict(), Verdict::True);
     }
 
     /// The recursive DFS that `dfs_cycles` replaced, kept as the reference the
