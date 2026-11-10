@@ -29,6 +29,17 @@ const P = {
 
 let store = null;
 let meta = null;
+
+/**
+ * Which ontology snapshot this package carries: { version, commit, dirty?, license,
+ * source, snapshot }, from ontology/meta.json (stamped by build.mjs). Reads
+ * one small file and never parses the Turtle; null when the package has no stamp.
+ */
+export function ontologyInfo() {
+  if (meta) return meta;
+  try { return JSON.parse(readFileSync(new URL('meta.json', dir), 'utf8')); } catch { return null; }
+}
+
 function load() {
   if (store) return store;
   store = new Store();

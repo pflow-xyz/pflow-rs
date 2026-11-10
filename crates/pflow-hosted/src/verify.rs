@@ -139,6 +139,9 @@ pub(crate) fn run(args: &Value) -> Result<Value, String> {
     let max = num_arg(args, "max_states", 2000.0, 1.0, MAX_STATES)? as usize;
     let props = parse_props(args.get("properties"))?;
 
+    // Local addition (pflow.xyz clients never send it, so the hosted answers stay byte-equal): with
+    // `explain_truncation: true` a truncated answer also carries the analyzer's own reason it stopped.
+    let explain = args.get("explain_truncation").and_then(Value::as_bool) == Some(true);
     let (expanded, cm) = expand(&petri_net(&doc));
     let model = model_of(&expanded);
     let verifier = Verifier::new(&model).with_max_states(max);
@@ -171,13 +174,13 @@ pub(crate) fn run(args: &Value) -> Result<Value, String> {
         verdicts.push(verdict_json(gp, kind, &verdict, &model, max));
     }
 
-    let (state_count, truncated) = if analyzed {
+    let (state_count, truncated, truncated_reason) = if analyzed {
         let r = Analyzer::new(&model).with_max_states(max).analyze();
-        (r.state_count, r.truncated)
+        (r.state_count, r.truncated, r.truncate_msg)
     } else {
-        (0, false)
+        (0, false, String::new())
     };
-    Ok(json!({
+    let mut out = json!({
         "verdicts": verdicts,
         "proved": proved,
         "refuted": refuted,
@@ -185,7 +188,11 @@ pub(crate) fn run(args: &Value) -> Result<Value, String> {
         "ok": refuted == 0 && unknown == 0,
         "state_count": state_count,
         "truncated": truncated,
-    }))
+    });
+    if explain && truncated && !truncated_reason.is_empty() {
+        out["truncated_reason"] = json!(truncated_reason);
+    }
+    Ok(out)
 }
 
 /// The property the Rust verifier checks: go-pflow's, with base color-place

@@ -133,7 +133,7 @@ const EXPECTED = ['artifact_html', 'bundle_add_link', 'bundle_candidates', 'bund
   'bundle_validate', 'check', 'chyp_check', 'chyp_part', 'chyp_rule', 'cid', 'edit', 'export', 'fire', 'incidence', 'info', 'invariants',
   'list_nets', 'load_net', 'ontology_classes', 'ontology_describe', 'ontology_search', 'reachability', 'reset', 'sde', 'simulate', 'state',
   'stochastic', 'validate', 'verify', 'what_if',
-  'bundle_net', 'bundle_prove', 'bundle_check_proof', 'bundle_parts', 'compose_canvas'].sort();
+  'bundle_net', 'bundle_prove', 'bundle_check_proof', 'bundle_parts', 'compose_canvas', 'list_examples', 'load_example'].sort();
 // every documented tool is served and none is served twice; a tool added later is reported, not failed
 check(`all ${EXPECTED.length} documented tools are served (${listed.length} listed${listed.length > EXPECTED.length ? '; not in the suite yet: ' + names.filter((n) => !EXPECTED.includes(n)).join(', ') : ''})`,
   EXPECTED.every((n) => names.includes(n)) && new Set(names).size === names.length, names.join(','));
@@ -800,10 +800,20 @@ sec('13. artifact_html');
   check('artifact_html writes a file and returns its path + size', !r.err && existsSync(out), r.text.slice(0, 150));
   const html = existsSync(out) ? readFileSync(out, 'utf8') : '';
   console.log(`   size ${html.length} bytes, scripts: ${(html.match(/<script/g) || []).length}`);
-  check('page has no http(s) URL, no external src/href/import (static check)', !/https?:\/\//.test(html) && !/<link[^>]+href|<script[^>]+src|@import/.test(html), 'external reference found');
+  // The only http(s) URLs are the footer's <a href> links to pflow.xyz (clicked by a person, never fetched).
+  // and the JSON-LD @context / token IRIs inside the #pflow-net data block (identifiers, not requests).
+  const bare = html.replace(/<a href="https:\/\/pflow\.xyz\/[^"]*"/g, '<a').replace(/(<script type="application\/json" id="pflow-net">)[\s\S]*?<\/script>/, '$1</script>');
+  check('page has no http(s) URL but pflow.xyz links, no external src/href/import (static check)', !/https?:\/\//.test(bare) && !/<link[^>]+href|<script[^>]+src|@import/.test(bare), 'external reference found');
   check('the only fetch( is wasm-bindgen\'s fallback for a non-inline module argument, which init() with no argument never reaches', (html.match(/\bfetch\(/g) || []).length === 1 && /module_or_path = fetch\(module_or_path\)/.test(html), `${(html.match(/\bfetch\(/g) || []).length} fetch( calls`);
   console.log(`   mentions of 'fetch(': ${(html.match(/fetch\(/g) || []).length}, 'import.meta': ${(html.match(/import\.meta/g) || []).length}, 'http': ${(html.match(/https?:\/\//g) || []).length}`);
   check('page includes a title, marks, fire buttons', /<title>sir<\/title>/.test(html) && /id="tx"/.test(html));
+  { // the default play page has no verify surface by design; the analysis view is it, with the engine's verdicts
+    const textOf = (h) => h.replace(/<script[\s\S]*?<\/script>/g, '');
+    const an = await call('artifact_html', { net: 'sir', views: ['analysis'], path: join(dir, 'tt-analysis.html') });
+    const ah = an.json?.path && existsSync(an.json.path) ? readFileSync(an.json.path, 'utf8') : '';
+    if (an.json?.path) rmSync(an.json.path, { force: true });
+    check('the play page has no verify text; views ["analysis"] adds the invariants and verdicts', !/invariant|deadlock|proof|verified/i.test(textOf(html)) && /invariant/i.test(ah) && /deadlock/i.test(ah) && ah.length > html.length - 1000, an.text.slice(0, 200));
+  }
   // regression (report B2): the chart read `series[p].values || series[p]`, but an ODE series is
   // an array and an array's own .values is Array.prototype.values (a function, always truthy), so
   // every page threw "not iterable" and drew nothing. Static check always; the real thing in
@@ -924,11 +934,11 @@ sec('14. timing');
   if (!QUICK) {
     const chain = toJsonLd(net('synthetic/chain-200'));
     const t0 = performance.now();
-    // cid is about cubic and runs on the server's own thread (53 s at 200 places, B5): a request
-    // that outlasts the SDK's 60 s timeout is the known failure, not a crashed suite.
+    // B5 (0.4.1): sealing is quadratic, not cubic, and runs in the worker; 200 places took 53 s
+    // before and about 3 s now. A request past the SDK's 60 s timeout fails the check, not the suite.
     const r = await call('cid', { net: chain }, { timeout: 120000 }).catch((e) => ({ err: true, text: String(e?.message ?? e) }));
     const s = (performance.now() - t0) / 1000;
-    check(`cid of a 200-place/200-transition net returns in < 5 s (took ${s.toFixed(1)} s)`, !r.err && s < 5, `${s.toFixed(1)} s`, { known: true });
+    check(`cid of a 200-place/200-transition net returns in < 5 s (took ${s.toFixed(1)} s)`, !r.err && s < 5, `${s.toFixed(1)} s`);
   }
 }
 

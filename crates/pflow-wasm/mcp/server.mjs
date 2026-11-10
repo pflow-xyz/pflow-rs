@@ -9,12 +9,14 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { buildPage, readMeta } from './pages.mjs';
 import { register as registerHosted, reachabilityGuarded, timeoutArg, withMarking } from './hosted.mjs';
+import { viewIds } from './views/index.mjs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // The engine with the pflow.xyz/mcp tools built in (make wasm-mcp-engine). The
-// browser build, ./pflow-wasm.inline.js, is only read as text for artifact_html.
-import init, { Net as Net0, hosted as hosted0 } from './pflow-wasm-hosted.inline.js';
+// browser build, ./pflow-wasm.inline.js, is only read as text by pages.mjs.
+import init, { Net as Net0, hosted as hosted0, version as engineVersion } from './pflow-wasm-hosted.inline.js';
 
 await init();
 // Mutable so a trapped instance can be replaced (restartEngine below).
@@ -32,7 +34,28 @@ let last = null;
 
 // The package has its own version (build.mjs); the engine's is version().
 const pkgVersion = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
-const server = new McpServer({ name: 'pflow-mcp', version: pkgVersion });
+const meta = readMeta(engineVersion());
+// Read by the client at connect time and given to the model. It steers Claude to
+// the engine's own pages instead of a hand-written one, whose verdicts would be
+// the model's judgment and not the engine's.
+const INSTRUCTIONS = `pflow-mcp: a Petri net engine (WebAssembly, offline). Nets are pflow.xyz JSON-LD.
+
+To show a net, a simulation or a proof, build the page with a tool and publish what it returns as a Claude artifact, with your own Artifact tool. This server only writes a local HTML file: it does not host, serve or publish anything, and it makes no network requests. Do not hand-write the page.
+- One net: load_net (or edit to build one), then artifact_html. It writes a self-contained page (engine embedded, no network) and returns a file path. Pass that file's path to the Artifact tool and publish it unchanged. The HTML is not returned inline; do not ask for it with inline=true unless you must. artifact_html takes views (default ["play"]); pick them from what the person asked for:
+  | the person says | views |
+  | show, play, how does it behave | play |
+  | is it safe, deadlock, prove, always holds | analysis + proof |
+  | what if, compare, remove, double | whatif |
+  | snap together, compose | compose_canvas (a composition, not a net view) |
+  | share, send | every view that fits the question |
+  Views not yet available are refused with the list of known ones: use those and say what is missing. Every page carries the net as JSON-LD (#pflow-net, Download net, Copy as text), so whoever gets the artifact can read the net back out of it and load_net it.
+- A composition (PetriNetBundle: parts joined by typed links): bundle_example, bundle_validate, bundle_candidates and bundle_add_link to build it, then compose_canvas for the snap-together page. The page re-checks proofs itself, with no engine.
+
+Verdicts come from the engine. Report a result of reachability, verify, validate, invariants, bundle_prove or bundle_check_proof only as the tool returned it, with its evidence or witness trace. A verdict of "unknown" stays "unknown": say the search was bounded, and never turn it into true. If you state a conclusion the engine did not return, call it your own judgment.
+
+Nets with guards, stages or rate schedules are refused, not run as a different net. Nets live in memory for the life of the process.`;
+
+const server = new McpServer({ name: 'pflow-mcp', version: pkgVersion }, { instructions: INSTRUCTIONS });
 
 const ok = (value) => ({ content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] });
 const fail = (e) => ({ isError: true, content: [{ type: 'text', text: String(e?.message ?? e) }] });
@@ -85,26 +108,32 @@ const snapshot = (net) => ({
   marking: net.marking(), enabled: net.enabled(),
 });
 
+// Shared by load_net and load_example (examples.mjs): one path, so an example is
+// a net like any other.
+function loadNet({ model, name, cid, published }) {
+  const obj = typeof model === 'string' ? JSON.parse(model) : model;
+  const key = name ?? obj?.name ?? 'net';
+  const net = new Net(model);
+  let conv;
+  try {
+    conv = hosted('net_to_jsonld', cid === undefined ? { model: obj, name: key } : { model: obj, name: key, cid });
+  } catch (e) { net.free?.(); throw e; }
+  nets.get(key)?.free?.();
+  nets.set(key, net);
+  models.set(key, obj);
+  // published: the CID pflow.xyz stores this net under (a built-in example), when it has one
+  jsonld.set(key, { doc: conv.net, cid: conv.cid, unsupported: conv.unsupported,
+    ...(published ? { published, publishedMatches: conv.cid === published } : {}) });
+  last = key;
+  const { net: _doc, places: _n, ...about } = conv;
+  return { name: key, ...snapshot(net), ...about };
+}
+
 tool('load_net',
   'Load a Petri net: pflow.xyz JSON-LD, or the array shape (places: [{id, initial}], arcs: [{from, to, weight, type}]). Replaces any net with the same name. Every other tool then reads it by name, whichever shape it came in. Also answers shape, layout ("given", or "synthesized" when the net had no coordinates), and the net\'s CID: the CID names the document, layout and arc order included. It is computed here for up to 50 places and 250 places+transitions+arcs in all (cost follows the whole graph); a larger net answers cid null with cid_skipped, and the cid tool computes it on demand. A net that cannot be written as a pflow.xyz document (data places, constraints, timed transitions) answers unsupported and still runs locally. Nets with guards, stages or rate schedules, and arcs with a fractional weight, are refused.',
   { model: z.union([z.string(), z.record(z.string(), z.any())]).describe('The net as a JSON object or JSON text'),
     name: z.string().optional().describe('Name to keep it under; defaults to the model name, else "net"') },
-  ({ model, name }) => {
-    const obj = typeof model === 'string' ? JSON.parse(model) : model;
-    const key = name ?? obj?.name ?? 'net';
-    const net = new Net(model);
-    let conv;
-    try {
-      conv = hosted('net_to_jsonld', { model: obj, name: key });
-    } catch (e) { net.free?.(); throw e; }
-    nets.get(key)?.free?.();
-    nets.set(key, net);
-    models.set(key, obj);
-    jsonld.set(key, { doc: conv.net, cid: conv.cid, unsupported: conv.unsupported });
-    last = key;
-    const { net: _doc, places: _n, ...about } = conv;
-    return { name: key, ...snapshot(net), ...about };
-  });
+  (args) => loadNet(args));
 
 tool('list_nets', 'List loaded nets.', {},
   () => ({ current: last, nets: [...nets.keys()], ...(engineRestarts ? { engine_restarts: engineRestarts } : {}) }));
@@ -187,112 +216,39 @@ tool('reachability',
   });
 
 // ---- artifact_html -------------------------------------------------------
-
-// The wasm package's inline entry is an ES module; strip its exports so it can
-// sit in a page's own <script type="module"> with no import and no fetch.
-const engineSource = () =>
-  readFileSync(new URL('./pflow-wasm.inline.js', import.meta.url), 'utf8')
-    .replace(/^export default function init/m, 'function init')
-    .replace(/^export class Net/m, 'class Net')
-    .replace(/^export function version/m, 'function version')
-    .replace(/^export \{ syncInit as initSync \};\s*$/m, '')
-    .replace(/<\/script/gi, '<\\/script');
-
-const PAGE_CSS = `
-:root{--bg:#fff;--fg:#1c1c1e;--mut:#6b6b70;--line:#d8d8dc;--acc:#2563eb;--card:#f6f6f8}
-@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#16161a;--fg:#ececf0;--mut:#9a9aa3;--line:#33333a;--acc:#6ea0ff;--card:#202026}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}
-main{max-width:860px;margin:0 auto;padding:20px 16px}h1{font-size:20px;margin:0 0 12px}
-section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin:0 0 14px}
-h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:0 0 10px}
-.marks{display:flex;flex-wrap:wrap;gap:8px}.mark{border:1px solid var(--line);border-radius:8px;padding:6px 12px;background:var(--bg)}
-.mark b{font-size:20px;display:block;line-height:1.1}.mark span{color:var(--mut);font-size:12px}
-button{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;margin:0 6px 6px 0}
-button:hover:not(:disabled){border-color:var(--acc);color:var(--acc)}button:disabled{opacity:.4;cursor:default}
-label{margin-right:12px;color:var(--mut);font-size:13px}input{font:inherit;width:70px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:3px 6px}
-svg{width:100%;height:auto;display:block}.leg{display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:var(--mut);margin-top:6px}
-.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px}#log{color:var(--mut);font-size:13px;min-height:1.4em}
-`;
-
-const PAGE_JS = `
-const COLORS=['#2563eb','#dc2626','#16a34a','#d97706','#9333ea','#0891b2','#be185d','#65a30d'];
-const $=id=>document.getElementById(id);
-const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-const num=(id,d)=>{const v=$(id).value;return v===''||isNaN(+v)?d:+v};
-await init();
-const net=new Net(MODEL);
-const places=net.places();
-function render(){
-  const m=net.marking(), en=new Set(net.enabled());
-  $('marks').innerHTML=places.map(p=>'<div class="mark"><b>'+m[p]+'</b><span>'+esc(p)+'</span></div>').join('');
-  $('tx').innerHTML='';
-  for(const t of net.transitions()){const b=document.createElement('button');b.textContent=t;b.disabled=!en.has(t);
-    b.onclick=()=>{try{net.fire(t);$('log').textContent='fired '+t}catch(e){$('log').textContent=String(e.message||e)}render()};$('tx').appendChild(b)}
-}
-function chart(res){
-  const W=800,H=300,L=44,B=28,T=8,R=8,ts=res.times;
-  // ODE series are arrays, SSA series are {values, stddev}; an array has its own .values (a function), so test the type
-  const ser=p=>Array.isArray(res.series[p])?res.series[p]:res.series[p].values;
-  let max=0;for(const p of places)for(const v of ser(p))max=Math.max(max,v);max=max||1;
-  const x=t=>L+(t-ts[0])/((ts[ts.length-1]-ts[0])||1)*(W-L-R), y=v=>T+(1-v/max)*(H-T-B);
-  let s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="token counts over time">';
-  for(let i=0;i<=4;i++){const v=max*i/4,yy=y(v);s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+yy+'" y2="'+yy+'" stroke="var(--line)"/><text x="'+(L-6)+'" y="'+(yy+4)+'" text-anchor="end" font-size="11" fill="var(--mut)">'+(+v.toFixed(2))+'</text>'}
-  for(const i of [0,.5,1]){const t=ts[0]+(ts[ts.length-1]-ts[0])*i;s+='<text x="'+x(t)+'" y="'+(H-8)+'" text-anchor="middle" font-size="11" fill="var(--mut)">'+(+t.toFixed(2))+'</text>'}
-  places.forEach((p,k)=>{const vals=ser(p);
-    s+='<polyline fill="none" stroke="'+COLORS[k%8]+'" stroke-width="2" points="'+vals.map((v,i)=>x(ts[i]).toFixed(1)+','+y(v).toFixed(1)).join(' ')+'"/>'});
-  $('chart').innerHTML=s+'</svg>';
-  $('legend').innerHTML=places.map((p,k)=>'<span><i class="sw" style="background:'+COLORS[k%8]+'"></i>'+esc(p)+'</span>').join('');
-}
-function run(kind){
-  const t=num('t',10);
-  try{chart(kind==='ode'?net.simulate({tEnd:t,maxPoints:120}):net.stochastic({horizon:t,samples:120,realizations:num('n',1),seed:num('seed',1)}));$('log').textContent=kind==='ode'?'ODE from current marking':'SSA from current marking'}
-  catch(e){$('log').textContent=String(e.message||e)}
-}
-$('reset').onclick=()=>{net.reset();render();run('ode')};
-$('ode').onclick=()=>run('ode');$('ssa').onclick=()=>run('ssa');
-render();run('ode');
-`;
-
-const buildPage = (title, model) => `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${title.replace(/[<&]/g, '')}</title><style>${PAGE_CSS}</style></head><body><main>
-<h1>${title.replace(/[<&]/g, '')}</h1>
-<section><h2>Marking</h2><div class="marks" id="marks"></div></section>
-<section><h2>Fire</h2><div id="tx"></div><button id="reset">Reset</button><div id="log"></div></section>
-<section><h2>Over time</h2>
-<label>t <input id="t" type="number" value="10"></label><label>runs <input id="n" type="number" value="20"></label><label>seed <input id="seed" type="number" value="1"></label>
-<div style="margin-top:8px"><button id="ode">Run ODE</button><button id="ssa">Run SSA</button></div>
-<div id="chart"></div><div class="leg" id="legend"></div></section>
-</main>
-<script type="module">
-${engineSource()}
-const MODEL=${JSON.stringify(model).replace(/</g, '\\u003c')};
-${PAGE_JS}
-</script></body></html>
-`;
+// The page shell and the views live in pages.mjs and views/.
 
 tool('artifact_html',
-  'Write a self-contained interactive HTML page for a loaded net: click-to-fire token game plus ODE/SSA charts. The pflow WebAssembly engine is embedded, so the page makes no network requests and runs inside a sandboxed artifact. Returns the file path; publish that file as an artifact (the HTML is not returned inline: it is ~250 KB).',
+  `Write a self-contained interactive HTML page for a loaded net and return its file path; publish that file as an artifact (the HTML is not returned inline: it is ~250 KB). The pflow WebAssembly engine is embedded, so the page makes no network requests and runs inside a sandboxed artifact. Every page has a footer (document CID, package, engine and ontology versions, seed), the net as JSON-LD (a Download net button, a Copy as text button, and a #pflow-net block a later session can read and load_net), and a link to the same net in the public editor. views picks what the page shows (known: ${viewIds().join(', ')}); default ["play"] is the click-to-fire token game plus ODE/SSA charts.`,
   { net: netName,
+    views: z.array(z.string()).optional().describe(`Views to include, in order (known: ${viewIds().join(', ')}); default ["play"]. An unknown id is refused.`),
     title: z.string().optional().describe('Page title (default: the net name)'),
     path: z.string().optional().describe('Where to write it (default: a temp file)'),
     inline: z.boolean().optional().describe('Also return the HTML text. Large; off by default.') },
-  ({ net, title, path, inline }) => {
+  ({ net, views, title, path, inline }) => {
     const key = net ?? last;
     get(net);
     const model = models.get(key);
-    const html = buildPage(title ?? model?.name ?? key, model);
+    const entry = jsonld.get(key) ?? {};
+    const html = buildPage({
+      net: { key, title: title ?? model?.name ?? key, model, doc: entry.doc, cid: entry.cid ?? null,
+        published: entry.published, publishedMatches: entry.publishedMatches,
+        cidNote: entry.cid ? 'The CID names the document: layout, arc order and name included.' : undefined },
+      viewIds: views, meta, engine: { hosted, net: (n) => get(n ?? key) },
+    });
     const file = path ?? join(tmpdir(), `pflow-${String(key).replace(/[^\w.-]+/g, '_')}.html`);
     writeFileSync(file, html);
-    return { path: file, bytes: html.length, ...(inline ? { html } : {}) };
+    return { path: file, bytes: html.length, views: (views ?? ['play']), ...(inline ? { html } : {}) };
   });
 
 import { register as registerOntology } from './ontology.mjs';
 import { register as registerChyp } from './chyp.mjs';
 import { register as registerCompose } from './compose.mjs';
+import { register as registerExamples } from './examples.mjs';
 registerOntology(tool);
 registerChyp(tool);
 registerHosted(tool, { hosted: (...a) => hosted(...a), jsonld, last: () => last });
-registerCompose(tool);
+registerCompose(tool, { meta });
+registerExamples(tool, { loadNet, hosted: (...a) => hosted(...a) });
 
 await server.connect(new StdioServerTransport());
