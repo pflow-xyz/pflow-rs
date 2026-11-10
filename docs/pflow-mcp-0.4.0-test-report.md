@@ -5,6 +5,20 @@ Date 2026-11-03. Subject: the npm package `@pflow-xyz/pflow-mcp@0.4.0`, byte-ide
 compared with `cmp`). Testing only: nothing was published to npm, pushed or version-bumped. Work is on local
 branch `val/run-1f0df12f`.
 
+## Status (2026-11-06): B1 to B5 fixed in 0.4.1
+
+All five bugs below are fixed in `@pflow-xyz/pflow-mcp` 0.4.1 (`crates/pflow-wasm/mcp/CHANGELOG.md`); regression tests are in `crates/pflow-wasm/mcp/test-fixes-041.mjs`, `test-load-net.mjs`, `test-tools.mjs` and `crates/pflow-hosted/tests/seal_cost.rs`.
+
+| Bug | Fix |
+|-----|-----|
+| B1 | Iterative `dfs_cycles`; the search tools run in a worker thread with `timeout_ms`; a trap on the main engine reinstantiates it and reloads the loaded nets (the hardening this report said was *not* done is now done) |
+| B2 | `Array.isArray(s) ? s : s.values`; headless-Chrome check of the ODE and SSA charts |
+| B3 | `load_net` stores JSON-LD, and an inline array-shape net is converted before any hosted-name tool reads it |
+| B4 | 0 is off, `null` is unset, in `simulate`, `stochastic` and model rates |
+| B5 | The canonicaliser no longer clones its issuer along each tied RDF list: quadratic, CIDs unchanged, 200 places 53 s to about 2.6 s in wasm; sealing tools run in the worker with `timeout_ms` |
+
+test-tools.mjs: 0.4.0 as published, 636 checks, 596 pass, 15 known, 25 FAIL; 0.4.1, 635 checks, 623 pass, 12 known, 0 FAIL (the `views` check, which tests a later feature, is not in this line).
+
 ## What was built
 
 | Path (under `crates/pflow-wasm/mcp/`) | What |

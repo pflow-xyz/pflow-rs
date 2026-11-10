@@ -192,6 +192,10 @@ impl IdentifierIssuer {
 struct CanonState {
     bnode_quads: BTreeMap<String, Vec<Quad>>,
     canonical_issuer: IdentifierIssuer,
+    /// Every blank node's Hash First Degree Quads, computed once in step 1:
+    /// it depends only on the input quads, and `hash_related_blank_node`
+    /// would otherwise recompute it on every visit.
+    first_degree: std::collections::HashMap<String, String>,
 }
 
 fn blank_node_labels(quads: &[Quad]) -> Vec<String> {
@@ -282,6 +286,8 @@ fn hash_related_blank_node(
         format!("_:{canon}")
     } else if let Some(temp) = issuer.map.get(related) {
         format!("_:{temp}")
+    } else if let Some(h) = state.first_degree.get(related) {
+        h.clone()
     } else {
         hash_first_degree_quads(state, related)
     };
@@ -336,12 +342,20 @@ fn permutations_lex(v: &[String]) -> Result<Vec<Vec<String>>, CanonicalCidError>
 /// keeping the permutation that yields the lexicographically smallest
 /// issuance path. Recursive: a related node with its own first-degree tie
 /// is itself resolved by a nested call.
+///
+/// The issuer is taken by value and handed back extended: the spec's
+/// "copy of the issuer" is only cloned where a group has more than one
+/// permutation to try. With one permutation (the common case, and every
+/// step of an RDF list's chain of identical cells) there is nothing to
+/// compare against, so the walk extends one issuer in place. Cloning it at
+/// every step of that walk made a list of n tied cells cost O(n^3) (53 s at
+/// 200 places); the hashes and the issued order are unchanged.
 fn hash_n_degree_quads(
     state: &CanonState,
     label: &str,
-    issuer: &IdentifierIssuer,
+    issuer: IdentifierIssuer,
 ) -> Result<(String, IdentifierIssuer), CanonicalCidError> {
-    let mut issuer = issuer.clone();
+    let mut issuer = issuer;
     let mut hash_to_related: BTreeMap<String, Vec<String>> = BTreeMap::new();
 
     let empty = Vec::new();
@@ -364,11 +378,17 @@ fn hash_n_degree_quads(
         related.sort();
         related.dedup();
 
+        let perms = permutations_lex(&related)?;
+        let single = perms.len() == 1;
         let mut chosen_path: Option<String> = None;
-        let mut chosen_issuer = issuer.clone();
+        let mut chosen_issuer: Option<IdentifierIssuer> = None;
 
-        for perm in permutations_lex(&related)? {
-            let mut issuer_copy = issuer.clone();
+        for perm in perms {
+            let mut issuer_copy = if single {
+                std::mem::replace(&mut issuer, IdentifierIssuer::new(""))
+            } else {
+                issuer.clone()
+            };
             let mut path = String::new();
             let mut recursion_list = Vec::new();
 
@@ -390,8 +410,10 @@ fn hash_n_degree_quads(
 
             for related_label in &recursion_list {
                 let (result_hash, result_issuer) =
-                    hash_n_degree_quads(state, related_label, &issuer_copy)?;
-                let id = issuer_copy.map[related_label].clone();
+                    hash_n_degree_quads(state, related_label, issuer_copy)?;
+                // The result extends the issuer it was given, so the id it
+                // holds for `related_label` is the one issued above.
+                let id = result_issuer.map[related_label].clone();
                 path.push_str("_:");
                 path.push_str(&id);
                 // The recursive hash is wrapped in literal angle brackets
@@ -404,12 +426,14 @@ fn hash_n_degree_quads(
 
             if chosen_path.as_deref().is_none_or(|cp| path.as_str() < cp) {
                 chosen_path = Some(path);
-                chosen_issuer = issuer_copy;
+                chosen_issuer = Some(issuer_copy);
             }
         }
 
         data_to_hash.push_str(chosen_path.as_deref().unwrap_or(""));
-        issuer = chosen_issuer;
+        if let Some(chosen) = chosen_issuer {
+            issuer = chosen;
+        }
     }
 
     Ok((sha256hex(&data_to_hash), issuer))
@@ -423,6 +447,7 @@ fn canonicalize(quads: &[Quad]) -> Result<Vec<Quad>, CanonicalCidError> {
     let mut state = CanonState {
         bnode_quads,
         canonical_issuer: IdentifierIssuer::new("c14n"),
+        first_degree: std::collections::HashMap::new(),
     };
     let non_normalized = blank_node_labels(quads);
 
@@ -430,6 +455,7 @@ fn canonicalize(quads: &[Quad]) -> Result<Vec<Quad>, CanonicalCidError> {
     let mut hash_to_labels: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for label in &non_normalized {
         let h = hash_first_degree_quads(&state, label);
+        state.first_degree.insert(label.clone(), h.clone());
         hash_to_labels.entry(h).or_default().push(label.clone());
     }
 
@@ -453,7 +479,7 @@ fn canonicalize(quads: &[Quad]) -> Result<Vec<Quad>, CanonicalCidError> {
             }
             let mut temp_issuer = IdentifierIssuer::new("b");
             temp_issuer.issue_identifier(label);
-            let (nd_hash, result_issuer) = hash_n_degree_quads(&state, label, &temp_issuer)?;
+            let (nd_hash, result_issuer) = hash_n_degree_quads(&state, label, temp_issuer)?;
             results.push((nd_hash, label.clone(), result_issuer));
         }
         results.sort_by(|a, b| a.0.cmp(&b.0));

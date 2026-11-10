@@ -65,7 +65,7 @@ const transitions = Array.from({ length: 59 }, (_, i) => ({ id: `t${i}` }));
 const arcs = transitions.flatMap((t, i) => [{ from: `p${i}`, to: t.id }, { from: t.id, to: `p${i + 1}` }]);
 const big = await ok('load_net', { model: { name: 'chain60', places, transitions, arcs } });
 assert.equal(big.cid, null);
-assert.match(big.cid_skipped, /cubic/);
+assert.match(big.cid_skipped, /quadratic/);
 const t0 = Date.now();
 assert.match((await ok('cid', { net: 'chain60' })).cid, /^z4EBG9j/);
 console.log(`   cid of 60 places on demand: ${Date.now() - t0} ms`);
@@ -78,7 +78,7 @@ console.log(`   cid of 60 places on demand: ${Date.now() - t0} ms`);
   const t1 = Date.now();
   const wide = await ok('load_net', { model: { name: 'wide', places: wp, transitions: wt, arcs: wa } });
   assert.equal(wide.cid, null);
-  assert.match(wide.cid_skipped, /cubic/);
+  assert.match(wide.cid_skipped, /quadratic/);
   assert.ok(Date.now() - t1 < 5000, 'load_net of a wide net must not seal eagerly');
 }
 

@@ -39,7 +39,7 @@ function zodOf(p = {}) {
 
 /** The pflow.xyz JSON-LD a `net` argument names: an object as is, a string a
  *  loaded net's (load_net writes every loaded net in that form). */
-export function resolveNet(value, { jsonld, last }) {
+export function resolveNet(value, { jsonld, last, hosted }) {
   const named = (key) => {
     const e = jsonld.get(key);
     if (!e) throw new Error(`no net named "${key}"; loaded: ${[...jsonld.keys()].join(', ') || 'none'}`);
@@ -51,7 +51,21 @@ export function resolveNet(value, { jsonld, last }) {
     return named(last());
   }
   if (typeof value === 'string') return named(value);
-  return value;
+  // B3: a net given inline in the array shape load_net accepts is written as a
+  // pflow.xyz document first (unsealed: the tool seals it itself if it needs a
+  // CID), so every hosted-name tool reads both shapes.
+  if (value && typeof value === 'object' && Array.isArray(value.places)) {
+    if (!hosted) throw new Error('net: an array-shape net needs load_net first here');
+    let conv;
+    try { conv = hosted('net_to_jsonld', { model: value, name: value.name ?? 'net', cid: false }); }
+    catch (e) { throw new Error(`net: the array-shape net could not be read: ${e?.message ?? e}`); }
+    // Not expressible as a pflow.xyz document (a flattened composite's
+    // constraints, data places): the engine's own refusal names the right tool.
+    if (!conv?.net) return value;
+    return conv.net;
+  }
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value; // pflow.xyz JSON-LD: the engine judges it
+  throw new Error('net: expected a pflow.xyz net (places as an object keyed by id), an array-shape net (places: [{id, initial}], arcs: [{from, to}]), or the name of a net loaded with load_net');
 }
 
 // ---- timeouts -------------------------------------------------------------
@@ -182,6 +196,15 @@ export function withMarking(model, marking) {
 }
 
 const GUARDED = new Set(['validate', 'verify']);
+// Sealing a net (its CID) is quadratic in the length of its tied RDF lists
+// (pflow-tokenmodel canonical_cid.rs; about 1.5 s natively at 200 places, more
+// in wasm), so the tools that seal run in the worker too: the server stays
+// responsive, a trap there cannot poison this thread's engine, and past
+// timeout_ms the call is refused with a clear message instead of blocking.
+const SEALING = new Set(['cid', 'export', 'edit']);
+export const SEAL_TIMEOUT_MS = 60000;
+const sealTimeoutArg = z.number().int().min(1).max(MAX_TIMEOUT_MS).optional()
+  .describe(`Wall-clock limit in ms for sealing (default ${SEAL_TIMEOUT_MS}, max ${MAX_TIMEOUT_MS}). Past it the call is stopped and answers an error.`);
 
 export function register(tool, { hosted, jsonld, last }) {
   for (const t of tools) {
@@ -197,8 +220,12 @@ export function register(tool, { hosted, jsonld, last }) {
       shape.timeout_ms = timeoutArg;
       description += ` Local addition: timeout_ms (default ${DEFAULT_TIMEOUT_MS}, max ${MAX_TIMEOUT_MS}); a call that runs past it answers unknown with truncated:true and timed_out:true instead of blocking.`;
     }
+    if (SEALING.has(t.name)) {
+      shape.timeout_ms = sealTimeoutArg;
+      description += ` Local addition: timeout_ms (default ${SEAL_TIMEOUT_MS}, max ${MAX_TIMEOUT_MS}); sealing a large net (its CID) is quadratic in its size, and a call that runs past the limit is refused with an error saying so.`;
+    }
     if (t.name === 'edit') {
-      shape.cid = z.boolean().optional().describe('false skips sealing the result (its CID), which is about cubic in net size: 6 s at 100 places. Default true');
+      shape.cid = z.boolean().optional().describe('false skips sealing the result (its CID), which is quadratic in net size. Default true');
       description += ' Local addition: cid:false leaves the CID out of the answer.';
     }
     tool(t.name, description, shape, async (args) => {
@@ -206,7 +233,7 @@ export function register(tool, { hosted, jsonld, last }) {
       let entry = null;
       if ('net' in props && (t.name !== 'edit' || a.net != null)) {
         const key = typeof a.net === 'string' ? a.net : a.net == null ? last() : null;
-        a.net = resolveNet(a.net, { jsonld, last });
+        a.net = resolveNet(a.net, { jsonld, last, hosted });
         entry = key != null ? jsonld.get(key) : null;
       }
       // a loaded net's CID is computed once
@@ -216,6 +243,11 @@ export function register(tool, { hosted, jsonld, last }) {
         const ms = timeout_ms ?? DEFAULT_TIMEOUT_MS;
         const r = await runGuarded({ op: 'hosted', name: t.name, args: a }, ms);
         out = r.timedOut ? hostedTimeout(t.name, a, ms) : r.value;
+      } else if (SEALING.has(t.name) && !(t.name === 'edit' && a.cid === false)) {
+        const ms = timeout_ms ?? SEAL_TIMEOUT_MS;
+        const r = await runGuarded({ op: 'hosted', name: t.name, args: a }, ms);
+        if (r.timedOut) throw new Error(`${t.name}: sealing this net (computing its CID) ran past ${ms} ms and was stopped; the cost is quadratic in net size. Raise timeout_ms (max ${MAX_TIMEOUT_MS})${t.name === 'edit' ? ', or pass cid:false to skip the seal' : ''}.`);
+        out = r.value;
       } else out = hosted(t.name, a);
       if (t.name === 'cid' && entry && typeof out?.cid === 'string' && out.kind == null) entry.cid = out.cid;
       return out;

@@ -67,8 +67,12 @@
 //!
 //! # Cost
 //!
-//! The CID is the single-threaded URDNA2015 canonicalisation, about cubic in
-//! the net's size (53 s at 200 places, bug B5). So it is computed here only
+//! The CID is the single-threaded URDNA2015 canonicalisation. A pflow net's
+//! RDF lists are chains of blank nodes that all tie on their first-degree
+//! hash, and the spec resolves each tie by walking the chain, so the cost is
+//! quadratic in the net's size: 1.5 s natively at 200 places, 8 s at 400 (it
+//! was cubic, 53 s at 200, until pflow-tokenmodel stopped cloning the
+//! identifier issuer at every step of that walk; bug B5). So it is computed here only
 //! for a net of at most [`EAGER_CID_MAX_PLACES`] places and [`EAGER_CID_MAX_NODES`]
 //! nodes-plus-arcs (or when `cid: true`); the cost grows with every node and arc,
 //! not with places alone (10 places and 200 transitions took 56 s);
@@ -159,7 +163,7 @@ pub(crate) fn run(args: &Value) -> Result<Value, String> {
             "cid: false".to_string()
         } else {
             format!(
-                "{places} places and {size} places+transitions+arcs is over the limit ({EAGER_CID_MAX_PLACES} places, {EAGER_CID_MAX_NODES} in all): sealing is about cubic in net size (53 s at 200 places), so it is left for the cid tool"
+                "{places} places and {size} places+transitions+arcs is over the limit ({EAGER_CID_MAX_PLACES} places, {EAGER_CID_MAX_NODES} in all): sealing is quadratic in net size (seconds at a few hundred places), so it is left for the cid tool"
             )
         };
         out.insert("cid_skipped".into(), json!(why));
@@ -803,13 +807,13 @@ mod tests {
         assert!(small["cid"].is_string());
         let over = run(&json!({"model": big(EAGER_CID_MAX_PLACES + 1)})).unwrap();
         assert!(over["cid"].is_null());
-        assert!(over["cid_skipped"].as_str().unwrap().contains("cubic"));
+        assert!(over["cid_skipped"].as_str().unwrap().contains("quadratic"));
         assert!(over["net"]["places"].as_object().unwrap().len() > EAGER_CID_MAX_PLACES);
         // few places, many transitions: the size guard stops it too
         let wide: Vec<Value> = (0..EAGER_CID_MAX_NODES).map(|i| json!({"id": format!("t{i}")})).collect();
         let w = run(&json!({"model": {"places": [{"id": "p", "initial": 1}], "transitions": wide, "arcs": []}})).unwrap();
         assert!(w["cid"].is_null(), "many transitions must not be sealed eagerly");
-        assert!(w["cid_skipped"].as_str().unwrap().contains("cubic"));
+        assert!(w["cid_skipped"].as_str().unwrap().contains("quadratic"));
         // and never when asked not to
         let never = run(&json!({"model": big(3), "cid": false})).unwrap();
         assert!(never["cid"].is_null());
