@@ -375,6 +375,30 @@ crates bring in more (arkworks; `rmcp`, `tokio`, `schemars`).
 
 - **Draft:** [Incidence Reduction: Extracting Exact Strategic Values from Game Topologies via Petri Net ODE Equilibrium](papers/integer-reduction/incidence-reduction.pdf) (source: `papers/integer-reduction/main.tex`)
 
+## Check it yourself
+
+The engine, the goldens it is held to and the nets they come from are all in
+public repositories, so a result from pflow-rs can be re-run rather than taken
+on trust. What can be reproduced, and how:
+
+| Claim | How to re-run it |
+|---|---|
+| A pflow.xyz net's CID | URDNA2015 canonicalisation, SHA-256, CIDv1 base58btc. `pflow-tokenmodel`'s `canonical_cid` recomputes it, and `cargo test -p pflow-tokenmodel matches_pflow_xyz_golden_cids` holds it to the CIDs in pflow-xyz's `parity/golden.json` (vendored under `crates/pflow-tokenmodel/tests/fixtures/cid/parity/`, sha256-pinned in `pflow-xyz.lock`). The same CID is computed in Go (go-pflow, pflow-xyz `internal/seal`) and in the browser (pflow-xyz `public/seal-cid.mjs`) |
+| A seeded SSA run | `pflow_solver::ssa` in portable mode gives the same doubles as go-pflow and pflow.xyz at the same seed. `cargo test -p pflow-solver --test ssa_parity` compares every parsed double with go-pflow's goldens (`crates/pflow-solver/tests/fixtures/ssa/`, pinned in `go-pflow.lock`); the ODE, SDE and scheduled engines have their own parity tests beside it |
+| How an editor document is read | `cargo test -p pflow-parser --test parity` against go-pflow's editor-shape goldens |
+| A pflow.xyz/mcp answer | `pflow-hosted` answers the hosted tools with the hosted names and shapes; `cargo test -p pflow-hosted every_hosted_answer_is_reproduced` replays answers captured from `https://pflow.xyz/mcp` (`crates/pflow-hosted/tests/fixtures/hosted/`, with the server commit they were captured at) |
+| A deadlock or liveness verdict | `pflow-verify` and `pflow-reachability` return `true`, `false` or `unknown`. A `false` comes with a witness trace that replays with the firing rule, and a search that hit its budget says so instead of answering |
+| A Groth16 transition proof | `pflow-zk-arkworks` runs setup, prove and verify locally. Setup is per run: no proving or verifying keys are published and there was no ceremony, so a proof is checked by someone who runs the setup, not by a third party holding a published key |
+
+`./scripts/go-pflow-goldens.sh check` and `./scripts/pflow-xyz-fixtures.sh check`
+confirm offline that the vendored goldens are byte-identical to what their locks
+record. A golden is never regenerated to make a test pass; a mismatch is a bug
+here or a deliberate change upstream (ROADMAP.md, ground rules).
+
+The npm packages are built from this repository (`make wasm-npm`, `make
+wasm-mcp`, `make engine-npm`, each with a `-test` target that runs its tests).
+Byte-identical rebuilds of the published tarballs are not claimed.
+
 ## Contributing
 
 We don't merge outside code, so pull requests won't be merged as-is.
@@ -383,4 +407,8 @@ Feature requests and bug reports are welcome: please open an
 
 ## License
 
-MIT
+MIT (see [LICENSE](LICENSE)) for every crate, `@pflow-xyz/pflow-wasm` and
+`@pflow-xyz/engine`. `@pflow-xyz/pflow-mcp` is `MIT AND Apache-2.0 AND
+CC0-1.0`: the engine is MIT, the bundled [chyp-rs](https://github.com/stackdump/chyp-rs)
+build is Apache-2.0 (its LICENSE and NOTICE ship in the package), and the bundled
+ontology snapshot is CC0 data from [ontology.pflow.xyz](https://ontology.pflow.xyz).

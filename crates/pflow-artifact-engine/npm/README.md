@@ -33,6 +33,16 @@ Needs WebAssembly compilation (under a CSP, `'wasm-unsafe-eval'`) and
 `alloc(len)`, write JSON into `memory`, `analyze(ptr,len)` / `fire(ptr,len)`
 return a u64 `(ptr<<32)|len` pointing at the JSON reply, `dealloc(ptr,len)`.
 
+## Check it yourself
+
 Source: [pflow-rs `crates/pflow-artifact-engine`](https://github.com/pflow-xyz/pflow-rs/tree/main/crates/pflow-artifact-engine).
-The tests hold every reply to the goldens of the engine pflow.xyz's
-`pflow_artifact` embeds inline. MIT.
+`make engine-npm-test` in a pflow-rs checkout builds the package and holds every
+reply to the goldens of the engine pflow.xyz's `pflow_artifact` embeds inline
+(`npm/goldens/`, over the nets in `npm/nets/`). A verdict on a page that loads
+this script can therefore be re-run: take the net from the page, call `analyze`,
+and replay any witness trace with `fire`. Byte-identical rebuilds of the
+published `pflow-engine.js` are not claimed.
+
+## License
+
+MIT.
