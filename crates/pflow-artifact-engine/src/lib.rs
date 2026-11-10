@@ -106,7 +106,7 @@ fn analyze_inner(req: &Value) -> Result<Value, String> {
         "state_count": r.state_count,
         "edge_count": r.edge_count,
         "complete": r.is_complete,
-        "bounded": r.bounded,
+        "bounded": verdict(r.bounded_verdict()),
         "max_tokens": r.max_tokens.into_iter().collect::<BTreeMap<_, _>>(),
         "deadlock_free": verdict(lv.deadlock_free),
         "live": verdict(lv.live),

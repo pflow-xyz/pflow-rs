@@ -79,7 +79,7 @@
     "max_states": 5
    },
    "reply": {
-    "bounded": true,
+    "bounded": "unknown",
     "complete": false,
     "dead_markings": [
      {
@@ -189,6 +189,15 @@
    "reply": {
     "error": "no transition \"__no_such_transition__\" in model \"weighted\""
    }
+  }
+ ],
+ "amendments": [
+  {
+   "call": 1,
+   "field": "bounded",
+   "was": true,
+   "now": "unknown",
+   "why": "a search stopped at max_states (complete: false) has not proved boundedness"
   }
  ]
 }

@@ -10,7 +10,7 @@ them) allow scripts from `cdn.jsdelivr.net/npm`, cdnjs and unpkg but block every
 other fetch, including a `.wasm` from those same hosts.
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@pflow-xyz/engine@0.1.0/pflow-engine.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@pflow-xyz/engine@0.2.0/pflow-engine.js"></script>
 <script>
   PflowEngine.load().then((engine) => {
     const a = engine.analyze({ net, max_states: 2000 });
@@ -22,9 +22,25 @@ other fetch, including a `.wasm` from those same hosts.
 </script>
 ```
 
+As a dependency (`npm i @pflow-xyz/engine`), the `exports` map sends `import`
+to an ES module with named exports and a default, and `require` to the same
+script; both carry types (`AnalyzeResult`, `LivenessWitness`, `Verdict`, ...):
+
+```js
+import { load } from '@pflow-xyz/engine';        // or: import PflowEngine from '@pflow-xyz/engine'
+const { load } = require('@pflow-xyz/engine');   // CommonJS
+```
+
+The ES module defines no global; the script does.
+
 `net` is a pflow.xyz JSON-LD net (or pflow-rs's Shape B model). `analyze`
 and `fire` throw on an `{"error": ...}` reply; `raw(fn, req)` returns it.
-Also loads under `require()`.
+
+`deadlock_free`, `live`, `quasi_live` and `bounded` are `true`, `false` or
+`"unknown"`. A search that stopped at `max_states` (`complete: false`) has not
+seen every marking, so a claim about all of them is `"unknown"`; `bounded` is
+`false` as soon as a marking passes the token limit. (0.1.0 reported `bounded:
+true` for a search cut short by `max_states`; since 0.2.0 that is `"unknown"`.)
 
 Needs WebAssembly compilation (under a CSP, `'wasm-unsafe-eval'`) and
 `DecompressionStream` (Chrome 80, Safari 16.4, Firefox 113, Node 18).

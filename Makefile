@@ -127,9 +127,13 @@ engine-npm:
 	npx --yes --package=binaryen@$(BINARYEN_VERSION) -- wasm-opt -Oz $(WASM_FEATURES) -o $(ENGINE_OPT) target/engine-build/wasm32-unknown-unknown/wasm-release/pflow_artifact_engine.wasm
 	node crates/pflow-artifact-engine/npm/build.mjs $(ENGINE_OPT) $(ENGINE_OUT)
 
+# Tests the tarball npm would publish, unpacked, so a file missing from "files" fails.
+ENGINE_PACK := target/npm/engine-pack
 engine-npm-test: engine-npm
-	node crates/pflow-artifact-engine/npm/test.mjs $(ENGINE_OUT)
-	cd $(ENGINE_OUT) && npm pack --dry-run
+	rm -rf $(ENGINE_PACK) && mkdir -p $(ENGINE_PACK)
+	cd $(ENGINE_OUT) && npm pack --pack-destination $(CURDIR)/$(ENGINE_PACK)
+	tar -xzf $(ENGINE_PACK)/pflow-xyz-engine-*.tgz -C $(ENGINE_PACK)
+	node crates/pflow-artifact-engine/npm/test.mjs $(ENGINE_PACK)/package
 
 # Needs `npm login` as an owner of the @pflow-xyz scope; versions cannot be republished.
 engine-npm-publish: engine-npm-test

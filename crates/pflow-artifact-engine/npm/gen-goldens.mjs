@@ -3,13 +3,15 @@
 // this package existed (pflow-xyz cmd/webserver/artifact/engine.wasm, sha256
 // e8bdeed0…14f8) answers for each net in nets/. test.mjs holds the package to them.
 // Run only to add a net, against that exact module; never to make a test pass.
+// The replies are that module's, except for the amendments in requests.mjs
+// (amend), which each golden lists under "amendments".
 //
 //   node gen-goldens.mjs <old engine.wasm>
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { requests } from './requests.mjs';
+import { amend, requests } from './requests.mjs';
 
 const OLD_SHA = 'e8bdeed0081ba5811e4828b3788b41347a2a6eec0b1a6cf165d4af21c7e114f8';
 const here = dirname(fileURLToPath(import.meta.url));
@@ -30,6 +32,9 @@ const netsDir = join(here, 'nets');
 for (const f of readdirSync(netsDir).filter((f) => f.endsWith('.json')).sort()) {
   const net = JSON.parse(readFileSync(join(netsDir, f), 'utf8'));
   const out = requests(net).map(([fn, req]) => ({ fn, req: { ...req, net: undefined }, reply: raw(fn, req) }));
-  writeFileSync(join(here, 'goldens', f), JSON.stringify({ engine_sha256: OLD_SHA, net: f, calls: out }, null, 1) + '\n');
+  const amendments = amend(out);
+  const g = { engine_sha256: OLD_SHA, net: f, calls: out };
+  if (amendments.length) g.amendments = amendments;
+  writeFileSync(join(here, 'goldens', f), JSON.stringify(g, null, 1) + '\n');
   console.log(f, out.length, 'calls');
 }
