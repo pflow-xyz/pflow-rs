@@ -1,2 +1,4 @@
 /target
 Cargo.lock
+# local artifact pages written by artifact_html for publishing; generated, not source
+/publish/

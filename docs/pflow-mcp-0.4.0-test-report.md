@@ -144,6 +144,19 @@ requests" counter reads 1 to 2 there; those are resource entries of the viewer f
 cannot be inspected from outside the cross-origin frame, so this is not a proof of zero requests in the sandbox. No blockers found. Not tested:
 Safari, the claude.ai mobile app, other sandboxes (Claude Desktop artifact pane).
 
+**Earlier probe (2026-11-02, pflow-xyz `experiments/artifact-wasm`, now removed).** Before this round, a zero-import Rust cdylib on
+`pflow-reachability` + `pflow-parser` (raw C ABI, no wasm-bindgen; 318 KB, 137 KB gzip after `wasm-opt -Oz`) reproduced the "Three
+Philosophers Deadlock" artifact's server numbers in headless Chrome (14 states, 27 edges, witness `takeL0 → takeL1 → takeL2`, 6 P- and
+3 T-invariants) in about 19 ms. Findings kept from it:
+
+- Under a sandbox-like CSP the only directive that matters is `'wasm-unsafe-eval'`: without it every route (inline base64, sibling
+  file, npm) fails with `CompileError: ... 'unsafe-eval' is not an allowed source of script`. `WebAssembly.validate` passes even
+  under the blocking policy, so a page must test compilation (`new WebAssembly.Module` / `instantiate`), not validation.
+- Stock Go for the same job (go-pflow `parser` + `reachability`): 4.18 MB (`GOOS=js`) / 4.16 MB (wasip1), 1.15 MB gzip, about 13x the
+  Rust module, plus `wasm_exec.js` or a WASI shim. TinyGo was not measured (go-pflow leans on `encoding/json` and reflection).
+- A pure-JS fallback via binaryen 132's `wasm2js` aborted on that module at -Oz, -O1 and -O0 and with `target-cpu=mvp` (SimplifyLocals,
+  then validator type errors); returning a u64 from the ABI is the likely cause. Not pursued, since the real sandbox compiles wasm.
+
 ### Recommended embed design
 
 1. **Embed the full engine only.** It contains `Net` (everything the small engine does), costs +703 KB raw over the small one but only ~50 ms, and is
