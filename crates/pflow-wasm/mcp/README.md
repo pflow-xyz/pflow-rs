@@ -163,4 +163,33 @@ refresh it, or use the ontology server (ontology.pflow.xyz, `sparql_query`) for 
 Nets live in memory for the life of the process. Nets with guards, stages or rate
 schedules are refused rather than run as a different net. Needs Node 18+.
 
-Licences: engine MIT, chyp-rs Apache-2.0 (notices in `chyp/`), ontology data CC0.
+## Check it yourself
+
+Everything this package runs is public, so a page or an answer from it can be re-run
+by whoever receives it, with no account and without trusting the server, Claude or
+this package:
+
+- **The net.** Every page carries the net it was built from as JSON-LD (`#pflow-net`).
+  Load it into this package, into the [pflow.xyz](https://pflow.xyz) editor, or into
+  [go-pflow](https://github.com/pflow-xyz/go-pflow).
+- **Its CID.** `cid` recomputes the CID from the net's content (URDNA2015, SHA-256,
+  CIDv1), the same function pflow.xyz, go-pflow and pflow-rs compute, held to shared
+  goldens. The exceptions: coffee-shop and usdc-bridge, whose local CID differs from
+  the published one (see Examples), and compositions, which are refused.
+- **A verdict.** `reachability` and `verify` answer `true`, `false` or `unknown`. A
+  `false` carries a witness trace; replay it with `fire`, or on the page. A bounded
+  search answers `unknown`, never `true`.
+- **A stochastic run.** `stochastic` and `sde` take a seed. At the same seed
+  `stochastic` gives the same doubles as go-pflow and pflow.xyz, and `sde` the same
+  doubles as pflow-native's `sim.sde`.
+- **The engine.** The source is [pflow-rs](https://github.com/pflow-xyz/pflow-rs)
+  (`crates/pflow-wasm`, `crates/pflow-hosted`); `make wasm-mcp-test` builds this
+  package and runs its tests, and the tests that hold it to go-pflow and to
+  pflow.xyz/mcp are named above. Byte-identical rebuilds of the published tarball are
+  not claimed.
+
+## License
+
+`MIT AND Apache-2.0 AND CC0-1.0`: the engine is MIT, the bundled chyp-rs is Apache-2.0
+(LICENSE, NOTICE and THIRD-PARTY-NOTICES in `chyp/`), and the ontology snapshot is CC0
+data from [ontology.pflow.xyz](https://ontology.pflow.xyz).
