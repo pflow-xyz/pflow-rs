@@ -934,11 +934,11 @@ sec('14. timing');
   if (!QUICK) {
     const chain = toJsonLd(net('synthetic/chain-200'));
     const t0 = performance.now();
-    // cid is about cubic and runs on the server's own thread (53 s at 200 places, B5): a request
-    // that outlasts the SDK's 60 s timeout is the known failure, not a crashed suite.
+    // B5 (0.4.1): sealing is quadratic, not cubic, and runs in the worker; 200 places took 53 s
+    // before and about 3 s now. A request past the SDK's 60 s timeout fails the check, not the suite.
     const r = await call('cid', { net: chain }, { timeout: 120000 }).catch((e) => ({ err: true, text: String(e?.message ?? e) }));
     const s = (performance.now() - t0) / 1000;
-    check(`cid of a 200-place/200-transition net returns in < 5 s (took ${s.toFixed(1)} s)`, !r.err && s < 5, `${s.toFixed(1)} s`, { known: true });
+    check(`cid of a 200-place/200-transition net returns in < 5 s (took ${s.toFixed(1)} s)`, !r.err && s < 5, `${s.toFixed(1)} s`);
   }
 }
 
