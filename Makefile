@@ -1,5 +1,5 @@
 # The npm package @pflow-xyz/pflow-wasm. Everything else here is plain cargo.
-.PHONY: wasm-compose wasm-compose-test wasm-npm wasm-npm-test wasm-npm-publish wasm-mcp-engine wasm-mcp wasm-mcp-test wasm-mcp-crosscheck wasm-mcp-crosscheck-tools wasm-mcp-publish engine-npm engine-npm-test engine-npm-publish
+.PHONY: engine-repro engine-repro-check engine-repro-hosts wasm-compose wasm-compose-test wasm-npm wasm-npm-test wasm-npm-publish wasm-mcp-engine wasm-mcp wasm-mcp-test wasm-mcp-crosscheck wasm-mcp-crosscheck-tools wasm-mcp-publish engine-npm engine-npm-test engine-npm-publish
 
 # Must equal the wasm-bindgen dependency in crates/pflow-wasm/Cargo.toml.
 WASM_BINDGEN_VERSION := 0.2.129
@@ -138,3 +138,15 @@ engine-npm-test: engine-npm
 # Needs `npm login` as an owner of the @pflow-xyz scope; versions cannot be republished.
 engine-npm-publish: engine-npm-test
 	cd $(ENGINE_OUT) && npm publish --access public
+
+# The CID-checked engine (crates/pflow-engine), reproducible: docs/reproducible-engine.md.
+# Build on gir or workbit, not on valoper.
+ENGINE_REPRO_OUT := target/engine-repro-out
+engine-repro:
+	scripts/build-wasm-repro.sh $(ENGINE_REPRO_OUT)
+# Rebuild and compare with crates/pflow-engine/repro.json, recheck the recorded verdicts, native tests.
+engine-repro-check:
+	scripts/check-wasm-repro.sh
+# The pushed HEAD, cloned from GitHub, on each host; every host must build the same bytes.
+engine-repro-hosts:
+	scripts/repro-across-hosts.sh HEAD gir workbit
