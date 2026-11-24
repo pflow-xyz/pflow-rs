@@ -1,7 +1,13 @@
 # pflow-rs
 
-Explanations you can run, in Rust. Describe a system once as a Petri net and
-the same net answers several questions: how its tokens flow over time (ODE
+Explanations you can run, in Rust. pflow is a modeling tool that teaches: you
+talk a system through with Claude, which builds the model, explains it as you go
+and reports results from data, shown as outcome, model, math, notation and a
+simulation, every view computed from one net. pflow-rs is that engine in Rust,
+for your own machine and the browser.
+
+Describe a system once as a Petri net and the same net answers several
+questions: how its tokens flow over time (ODE
 simulation, and a seeded Gillespie SSA that is byte-exact with go-pflow and
 pflow.xyz), which markings it can reach and what it conserves (reachability,
 coverability, P/T invariants), what its max-plus structure says (tropical
