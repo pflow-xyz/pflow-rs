@@ -6,8 +6,9 @@
 claude mcp add pflow -- npx -y @pflow-xyz/pflow-mcp
 ```
 
-Claude builds the model, the engine (the [pflow-rs](https://github.com/pflow-xyz/pflow-rs)
-Petri net engine, compiled to WebAssembly and embedded in the package) runs it, and
+Talk a system through with Claude and learn it as you go: Claude builds the model, explains
+what each part does, and reports what the engine computed rather than a guess. The engine
+(the [pflow-rs](https://github.com/pflow-xyz/pflow-rs) Petri net engine, compiled to WebAssembly and embedded in the package) runs it, and
 Claude publishes the result as an interactive page you can share, as a **Claude
 artifact**. Every page carries the net, its CID and a link to the public editor at
 [pflow.xyz](https://pflow.xyz), so whoever receives it can read the net back out, load it
@@ -96,9 +97,11 @@ package; update the package to refresh it. Nets live in memory for the life of t
 | Tool names and answers | the same names (without `pflow_`) and answer shapes, held to captured hosted answers | the reference |
 | `rate_scan`, `optimize`, game tools, `save` | no | yes |
 | SPARQL over the ontology | no | not in pflow.xyz/mcp: the separate ontology server's `sparql_query` |
+| Teaching in a linked editor page (`pflow_show`, `pflow_level`, `pflow_highlight`, `pflow_tour`, …) | no | yes, with the IDE preview at [pflow.xyz/?shell=1](https://pflow.xyz/?shell=1) and a sign-in |
 
-The hosted server is a demo of the same tools; this package is the one to adopt. Its
-answers are checked against the hosted ones (`make wasm-mcp-crosscheck-tools`).
+For the model tools, this package is the one to adopt; the hosted server adds the teaching
+tools, which drive a pflow.xyz page you watch while Claude opens views, points at parts and
+walks you through a model. This package's answers are checked against the hosted ones (`make wasm-mcp-crosscheck-tools`).
 
 ## Tool reference
 
