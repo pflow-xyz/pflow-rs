@@ -38,6 +38,7 @@ held to go-pflow's goldens, and runs in the browser as
 | `pflow-cli` | `pflow` command-line binary, modelled on go-pflow's `cmd/pflow` |
 | `pflow-mcp` | MCP server exposing Petri net tools (`petri_*`, plus `pflow_*` extras) |
 | `pflow-wasm` | The browser build, on npm as [`@pflow-xyz/pflow-wasm`](crates/pflow-wasm/npm/README.md): fire a net, run the ODE and the portable SSA, explore its reachable states, from one self-contained ES module. The same engine is a local MCP server, [`@pflow-xyz/pflow-mcp`](crates/pflow-wasm/mcp/README.md) (`npx -y @pflow-xyz/pflow-mcp`), which also answers the pflow.xyz/mcp tools offline |
+| `pflow-engine` | The CID-checked engine: one reproducible wasm32 module that takes a model's JSON-LD bytes and the CID you expect, refuses a mismatch, and runs check, validate, verify, invariants, incidence, sde, simulate, ssa, reachability or fire with a re-derivable `verdict_sha256`. Built bit for bit the same on any host by `scripts/build-wasm-repro.sh` ([docs/reproducible-engine.md](docs/reproducible-engine.md)); not on crates.io |
 | `pflow-hosted` | The pflow.xyz/mcp tools (check, cid, edit, export, info, incidence, invariants, validate, verify, sde, what_if, bundle_*) with the hosted names, arguments and answer shapes, over pflow-rs engines; built into `@pflow-xyz/pflow-mcp`, not on crates.io |
 | `pflow` | Umbrella crate: re-exports `pflow-core`, `pflow-dsl`, `pflow-solver` and `pflow-tokenmodel` as modules, a few common items (`PetriNet`, `solve`, `simulate_ssa`, `schema!`, ...), and `pflow-zk`/`pflow-zk-arkworks` behind the `zk`/`zk-arkworks` features. The other crates are used directly |
 
@@ -388,6 +389,7 @@ on trust. What can be reproduced, and how:
 | How an editor document is read | `cargo test -p pflow-parser --test parity` against go-pflow's editor-shape goldens |
 | A pflow.xyz/mcp answer | `pflow-hosted` answers the hosted tools with the hosted names and shapes; `cargo test -p pflow-hosted every_hosted_answer_is_reproduced` replays answers captured from `https://pflow.xyz/mcp` (`crates/pflow-hosted/tests/fixtures/hosted/`, with the server commit they were captured at) |
 | A deadlock or liveness verdict | `pflow-verify` and `pflow-reachability` return `true`, `false` or `unknown`. A `false` comes with a witness trace that replays with the firing rule, and a search that hit its budget says so instead of answering |
+| A verdict from the CID-checked engine | `scripts/build-wasm-repro.sh` rebuilds the engine from a commit with a pinned toolchain and tools; its sha256 must equal `crates/pflow-engine/repro.json` (x86_64 Linux and arm64 macOS agree). The module recomputes the model's CID before it runs anything, and `scripts/check-wasm-repro.sh` holds it to the recorded verdicts in `crates/pflow-engine/verdicts/`. [docs/reproducible-engine.md](docs/reproducible-engine.md) |
 | A Groth16 transition proof | `pflow-zk-arkworks` runs setup, prove and verify locally. Setup is per run: no proving or verifying keys are published and there was no ceremony, so a proof is checked by someone who runs the setup, not by a third party holding a published key |
 
 `./scripts/go-pflow-goldens.sh check` and `./scripts/pflow-xyz-fixtures.sh check`
@@ -397,7 +399,8 @@ here or a deliberate change upstream (ROADMAP.md, ground rules).
 
 The npm packages are built from this repository (`make wasm-npm`, `make
 wasm-mcp`, `make engine-npm`, each with a `-test` target that runs its tests).
-Byte-identical rebuilds of the published tarballs are not claimed.
+Byte-identical rebuilds of the published tarballs are not claimed; for the
+CID-checked engine (`crates/pflow-engine`) they are, and checked.
 
 ## Contributing
 

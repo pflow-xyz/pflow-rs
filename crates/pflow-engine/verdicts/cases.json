@@ -1,0 +1,935 @@
+{
+ "_comment": "The engine's example set: each case loads a public model by CID and runs one op. verdicts/recorded.json holds what the WASM build answered (the reference); scripts/check-wasm-repro.sh and `cargo test -p pflow-engine` hold every engine to it. The wrong-cid case must stay a refusal.",
+ "cases": [
+  {
+   "id": "coffee-shop/check",
+   "model": "../../pflow-hosted/tests/fixtures/nets/coffee-shop.jsonld",
+   "cid": "z4EBG9jDsuUdvVN4bUXRHxoDG3p274FfhcJd8BiruRcE1jLCHi8",
+   "op": "check",
+   "args": {}
+  },
+  {
+   "id": "coffee-shop/validate",
+   "model": "../../pflow-hosted/tests/fixtures/nets/coffee-shop.jsonld",
+   "cid": "z4EBG9jDsuUdvVN4bUXRHxoDG3p274FfhcJd8BiruRcE1jLCHi8",
+   "op": "validate",
+   "args": {}
+  },
+  {
+   "id": "coffee-shop/verify",
+   "model": "../../pflow-hosted/tests/fixtures/nets/coffee-shop.jsonld",
+   "cid": "z4EBG9jDsuUdvVN4bUXRHxoDG3p274FfhcJd8BiruRcE1jLCHi8",
+   "op": "verify",
+   "args": {
+    "properties": [
+     {
+      "kind": "deadlock-free"
+     },
+     {
+      "kind": "bounded"
+     },
+     {
+      "kind": "live"
+     }
+    ],
+    "max_states": 500
+   }
+  },
+  {
+   "id": "coffee-shop/invariants",
+   "model": "../../pflow-hosted/tests/fixtures/nets/coffee-shop.jsonld",
+   "cid": "z4EBG9jDsuUdvVN4bUXRHxoDG3p274FfhcJd8BiruRcE1jLCHi8",
+   "op": "invariants",
+   "args": {}
+  },
+  {
+   "id": "coffee-shop/incidence",
+   "model": "../../pflow-hosted/tests/fixtures/nets/coffee-shop.jsonld",
+   "cid": "z4EBG9jDsuUdvVN4bUXRHxoDG3p274FfhcJd8BiruRcE1jLCHi8",
+   "op": "incidence",
+   "args": {}
+  },
+  {
+   "id": "coffee-shop/simulate",
+   "model": "../../pflow-hosted/tests/fixtures/nets/coffee-shop.jsonld",
+   "cid": "z4EBG9jDsuUdvVN4bUXRHxoDG3p274FfhcJd8BiruRcE1jLCHi8",
+   "op": "simulate",
+   "args": {
+    "tEnd": 10,
+    "maxPoints": 50
+   }
+  },
+  {
+   "id": "coffee-shop/ssa",
+   "model": "../../pflow-hosted/tests/fixtures/nets/coffee-shop.jsonld",
+   "cid": "z4EBG9jDsuUdvVN4bUXRHxoDG3p274FfhcJd8BiruRcE1jLCHi8",
+   "op": "ssa",
+   "args": {
+    "seed": 42,
+    "realizations": 8,
+    "horizon": 10,
+    "samples": 21
+   }
+  },
+  {
+   "id": "coffee-shop/sde",
+   "model": "../../pflow-hosted/tests/fixtures/nets/coffee-shop.jsonld",
+   "cid": "z4EBG9jDsuUdvVN4bUXRHxoDG3p274FfhcJd8BiruRcE1jLCHi8",
+   "op": "sde",
+   "args": {
+    "seed": 7,
+    "t_end": 10,
+    "runs": 4,
+    "points": 21
+   }
+  },
+  {
+   "id": "coffee-shop/reachability",
+   "model": "../../pflow-hosted/tests/fixtures/nets/coffee-shop.jsonld",
+   "cid": "z4EBG9jDsuUdvVN4bUXRHxoDG3p274FfhcJd8BiruRcE1jLCHi8",
+   "op": "reachability",
+   "args": {
+    "maxStates": 500
+   }
+  },
+  {
+   "id": "knapsack/check",
+   "model": "../../pflow-hosted/tests/fixtures/nets/knapsack.jsonld",
+   "cid": "z4EBG9jAJRwz8xUfq4ELvGPvUNfD13DqHERooMvJaqkb8bUHKaQ",
+   "op": "check",
+   "args": {}
+  },
+  {
+   "id": "knapsack/validate",
+   "model": "../../pflow-hosted/tests/fixtures/nets/knapsack.jsonld",
+   "cid": "z4EBG9jAJRwz8xUfq4ELvGPvUNfD13DqHERooMvJaqkb8bUHKaQ",
+   "op": "validate",
+   "args": {}
+  },
+  {
+   "id": "knapsack/verify",
+   "model": "../../pflow-hosted/tests/fixtures/nets/knapsack.jsonld",
+   "cid": "z4EBG9jAJRwz8xUfq4ELvGPvUNfD13DqHERooMvJaqkb8bUHKaQ",
+   "op": "verify",
+   "args": {
+    "properties": [
+     {
+      "kind": "deadlock-free"
+     },
+     {
+      "kind": "bounded"
+     },
+     {
+      "kind": "live"
+     }
+    ],
+    "max_states": 500
+   }
+  },
+  {
+   "id": "knapsack/invariants",
+   "model": "../../pflow-hosted/tests/fixtures/nets/knapsack.jsonld",
+   "cid": "z4EBG9jAJRwz8xUfq4ELvGPvUNfD13DqHERooMvJaqkb8bUHKaQ",
+   "op": "invariants",
+   "args": {}
+  },
+  {
+   "id": "knapsack/incidence",
+   "model": "../../pflow-hosted/tests/fixtures/nets/knapsack.jsonld",
+   "cid": "z4EBG9jAJRwz8xUfq4ELvGPvUNfD13DqHERooMvJaqkb8bUHKaQ",
+   "op": "incidence",
+   "args": {}
+  },
+  {
+   "id": "knapsack/simulate",
+   "model": "../../pflow-hosted/tests/fixtures/nets/knapsack.jsonld",
+   "cid": "z4EBG9jAJRwz8xUfq4ELvGPvUNfD13DqHERooMvJaqkb8bUHKaQ",
+   "op": "simulate",
+   "args": {
+    "tEnd": 10,
+    "maxPoints": 50
+   }
+  },
+  {
+   "id": "knapsack/ssa",
+   "model": "../../pflow-hosted/tests/fixtures/nets/knapsack.jsonld",
+   "cid": "z4EBG9jAJRwz8xUfq4ELvGPvUNfD13DqHERooMvJaqkb8bUHKaQ",
+   "op": "ssa",
+   "args": {
+    "seed": 42,
+    "realizations": 8,
+    "horizon": 10,
+    "samples": 21
+   }
+  },
+  {
+   "id": "knapsack/sde",
+   "model": "../../pflow-hosted/tests/fixtures/nets/knapsack.jsonld",
+   "cid": "z4EBG9jAJRwz8xUfq4ELvGPvUNfD13DqHERooMvJaqkb8bUHKaQ",
+   "op": "sde",
+   "args": {
+    "seed": 7,
+    "t_end": 10,
+    "runs": 4,
+    "points": 21
+   }
+  },
+  {
+   "id": "knapsack/reachability",
+   "model": "../../pflow-hosted/tests/fixtures/nets/knapsack.jsonld",
+   "cid": "z4EBG9jAJRwz8xUfq4ELvGPvUNfD13DqHERooMvJaqkb8bUHKaQ",
+   "op": "reachability",
+   "args": {
+    "maxStates": 500
+   }
+  },
+  {
+   "id": "net-a/check",
+   "model": "../../pflow-hosted/tests/fixtures/nets/net-a.jsonld",
+   "cid": "z4EBG9jGDZ27fhNuuxmc1HpUZRKZtCrfHzCTP8h4stbsA6u24Qx",
+   "op": "check",
+   "args": {}
+  },
+  {
+   "id": "net-a/validate",
+   "model": "../../pflow-hosted/tests/fixtures/nets/net-a.jsonld",
+   "cid": "z4EBG9jGDZ27fhNuuxmc1HpUZRKZtCrfHzCTP8h4stbsA6u24Qx",
+   "op": "validate",
+   "args": {}
+  },
+  {
+   "id": "net-a/verify",
+   "model": "../../pflow-hosted/tests/fixtures/nets/net-a.jsonld",
+   "cid": "z4EBG9jGDZ27fhNuuxmc1HpUZRKZtCrfHzCTP8h4stbsA6u24Qx",
+   "op": "verify",
+   "args": {
+    "properties": [
+     {
+      "kind": "deadlock-free"
+     },
+     {
+      "kind": "bounded"
+     },
+     {
+      "kind": "live"
+     }
+    ],
+    "max_states": 500
+   }
+  },
+  {
+   "id": "net-a/invariants",
+   "model": "../../pflow-hosted/tests/fixtures/nets/net-a.jsonld",
+   "cid": "z4EBG9jGDZ27fhNuuxmc1HpUZRKZtCrfHzCTP8h4stbsA6u24Qx",
+   "op": "invariants",
+   "args": {}
+  },
+  {
+   "id": "net-a/incidence",
+   "model": "../../pflow-hosted/tests/fixtures/nets/net-a.jsonld",
+   "cid": "z4EBG9jGDZ27fhNuuxmc1HpUZRKZtCrfHzCTP8h4stbsA6u24Qx",
+   "op": "incidence",
+   "args": {}
+  },
+  {
+   "id": "net-a/simulate",
+   "model": "../../pflow-hosted/tests/fixtures/nets/net-a.jsonld",
+   "cid": "z4EBG9jGDZ27fhNuuxmc1HpUZRKZtCrfHzCTP8h4stbsA6u24Qx",
+   "op": "simulate",
+   "args": {
+    "tEnd": 10,
+    "maxPoints": 50
+   }
+  },
+  {
+   "id": "net-a/ssa",
+   "model": "../../pflow-hosted/tests/fixtures/nets/net-a.jsonld",
+   "cid": "z4EBG9jGDZ27fhNuuxmc1HpUZRKZtCrfHzCTP8h4stbsA6u24Qx",
+   "op": "ssa",
+   "args": {
+    "seed": 42,
+    "realizations": 8,
+    "horizon": 10,
+    "samples": 21
+   }
+  },
+  {
+   "id": "net-a/sde",
+   "model": "../../pflow-hosted/tests/fixtures/nets/net-a.jsonld",
+   "cid": "z4EBG9jGDZ27fhNuuxmc1HpUZRKZtCrfHzCTP8h4stbsA6u24Qx",
+   "op": "sde",
+   "args": {
+    "seed": 7,
+    "t_end": 10,
+    "runs": 4,
+    "points": 21
+   }
+  },
+  {
+   "id": "net-a/reachability",
+   "model": "../../pflow-hosted/tests/fixtures/nets/net-a.jsonld",
+   "cid": "z4EBG9jGDZ27fhNuuxmc1HpUZRKZtCrfHzCTP8h4stbsA6u24Qx",
+   "op": "reachability",
+   "args": {
+    "maxStates": 500
+   }
+  },
+  {
+   "id": "sir/check",
+   "model": "../../pflow-hosted/tests/fixtures/nets/sir.jsonld",
+   "cid": "z4EBG9jAdPbhNjmEav3NFqVuKo9BRfpja9tQs8VgttzBgTXFy4x",
+   "op": "check",
+   "args": {}
+  },
+  {
+   "id": "sir/validate",
+   "model": "../../pflow-hosted/tests/fixtures/nets/sir.jsonld",
+   "cid": "z4EBG9jAdPbhNjmEav3NFqVuKo9BRfpja9tQs8VgttzBgTXFy4x",
+   "op": "validate",
+   "args": {}
+  },
+  {
+   "id": "sir/verify",
+   "model": "../../pflow-hosted/tests/fixtures/nets/sir.jsonld",
+   "cid": "z4EBG9jAdPbhNjmEav3NFqVuKo9BRfpja9tQs8VgttzBgTXFy4x",
+   "op": "verify",
+   "args": {
+    "properties": [
+     {
+      "kind": "deadlock-free"
+     },
+     {
+      "kind": "bounded"
+     },
+     {
+      "kind": "live"
+     }
+    ],
+    "max_states": 500
+   }
+  },
+  {
+   "id": "sir/invariants",
+   "model": "../../pflow-hosted/tests/fixtures/nets/sir.jsonld",
+   "cid": "z4EBG9jAdPbhNjmEav3NFqVuKo9BRfpja9tQs8VgttzBgTXFy4x",
+   "op": "invariants",
+   "args": {}
+  },
+  {
+   "id": "sir/incidence",
+   "model": "../../pflow-hosted/tests/fixtures/nets/sir.jsonld",
+   "cid": "z4EBG9jAdPbhNjmEav3NFqVuKo9BRfpja9tQs8VgttzBgTXFy4x",
+   "op": "incidence",
+   "args": {}
+  },
+  {
+   "id": "sir/simulate",
+   "model": "../../pflow-hosted/tests/fixtures/nets/sir.jsonld",
+   "cid": "z4EBG9jAdPbhNjmEav3NFqVuKo9BRfpja9tQs8VgttzBgTXFy4x",
+   "op": "simulate",
+   "args": {
+    "tEnd": 10,
+    "maxPoints": 50
+   }
+  },
+  {
+   "id": "sir/ssa",
+   "model": "../../pflow-hosted/tests/fixtures/nets/sir.jsonld",
+   "cid": "z4EBG9jAdPbhNjmEav3NFqVuKo9BRfpja9tQs8VgttzBgTXFy4x",
+   "op": "ssa",
+   "args": {
+    "seed": 42,
+    "realizations": 8,
+    "horizon": 10,
+    "samples": 21
+   }
+  },
+  {
+   "id": "sir/sde",
+   "model": "../../pflow-hosted/tests/fixtures/nets/sir.jsonld",
+   "cid": "z4EBG9jAdPbhNjmEav3NFqVuKo9BRfpja9tQs8VgttzBgTXFy4x",
+   "op": "sde",
+   "args": {
+    "seed": 7,
+    "t_end": 10,
+    "runs": 4,
+    "points": 21
+   }
+  },
+  {
+   "id": "sir/reachability",
+   "model": "../../pflow-hosted/tests/fixtures/nets/sir.jsonld",
+   "cid": "z4EBG9jAdPbhNjmEav3NFqVuKo9BRfpja9tQs8VgttzBgTXFy4x",
+   "op": "reachability",
+   "args": {
+    "maxStates": 500
+   }
+  },
+  {
+   "id": "with-rates/check",
+   "model": "../../pflow-hosted/tests/fixtures/nets/with-rates.jsonld",
+   "cid": "z4EBG9jA7f4q9yx4QjzH3RDPQXiqjnNTz3ALdpjHD3CRTbNrcCD",
+   "op": "check",
+   "args": {}
+  },
+  {
+   "id": "with-rates/validate",
+   "model": "../../pflow-hosted/tests/fixtures/nets/with-rates.jsonld",
+   "cid": "z4EBG9jA7f4q9yx4QjzH3RDPQXiqjnNTz3ALdpjHD3CRTbNrcCD",
+   "op": "validate",
+   "args": {}
+  },
+  {
+   "id": "with-rates/verify",
+   "model": "../../pflow-hosted/tests/fixtures/nets/with-rates.jsonld",
+   "cid": "z4EBG9jA7f4q9yx4QjzH3RDPQXiqjnNTz3ALdpjHD3CRTbNrcCD",
+   "op": "verify",
+   "args": {
+    "properties": [
+     {
+      "kind": "deadlock-free"
+     },
+     {
+      "kind": "bounded"
+     },
+     {
+      "kind": "live"
+     }
+    ],
+    "max_states": 500
+   }
+  },
+  {
+   "id": "with-rates/invariants",
+   "model": "../../pflow-hosted/tests/fixtures/nets/with-rates.jsonld",
+   "cid": "z4EBG9jA7f4q9yx4QjzH3RDPQXiqjnNTz3ALdpjHD3CRTbNrcCD",
+   "op": "invariants",
+   "args": {}
+  },
+  {
+   "id": "with-rates/incidence",
+   "model": "../../pflow-hosted/tests/fixtures/nets/with-rates.jsonld",
+   "cid": "z4EBG9jA7f4q9yx4QjzH3RDPQXiqjnNTz3ALdpjHD3CRTbNrcCD",
+   "op": "incidence",
+   "args": {}
+  },
+  {
+   "id": "with-rates/simulate",
+   "model": "../../pflow-hosted/tests/fixtures/nets/with-rates.jsonld",
+   "cid": "z4EBG9jA7f4q9yx4QjzH3RDPQXiqjnNTz3ALdpjHD3CRTbNrcCD",
+   "op": "simulate",
+   "args": {
+    "tEnd": 10,
+    "maxPoints": 50
+   }
+  },
+  {
+   "id": "with-rates/ssa",
+   "model": "../../pflow-hosted/tests/fixtures/nets/with-rates.jsonld",
+   "cid": "z4EBG9jA7f4q9yx4QjzH3RDPQXiqjnNTz3ALdpjHD3CRTbNrcCD",
+   "op": "ssa",
+   "args": {
+    "seed": 42,
+    "realizations": 8,
+    "horizon": 10,
+    "samples": 21
+   }
+  },
+  {
+   "id": "with-rates/sde",
+   "model": "../../pflow-hosted/tests/fixtures/nets/with-rates.jsonld",
+   "cid": "z4EBG9jA7f4q9yx4QjzH3RDPQXiqjnNTz3ALdpjHD3CRTbNrcCD",
+   "op": "sde",
+   "args": {
+    "seed": 7,
+    "t_end": 10,
+    "runs": 4,
+    "points": 21
+   }
+  },
+  {
+   "id": "with-rates/reachability",
+   "model": "../../pflow-hosted/tests/fixtures/nets/with-rates.jsonld",
+   "cid": "z4EBG9jA7f4q9yx4QjzH3RDPQXiqjnNTz3ALdpjHD3CRTbNrcCD",
+   "op": "reachability",
+   "args": {
+    "maxStates": 500
+   }
+  },
+  {
+   "id": "tie/check",
+   "model": "../../pflow-hosted/tests/fixtures/nets/tie.jsonld",
+   "cid": "z4EBG9j6jqhifnw1Z8GGFqwPT1TN4Q4o47CbqMVUcxEHbi29vJ3",
+   "op": "check",
+   "args": {}
+  },
+  {
+   "id": "tie/validate",
+   "model": "../../pflow-hosted/tests/fixtures/nets/tie.jsonld",
+   "cid": "z4EBG9j6jqhifnw1Z8GGFqwPT1TN4Q4o47CbqMVUcxEHbi29vJ3",
+   "op": "validate",
+   "args": {}
+  },
+  {
+   "id": "tie/verify",
+   "model": "../../pflow-hosted/tests/fixtures/nets/tie.jsonld",
+   "cid": "z4EBG9j6jqhifnw1Z8GGFqwPT1TN4Q4o47CbqMVUcxEHbi29vJ3",
+   "op": "verify",
+   "args": {
+    "properties": [
+     {
+      "kind": "deadlock-free"
+     },
+     {
+      "kind": "bounded"
+     },
+     {
+      "kind": "live"
+     }
+    ],
+    "max_states": 500
+   }
+  },
+  {
+   "id": "tie/invariants",
+   "model": "../../pflow-hosted/tests/fixtures/nets/tie.jsonld",
+   "cid": "z4EBG9j6jqhifnw1Z8GGFqwPT1TN4Q4o47CbqMVUcxEHbi29vJ3",
+   "op": "invariants",
+   "args": {}
+  },
+  {
+   "id": "tie/incidence",
+   "model": "../../pflow-hosted/tests/fixtures/nets/tie.jsonld",
+   "cid": "z4EBG9j6jqhifnw1Z8GGFqwPT1TN4Q4o47CbqMVUcxEHbi29vJ3",
+   "op": "incidence",
+   "args": {}
+  },
+  {
+   "id": "tie/simulate",
+   "model": "../../pflow-hosted/tests/fixtures/nets/tie.jsonld",
+   "cid": "z4EBG9j6jqhifnw1Z8GGFqwPT1TN4Q4o47CbqMVUcxEHbi29vJ3",
+   "op": "simulate",
+   "args": {
+    "tEnd": 10,
+    "maxPoints": 50
+   }
+  },
+  {
+   "id": "tie/ssa",
+   "model": "../../pflow-hosted/tests/fixtures/nets/tie.jsonld",
+   "cid": "z4EBG9j6jqhifnw1Z8GGFqwPT1TN4Q4o47CbqMVUcxEHbi29vJ3",
+   "op": "ssa",
+   "args": {
+    "seed": 42,
+    "realizations": 8,
+    "horizon": 10,
+    "samples": 21
+   }
+  },
+  {
+   "id": "tie/sde",
+   "model": "../../pflow-hosted/tests/fixtures/nets/tie.jsonld",
+   "cid": "z4EBG9j6jqhifnw1Z8GGFqwPT1TN4Q4o47CbqMVUcxEHbi29vJ3",
+   "op": "sde",
+   "args": {
+    "seed": 7,
+    "t_end": 10,
+    "runs": 4,
+    "points": 21
+   }
+  },
+  {
+   "id": "tie/reachability",
+   "model": "../../pflow-hosted/tests/fixtures/nets/tie.jsonld",
+   "cid": "z4EBG9j6jqhifnw1Z8GGFqwPT1TN4Q4o47CbqMVUcxEHbi29vJ3",
+   "op": "reachability",
+   "args": {
+    "maxStates": 500
+   }
+  },
+  {
+   "id": "gated/check",
+   "model": "../../pflow-hosted/tests/fixtures/nets/gated.jsonld",
+   "cid": "z4EBG9jGENn9XJoyexFUrQWRPo2XA9SDKmHqFkeX9wrpeFjVsMQ",
+   "op": "check",
+   "args": {}
+  },
+  {
+   "id": "gated/validate",
+   "model": "../../pflow-hosted/tests/fixtures/nets/gated.jsonld",
+   "cid": "z4EBG9jGENn9XJoyexFUrQWRPo2XA9SDKmHqFkeX9wrpeFjVsMQ",
+   "op": "validate",
+   "args": {}
+  },
+  {
+   "id": "gated/verify",
+   "model": "../../pflow-hosted/tests/fixtures/nets/gated.jsonld",
+   "cid": "z4EBG9jGENn9XJoyexFUrQWRPo2XA9SDKmHqFkeX9wrpeFjVsMQ",
+   "op": "verify",
+   "args": {
+    "properties": [
+     {
+      "kind": "deadlock-free"
+     },
+     {
+      "kind": "bounded"
+     },
+     {
+      "kind": "live"
+     }
+    ],
+    "max_states": 500
+   }
+  },
+  {
+   "id": "gated/invariants",
+   "model": "../../pflow-hosted/tests/fixtures/nets/gated.jsonld",
+   "cid": "z4EBG9jGENn9XJoyexFUrQWRPo2XA9SDKmHqFkeX9wrpeFjVsMQ",
+   "op": "invariants",
+   "args": {}
+  },
+  {
+   "id": "gated/incidence",
+   "model": "../../pflow-hosted/tests/fixtures/nets/gated.jsonld",
+   "cid": "z4EBG9jGENn9XJoyexFUrQWRPo2XA9SDKmHqFkeX9wrpeFjVsMQ",
+   "op": "incidence",
+   "args": {}
+  },
+  {
+   "id": "gated/simulate",
+   "model": "../../pflow-hosted/tests/fixtures/nets/gated.jsonld",
+   "cid": "z4EBG9jGENn9XJoyexFUrQWRPo2XA9SDKmHqFkeX9wrpeFjVsMQ",
+   "op": "simulate",
+   "args": {
+    "tEnd": 10,
+    "maxPoints": 50
+   }
+  },
+  {
+   "id": "gated/ssa",
+   "model": "../../pflow-hosted/tests/fixtures/nets/gated.jsonld",
+   "cid": "z4EBG9jGENn9XJoyexFUrQWRPo2XA9SDKmHqFkeX9wrpeFjVsMQ",
+   "op": "ssa",
+   "args": {
+    "seed": 42,
+    "realizations": 8,
+    "horizon": 10,
+    "samples": 21
+   }
+  },
+  {
+   "id": "gated/sde",
+   "model": "../../pflow-hosted/tests/fixtures/nets/gated.jsonld",
+   "cid": "z4EBG9jGENn9XJoyexFUrQWRPo2XA9SDKmHqFkeX9wrpeFjVsMQ",
+   "op": "sde",
+   "args": {
+    "seed": 7,
+    "t_end": 10,
+    "runs": 4,
+    "points": 21
+   }
+  },
+  {
+   "id": "gated/reachability",
+   "model": "../../pflow-hosted/tests/fixtures/nets/gated.jsonld",
+   "cid": "z4EBG9jGENn9XJoyexFUrQWRPo2XA9SDKmHqFkeX9wrpeFjVsMQ",
+   "op": "reachability",
+   "args": {
+    "maxStates": 500
+   }
+  },
+  {
+   "id": "predator-prey/check",
+   "model": "../../pflow-wasm/mcp/examples/predator-prey.jsonld",
+   "cid": "z4EBG9jFi4LBNrp7fJ7XVpg5WVZYWfLsHPvJgthWCXwkNYWdgoi",
+   "op": "check",
+   "args": {}
+  },
+  {
+   "id": "predator-prey/validate",
+   "model": "../../pflow-wasm/mcp/examples/predator-prey.jsonld",
+   "cid": "z4EBG9jFi4LBNrp7fJ7XVpg5WVZYWfLsHPvJgthWCXwkNYWdgoi",
+   "op": "validate",
+   "args": {}
+  },
+  {
+   "id": "predator-prey/verify",
+   "model": "../../pflow-wasm/mcp/examples/predator-prey.jsonld",
+   "cid": "z4EBG9jFi4LBNrp7fJ7XVpg5WVZYWfLsHPvJgthWCXwkNYWdgoi",
+   "op": "verify",
+   "args": {
+    "properties": [
+     {
+      "kind": "deadlock-free"
+     },
+     {
+      "kind": "bounded"
+     },
+     {
+      "kind": "live"
+     }
+    ],
+    "max_states": 500
+   }
+  },
+  {
+   "id": "predator-prey/invariants",
+   "model": "../../pflow-wasm/mcp/examples/predator-prey.jsonld",
+   "cid": "z4EBG9jFi4LBNrp7fJ7XVpg5WVZYWfLsHPvJgthWCXwkNYWdgoi",
+   "op": "invariants",
+   "args": {}
+  },
+  {
+   "id": "predator-prey/incidence",
+   "model": "../../pflow-wasm/mcp/examples/predator-prey.jsonld",
+   "cid": "z4EBG9jFi4LBNrp7fJ7XVpg5WVZYWfLsHPvJgthWCXwkNYWdgoi",
+   "op": "incidence",
+   "args": {}
+  },
+  {
+   "id": "predator-prey/simulate",
+   "model": "../../pflow-wasm/mcp/examples/predator-prey.jsonld",
+   "cid": "z4EBG9jFi4LBNrp7fJ7XVpg5WVZYWfLsHPvJgthWCXwkNYWdgoi",
+   "op": "simulate",
+   "args": {
+    "tEnd": 10,
+    "maxPoints": 50
+   }
+  },
+  {
+   "id": "predator-prey/ssa",
+   "model": "../../pflow-wasm/mcp/examples/predator-prey.jsonld",
+   "cid": "z4EBG9jFi4LBNrp7fJ7XVpg5WVZYWfLsHPvJgthWCXwkNYWdgoi",
+   "op": "ssa",
+   "args": {
+    "seed": 42,
+    "realizations": 8,
+    "horizon": 10,
+    "samples": 21
+   }
+  },
+  {
+   "id": "predator-prey/sde",
+   "model": "../../pflow-wasm/mcp/examples/predator-prey.jsonld",
+   "cid": "z4EBG9jFi4LBNrp7fJ7XVpg5WVZYWfLsHPvJgthWCXwkNYWdgoi",
+   "op": "sde",
+   "args": {
+    "seed": 7,
+    "t_end": 10,
+    "runs": 4,
+    "points": 21
+   }
+  },
+  {
+   "id": "predator-prey/reachability",
+   "model": "../../pflow-wasm/mcp/examples/predator-prey.jsonld",
+   "cid": "z4EBG9jFi4LBNrp7fJ7XVpg5WVZYWfLsHPvJgthWCXwkNYWdgoi",
+   "op": "reachability",
+   "args": {
+    "maxStates": 500
+   }
+  },
+  {
+   "id": "producer-consumer/check",
+   "model": "../../pflow-wasm/mcp/examples/producer-consumer.jsonld",
+   "cid": "z4EBG9j5NDWUaDBDhyAzgcKKYfqjxsYpK5rnAwBooNxM5M4eNoY",
+   "op": "check",
+   "args": {}
+  },
+  {
+   "id": "producer-consumer/validate",
+   "model": "../../pflow-wasm/mcp/examples/producer-consumer.jsonld",
+   "cid": "z4EBG9j5NDWUaDBDhyAzgcKKYfqjxsYpK5rnAwBooNxM5M4eNoY",
+   "op": "validate",
+   "args": {}
+  },
+  {
+   "id": "producer-consumer/verify",
+   "model": "../../pflow-wasm/mcp/examples/producer-consumer.jsonld",
+   "cid": "z4EBG9j5NDWUaDBDhyAzgcKKYfqjxsYpK5rnAwBooNxM5M4eNoY",
+   "op": "verify",
+   "args": {
+    "properties": [
+     {
+      "kind": "deadlock-free"
+     },
+     {
+      "kind": "bounded"
+     },
+     {
+      "kind": "live"
+     }
+    ],
+    "max_states": 500
+   }
+  },
+  {
+   "id": "producer-consumer/invariants",
+   "model": "../../pflow-wasm/mcp/examples/producer-consumer.jsonld",
+   "cid": "z4EBG9j5NDWUaDBDhyAzgcKKYfqjxsYpK5rnAwBooNxM5M4eNoY",
+   "op": "invariants",
+   "args": {}
+  },
+  {
+   "id": "producer-consumer/incidence",
+   "model": "../../pflow-wasm/mcp/examples/producer-consumer.jsonld",
+   "cid": "z4EBG9j5NDWUaDBDhyAzgcKKYfqjxsYpK5rnAwBooNxM5M4eNoY",
+   "op": "incidence",
+   "args": {}
+  },
+  {
+   "id": "producer-consumer/simulate",
+   "model": "../../pflow-wasm/mcp/examples/producer-consumer.jsonld",
+   "cid": "z4EBG9j5NDWUaDBDhyAzgcKKYfqjxsYpK5rnAwBooNxM5M4eNoY",
+   "op": "simulate",
+   "args": {
+    "tEnd": 10,
+    "maxPoints": 50
+   }
+  },
+  {
+   "id": "producer-consumer/ssa",
+   "model": "../../pflow-wasm/mcp/examples/producer-consumer.jsonld",
+   "cid": "z4EBG9j5NDWUaDBDhyAzgcKKYfqjxsYpK5rnAwBooNxM5M4eNoY",
+   "op": "ssa",
+   "args": {
+    "seed": 42,
+    "realizations": 8,
+    "horizon": 10,
+    "samples": 21
+   }
+  },
+  {
+   "id": "producer-consumer/sde",
+   "model": "../../pflow-wasm/mcp/examples/producer-consumer.jsonld",
+   "cid": "z4EBG9j5NDWUaDBDhyAzgcKKYfqjxsYpK5rnAwBooNxM5M4eNoY",
+   "op": "sde",
+   "args": {
+    "seed": 7,
+    "t_end": 10,
+    "runs": 4,
+    "points": 21
+   }
+  },
+  {
+   "id": "producer-consumer/reachability",
+   "model": "../../pflow-wasm/mcp/examples/producer-consumer.jsonld",
+   "cid": "z4EBG9j5NDWUaDBDhyAzgcKKYfqjxsYpK5rnAwBooNxM5M4eNoY",
+   "op": "reachability",
+   "args": {
+    "maxStates": 500
+   }
+  },
+  {
+   "id": "enzyme-kinetics/check",
+   "model": "../../pflow-wasm/mcp/examples/enzyme-kinetics.jsonld",
+   "cid": "z4EBG9jANVP5ZZDDWzQ3j9Z5CfG3UNYUAma89X7d8TVJiVA3EzW",
+   "op": "check",
+   "args": {}
+  },
+  {
+   "id": "enzyme-kinetics/validate",
+   "model": "../../pflow-wasm/mcp/examples/enzyme-kinetics.jsonld",
+   "cid": "z4EBG9jANVP5ZZDDWzQ3j9Z5CfG3UNYUAma89X7d8TVJiVA3EzW",
+   "op": "validate",
+   "args": {}
+  },
+  {
+   "id": "enzyme-kinetics/verify",
+   "model": "../../pflow-wasm/mcp/examples/enzyme-kinetics.jsonld",
+   "cid": "z4EBG9jANVP5ZZDDWzQ3j9Z5CfG3UNYUAma89X7d8TVJiVA3EzW",
+   "op": "verify",
+   "args": {
+    "properties": [
+     {
+      "kind": "deadlock-free"
+     },
+     {
+      "kind": "bounded"
+     },
+     {
+      "kind": "live"
+     }
+    ],
+    "max_states": 500
+   }
+  },
+  {
+   "id": "enzyme-kinetics/invariants",
+   "model": "../../pflow-wasm/mcp/examples/enzyme-kinetics.jsonld",
+   "cid": "z4EBG9jANVP5ZZDDWzQ3j9Z5CfG3UNYUAma89X7d8TVJiVA3EzW",
+   "op": "invariants",
+   "args": {}
+  },
+  {
+   "id": "enzyme-kinetics/incidence",
+   "model": "../../pflow-wasm/mcp/examples/enzyme-kinetics.jsonld",
+   "cid": "z4EBG9jANVP5ZZDDWzQ3j9Z5CfG3UNYUAma89X7d8TVJiVA3EzW",
+   "op": "incidence",
+   "args": {}
+  },
+  {
+   "id": "enzyme-kinetics/simulate",
+   "model": "../../pflow-wasm/mcp/examples/enzyme-kinetics.jsonld",
+   "cid": "z4EBG9jANVP5ZZDDWzQ3j9Z5CfG3UNYUAma89X7d8TVJiVA3EzW",
+   "op": "simulate",
+   "args": {
+    "tEnd": 10,
+    "maxPoints": 50
+   }
+  },
+  {
+   "id": "enzyme-kinetics/ssa",
+   "model": "../../pflow-wasm/mcp/examples/enzyme-kinetics.jsonld",
+   "cid": "z4EBG9jANVP5ZZDDWzQ3j9Z5CfG3UNYUAma89X7d8TVJiVA3EzW",
+   "op": "ssa",
+   "args": {
+    "seed": 42,
+    "realizations": 8,
+    "horizon": 10,
+    "samples": 21
+   }
+  },
+  {
+   "id": "enzyme-kinetics/sde",
+   "model": "../../pflow-wasm/mcp/examples/enzyme-kinetics.jsonld",
+   "cid": "z4EBG9jANVP5ZZDDWzQ3j9Z5CfG3UNYUAma89X7d8TVJiVA3EzW",
+   "op": "sde",
+   "args": {
+    "seed": 7,
+    "t_end": 10,
+    "runs": 4,
+    "points": 21
+   }
+  },
+  {
+   "id": "enzyme-kinetics/reachability",
+   "model": "../../pflow-wasm/mcp/examples/enzyme-kinetics.jsonld",
+   "cid": "z4EBG9jANVP5ZZDDWzQ3j9Z5CfG3UNYUAma89X7d8TVJiVA3EzW",
+   "op": "reachability",
+   "args": {
+    "maxStates": 500
+   }
+  },
+  {
+   "id": "coffee-shop/wrong-cid",
+   "model": "../../pflow-hosted/tests/fixtures/nets/coffee-shop.jsonld",
+   "cid": "z4EBG9jAJRwz8xUfq4ELvGPvUNfD13DqHERooMvJaqkb8bUHKaQ",
+   "op": "check",
+   "args": {}
+  },
+  {
+   "id": "sir/fire",
+   "model": "../../pflow-hosted/tests/fixtures/nets/sir.jsonld",
+   "cid": "z4EBG9jAdPbhNjmEav3NFqVuKo9BRfpja9tQs8VgttzBgTXFy4x",
+   "op": "fire",
+   "args": {
+    "sequence": [
+     "infect",
+     "infect",
+     "recover"
+    ]
+   }
+  }
+ ]
+}

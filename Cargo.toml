@@ -26,6 +26,7 @@ members = [
     "crates/pflow-wasm",
     "crates/pflow-hosted",
     "crates/pflow-artifact-engine",
+    "crates/pflow-engine",
 ]
 
 [workspace.package]
@@ -45,3 +46,17 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
+
+# The CID-checked engine (crates/pflow-engine, scripts/build-wasm-repro.sh):
+# the browser profile, with nothing left that can vary by host. codegen-units
+# and lto are what make the output independent of the machine's core count;
+# incremental would be, too, but is never on for a release profile.
+[profile.engine-repro]
+inherits = "wasm-release"
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+debug = false
+incremental = false

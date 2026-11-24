@@ -1,4 +1,4 @@
 /target
-Cargo.lock
+# Cargo.lock is committed: the reproducible engine build (scripts/build-wasm-repro.sh) runs --locked.
 # local artifact pages written by artifact_html for publishing; generated, not source
 /publish/

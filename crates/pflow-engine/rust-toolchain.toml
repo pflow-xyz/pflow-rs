@@ -1,0 +1,7 @@
+# The engine's toolchain, exact: scripts/build-wasm-repro.sh runs cargo from
+# this directory so rustup picks it up, and the manifest records it. Changing
+# it changes the engine's bytes; re-record crates/pflow-engine/repro.json.
+[toolchain]
+channel = "1.99.1"
+targets = ["wasm32-unknown-unknown"]
+profile = "minimal"
