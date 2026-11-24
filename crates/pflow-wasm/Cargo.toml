@@ -25,10 +25,15 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 # Exactly the wasm-bindgen CLI's version (WASM_BINDGEN_VERSION in the Makefile):
 # the CLI refuses a module built against any other.
-wasm-bindgen = "=0.2.129"
+wasm-bindgen = { version = "=0.2.129", optional = true }
 # The pflow.xyz/mcp tools, for @pflow-xyz/pflow-mcp's build only (make
 # wasm-mcp); the browser package (make wasm-npm) leaves them out.
 pflow-hosted = { path = "../pflow-hosted", optional = true }
 
 [features]
+# The JavaScript boundary (`Net`, `version`, `hosted`). On by default; the
+# CID-checked engine (crates/pflow-engine) turns it off and uses `Core`
+# directly, so its module exports one API, not two.
+default = ["bindings"]
+bindings = ["dep:wasm-bindgen"]
 hosted = ["dep:pflow-hosted"]

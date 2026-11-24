@@ -24,6 +24,7 @@ use pflow_solver::ssa::{
 use pflow_solver::{methods, solve, stochastic, ContextualArcs, Options, Problem};
 use serde::Deserialize;
 use serde_json::{json, Value};
+#[cfg(feature = "bindings")]
 use wasm_bindgen::prelude::*;
 
 /// Reads a model: Shape A (the pflow.xyz editor document) or Shape B
@@ -628,6 +629,7 @@ impl Core {
     }
 }
 
+#[cfg(feature = "bindings")]
 #[wasm_bindgen(typescript_custom_section)]
 const TS_TYPES: &'static str = r#"
 /** A marking: token count per place. */
@@ -717,6 +719,7 @@ export interface StochasticResult {
 }
 "#;
 
+#[cfg(feature = "bindings")]
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = JSON, js_name = parse, catch)]
@@ -725,6 +728,7 @@ extern "C" {
     fn json_stringify(value: &JsValue) -> Result<JsValue, JsValue>;
 }
 
+#[cfg(feature = "bindings")]
 /// A JS argument as JSON text: a string as it is, anything else stringified.
 /// `undefined` comes back empty.
 fn to_text(value: &JsValue) -> Result<String, JsError> {
@@ -739,16 +743,19 @@ fn to_text(value: &JsValue) -> Result<String, JsError> {
         .map(|s| s.as_string().unwrap_or_default())
 }
 
+#[cfg(feature = "bindings")]
 fn to_js(text: &str) -> Result<JsValue, JsError> {
     json_parse(text).map_err(|_| JsError::new("internal: result is not JSON"))
 }
 
+#[cfg(feature = "bindings")]
 /// A Petri net and its current marking.
 #[wasm_bindgen]
 pub struct Net {
     core: Core,
 }
 
+#[cfg(feature = "bindings")]
 #[wasm_bindgen]
 impl Net {
     /// Loads a net from Shape A (pflow.xyz) or Shape B JSON, as text or as an
@@ -844,6 +851,7 @@ impl Net {
     }
 }
 
+#[cfg(feature = "bindings")]
 /// The package's version, which is the pflow-rs workspace's.
 #[wasm_bindgen]
 pub fn version() -> String {
@@ -854,7 +862,7 @@ pub fn version() -> String {
 /// hosted name without `pflow_`, `args` the tool's arguments as JSON text or an
 /// object. Returns the answer as an object; throws the tool's refusal. Only in
 /// the `hosted` build, which @pflow-xyz/pflow-mcp ships.
-#[cfg(feature = "hosted")]
+#[cfg(all(feature = "hosted", feature = "bindings"))]
 #[wasm_bindgen]
 pub fn hosted(tool: &str, args: JsValue) -> Result<JsValue, JsError> {
     let text = to_text(&args)?;
@@ -868,7 +876,7 @@ pub fn hosted(tool: &str, args: JsValue) -> Result<JsValue, JsError> {
 }
 
 /// The tools `hosted` answers.
-#[cfg(feature = "hosted")]
+#[cfg(all(feature = "hosted", feature = "bindings"))]
 #[wasm_bindgen(js_name = hostedTools, unchecked_return_type = "string[]")]
 pub fn hosted_tools() -> Result<JsValue, JsError> {
     to_js(&serde_json::to_string(pflow_hosted::TOOLS).unwrap_or_default())

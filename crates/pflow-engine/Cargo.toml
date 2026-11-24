@@ -1,0 +1,24 @@
+[package]
+name = "pflow-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "The CID-checked pflow engine: load a model by its content address, refuse a mismatch, run the checks and simulations as one reproducible wasm32 module"
+# Built by scripts/build-wasm-repro.sh and served content-addressed from
+# cdn.stackdump.com, not published to crates.io.
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pflow-hosted = { path = "../pflow-hosted" }
+# Core only: the JavaScript boundary (`bindings`) is this crate's, not pflow-wasm's.
+pflow-wasm = { path = "../pflow-wasm", default-features = false }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+sha2 = "0.10"
+# Exactly the wasm-bindgen CLI's version (scripts/build-wasm-repro.sh): the CLI
+# refuses a module built against any other, and the glue is part of the hash.
+wasm-bindgen = "=0.2.129"
