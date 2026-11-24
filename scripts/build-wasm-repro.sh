@@ -20,6 +20,8 @@
 #   paths         --remap-path-prefix maps the checkout, the target dir, CARGO_HOME and the rust sysroot to
 #                 fixed names, so no host path reaches a panic string. No crate in the engine's tree has a
 #                 build.rs that embeds a path or a time (checked: cargo tree, below).
+#   crate ids     scripts/rustc-host-independent.sh (the RUSTC_WRAPPER) gives each wasm32 crate a -C metadata
+#                 hash computed from host-independent inputs; cargo's own folds in the host triple.
 #   time          SOURCE_DATE_EPOCH is the commit's time; nothing in the build reads the clock.
 #
 # The manifest is itself deterministic (no host name, no build time): two hosts that agree write the same
@@ -100,6 +102,10 @@ cargo_home=$(cd "${CARGO_HOME:-$HOME/.cargo}" && pwd -P)
 # rustc applies the last matching remap: the more specific prefixes come after the ones that contain them.
 remaps="--remap-path-prefix=$cargo_home=/cargo --remap-path-prefix=$sysroot=/rust --remap-path-prefix=$root=/pflow-rs --remap-path-prefix=$target=/target"
 unset RUSTC_WRAPPER CARGO_BUILD_RUSTC_WRAPPER CARGO_ENCODED_RUSTFLAGS CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS RUSTDOCFLAGS
+# The crate hashes cargo derives from host-built dependencies, replaced by host-independent ones
+# (scripts/rustc-host-independent.sh says why).
+export RUSTC_WRAPPER=$root/scripts/rustc-host-independent.sh PFLOW_REPRO_ROOT=$root
+unset RUSTC_WORKSPACE_WRAPPER
 export RUSTFLAGS="$remaps"
 export CARGO_INCREMENTAL=0 CARGO_TARGET_DIR="$target"
 # No build script in the engine's tree may embed a path or a clock: list the crates that have one.
@@ -146,6 +152,7 @@ doc = {
         "wasm_bindgen": "--target web --out-name pflow_engine --remove-name-section --remove-producers-section",
         "wasm_opt": "-Oz " + features + " --strip-debug --strip-producers",
         "build_scripts_in_tree": build_rs.split(),
+        "rustc_wrapper": "scripts/rustc-host-independent.sh (-C metadata from crate name, source path, crate type, edition, cfgs)",
     },
     "files": {},
 }
