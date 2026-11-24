@@ -96,6 +96,10 @@ wasm_opt_v=$("$wasm_opt" --version)
 
 # --- the build ------------------------------------------------------------------
 target=${PFLOW_ENGINE_TARGET_DIR:-$root/target/engine-repro}
+# From clean every time (PFLOW_ENGINE_KEEP_TARGET=1 keeps it while iterating): cargo's fingerprint
+# does not cover the wrapper or every flag here, and a reproducible build should not depend on what
+# an earlier one left behind. The engine builds in under a minute.
+if [ "${PFLOW_ENGINE_KEEP_TARGET:-}" != 1 ]; then rm -rf "$target"; fi
 mkdir -p "$target"
 target=$(cd "$target" && pwd -P)
 cargo_home=$(cd "${CARGO_HOME:-$HOME/.cargo}" && pwd -P)
