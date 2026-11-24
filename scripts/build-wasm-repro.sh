@@ -124,7 +124,7 @@ mv "$tmp/pflow_engine_bg.opt.wasm" "$tmp/pflow_engine_bg.wasm"
 files="pflow_engine_bg.wasm pflow_engine.js pflow_engine.d.ts pflow_engine_bg.wasm.d.ts"
 for f in $files; do cp "$tmp/$f" "$out/$f"; done
 
-version=$(sed -nE '/^\[workspace.package\]/,/^\[/{s/^version = "([^"]+)"/\1/p}' Cargo.toml)
+version=$(awk '/^\[workspace.package\]/{w=1; next} /^\[/{w=0} w && /^version = /{gsub(/"/,"",$3); print $3; exit}' Cargo.toml)
 python3 - "$out" "$version" "$commit" "$dirty" "$epoch" "$rustc_v" "$cargo_v" "$have_wb" "$wasm_opt_v" "$BINARYEN" "$build_rs" "$features" $files <<'PY'
 import hashlib, json, os, sys
 out, version, commit, dirty, epoch, rustc, cargo, wb, wo, bver, build_rs, features, *files = sys.argv[1:]
