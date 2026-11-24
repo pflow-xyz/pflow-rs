@@ -1,0 +1,284 @@
+{
+ "_comment": "What the WASM engine answered for verdicts/cases.json: the reference. Written by check-verdicts.mjs --record; a change here is a change in engine output and needs a reason in the commit.",
+ "engine_sha256": "db0fc985a2aba582c1e9e3e6a6f18444badc2c9525209ae78eddc7fd8a4bc119",
+ "engine_version": "0.3.0",
+ "pflow_rs_commit": "662ca90814edd1cc7b502128cc6e2c1b9f98c7f4",
+ "results": {
+  "coffee-shop/check": {
+   "verdict_sha256": "993315af20e30f6e5f7741467385a0b19580f5d1e4e81a84c5f6feb7160063d4"
+  },
+  "coffee-shop/incidence": {
+   "verdict_sha256": "d24bd8bce0faf51f0747c50bb5945e9c4fb1991ac34fd036b5c6ace83139b32b"
+  },
+  "coffee-shop/invariants": {
+   "verdict_sha256": "cd92b4e0a37e609cb7d715ed7307a627576ffa4bdd14fc97d48776f350cdcf72"
+  },
+  "coffee-shop/reachability": {
+   "verdict_sha256": "bb7c6f388d4a530559c1f468bc4e8f3fdc9da4c5f9484ee88bceabcb01720f8d"
+  },
+  "coffee-shop/sde": {
+   "refusal": "sde refused: this model constrains firing in ways continuous diffusion cannot express, so the SDE would silently model an unconstrained system. Use the discrete engine (Simulate). Specifically: capacity is declared on [CoffeeBeans.brown EmptyCups.blue ServedCoffee.red WaitingCustomers.red] but is a post-firing bound, which has no continuous analogue"
+  },
+  "coffee-shop/simulate": {
+   "verdict_sha256": "158f61a8533e1fe579e9d0e0dae39e87e2e0b469bb0eb6b160140fe0206978d6"
+  },
+  "coffee-shop/ssa": {
+   "verdict_sha256": "7d63e3826de7bdbc5838c5c02cfdd275573f2fc8c70ce952bf5a38b4268698fe"
+  },
+  "coffee-shop/validate": {
+   "verdict_sha256": "c5dfeeea7dcf7c11211103b5ae03ea3c109dc0e7a24434e7c7a8a2d3e636c88c"
+  },
+  "coffee-shop/verify": {
+   "verdict_sha256": "d9c6958201130e59d4fa106a5cbd1d04e3e44aeeff116ba0b5dd63434a4e6d91"
+  },
+  "coffee-shop/wrong-cid": {
+   "refusal": "cid mismatch: asked for z4EBG9jAJRwz8xUfq4ELvGPvUNfD13DqHERooMvJaqkb8bUHKaQ, the bytes seal to z4EBG9jDsuUdvVN4bUXRHxoDG3p274FfhcJd8BiruRcE1jLCHi8"
+  },
+  "enzyme-kinetics/check": {
+   "verdict_sha256": "245b3beef224ac976be4bccdf431b0f002d99be15670119033416279fb801dbf"
+  },
+  "enzyme-kinetics/incidence": {
+   "verdict_sha256": "845e9879b7ea04db4369ce891681ce96145c0b273798f41649d4fa1818e83cb7"
+  },
+  "enzyme-kinetics/invariants": {
+   "verdict_sha256": "69b11932e688250735e9aaaeb430ee7679204451d1d47f86edda0b9d525bc791"
+  },
+  "enzyme-kinetics/reachability": {
+   "verdict_sha256": "d64fe97912c94012084e7d086c747db0e3ddfdc504f4c30ae68150ee76109a46"
+  },
+  "enzyme-kinetics/sde": {
+   "verdict_sha256": "898a181b4c500980f661a6761627411563822ad2493d1c8760878c8202194991"
+  },
+  "enzyme-kinetics/simulate": {
+   "verdict_sha256": "f9b8bcd17c6142a5164bf28c96205a560e2169ee9488faf1d4410f458ddf0659"
+  },
+  "enzyme-kinetics/ssa": {
+   "verdict_sha256": "9365c7ca2e66606d9ca06efa03c1637d0ebeed8e914d533c9dd0e26b5f2a16cf"
+  },
+  "enzyme-kinetics/validate": {
+   "verdict_sha256": "304658369d0222f7bf9065bb9afda3720a7e2c933a39634467ea4cb992b5405d"
+  },
+  "enzyme-kinetics/verify": {
+   "verdict_sha256": "049069b58fb4cd86f5e95d10a1f310e1078d6cacb0c876a370577dc1c528f1d8"
+  },
+  "gated/check": {
+   "verdict_sha256": "47de1b43c26016b3027cb20b2229798ffadfddf1519dc50f5cbc4068a4e90df7"
+  },
+  "gated/incidence": {
+   "verdict_sha256": "08982f60cdbded1c4e37139686847d5d08f49fffd7167037ab082be9c7434680"
+  },
+  "gated/invariants": {
+   "verdict_sha256": "ee904a75768053e4d995ed209a890d14bda54523422f74e86b800b1f2151dc6f"
+  },
+  "gated/reachability": {
+   "verdict_sha256": "9aec4334646a9d45c30e4cf3e1a655f266611c1a62eccd24f2823c29407b6b52"
+  },
+  "gated/sde": {
+   "refusal": "sde refused: this model constrains firing in ways continuous diffusion cannot express, so the SDE would silently model an unconstrained system. Use the discrete engine (Simulate). Specifically: 1 inhibitor arc(s) block a firing above a threshold; a continuous solver cannot test them; capacity is declared on [Done Queue] but is a post-firing bound, which has no continuous analogue"
+  },
+  "gated/simulate": {
+   "refusal": "1 inhibitor arc(s) block a firing above a threshold; a continuous solver cannot test them (Lock -o serve); use selfloop (read arcs only) or drop to integrate the net anyway"
+  },
+  "gated/ssa": {
+   "verdict_sha256": "17d3fc777878d58d3466206d51bd0a0a66bcc9714dee77aba1aa3f3692a16cfc"
+  },
+  "gated/validate": {
+   "verdict_sha256": "24b13a696db08a6dba44ef9d2929c53e6a73f5866b821aaaf94e1228bbe26381"
+  },
+  "gated/verify": {
+   "verdict_sha256": "fab83630674f02c7985aca0a7fff323a431b85478c6e7cef3bac255be4a385a2"
+  },
+  "knapsack/check": {
+   "verdict_sha256": "aa8d9a9c0c5c0e8e5c70f59a8a012cea4a1ae498ef90c1db283f36ccc501e307"
+  },
+  "knapsack/incidence": {
+   "verdict_sha256": "205316b6b19e5e646fa13eb10af61fc45340681f3ca4dc77bb5f92e35a630907"
+  },
+  "knapsack/invariants": {
+   "verdict_sha256": "7812b115e954f40427c0dec2df6c95aac373278019f74ae97d4796f1437aa701"
+  },
+  "knapsack/reachability": {
+   "verdict_sha256": "9b19c80e77134b52629c34b9d93ef24c0f18065e57d0f9ae46f8b2bb1d12f4bb"
+  },
+  "knapsack/sde": {
+   "verdict_sha256": "95bdef21cf02012ea72c2d79ca24196ecf0a566da38396fbc0b575f62e3196eb"
+  },
+  "knapsack/simulate": {
+   "verdict_sha256": "8e1df646619d71ab9478ce0ec385b1880c604ac8c95fadb6b91baf5fc24094bc"
+  },
+  "knapsack/ssa": {
+   "verdict_sha256": "1f10fb93b5e89298dbbbc378359ee8e208e6fbd125ecdf07bb1cbf88845c0f42"
+  },
+  "knapsack/validate": {
+   "verdict_sha256": "647f4cf81fd259cedd34f3da0bb784693b90142a501b7358b0abc5c78797f1a1"
+  },
+  "knapsack/verify": {
+   "verdict_sha256": "53938acab9509eb63561b168a8460041a572d98d1a9d2c3b7789695e0b969ad5"
+  },
+  "net-a/check": {
+   "verdict_sha256": "081cc3d0291e914a25eaa752bd67b786581c54f74dea7c2ce1f0d2d67a112739"
+  },
+  "net-a/incidence": {
+   "verdict_sha256": "3fbdf1b2b1aee2fc45873cf64b77adbefc2e35ecadd1bd0f24eab98d9a47d886"
+  },
+  "net-a/invariants": {
+   "verdict_sha256": "a6e1b9d78a76ca2d83b4232dae76cb13ecf8feb90fd111ce58434fd4525f92de"
+  },
+  "net-a/reachability": {
+   "refusal": "arc \"JsonEditorOpen\" -> \"TypingInEditor\" does not join a place and a transition"
+  },
+  "net-a/sde": {
+   "refusal": "sde refused: this model constrains firing in ways continuous diffusion cannot express, so the SDE would silently model an unconstrained system. Use the discrete engine (Simulate). Specifically: 6 inhibitor arc(s) block a firing above a threshold; a continuous solver cannot test them; capacity is declared on [AddArcMode AddPlaceMode AddTokenMode AddTransitionMode ArcDraftActive DeleteMode HistoryReady Idle JsonEditorOpen Panning RedoAvailable SelectMode SimRunning] but is a post-firing bound, which has no continuous analogue"
+  },
+  "net-a/simulate": {
+   "refusal": "arc \"JsonEditorOpen\" -> \"TypingInEditor\" does not join a place and a transition"
+  },
+  "net-a/ssa": {
+   "refusal": "arc \"JsonEditorOpen\" -> \"TypingInEditor\" does not join a place and a transition"
+  },
+  "net-a/validate": {
+   "verdict_sha256": "ac966b5abb6cc8994210cafc877edfbec8d8c0e572dd81cc3e80f340047ff4a8"
+  },
+  "net-a/verify": {
+   "verdict_sha256": "75e7c4c2cf0d0a1d7dffd29c4faf5254fa740b7196c0ed25364a95516ca8232e"
+  },
+  "predator-prey/check": {
+   "verdict_sha256": "81d8a3fc343ec8c11496a4af81acaf8659ecf93b620ae32b33866760bf3f0cec"
+  },
+  "predator-prey/incidence": {
+   "verdict_sha256": "34d1cfa1ca9ae5f245bf558f6c5cf7301cd8798b9ad5cde883e192a021b9d157"
+  },
+  "predator-prey/invariants": {
+   "verdict_sha256": "5cb81c047f36ed45f4bda2c6cfd87b66b03f273985fe3f81e5c19041ab5ba402"
+  },
+  "predator-prey/reachability": {
+   "verdict_sha256": "2bbbb809d25a8963e2361846d1604ae37e215cb4d27b2296b7fa5e677fbfd03a"
+  },
+  "predator-prey/sde": {
+   "verdict_sha256": "fa9e9285febf22a16ce0abaeeeabf1bd19f61ac3e0b1c14cc0e5d969deeba604"
+  },
+  "predator-prey/simulate": {
+   "verdict_sha256": "ae30f8d4926c04ed44b951546d1d782e94d98d07454c7ff7afa5c74ab03bb10a"
+  },
+  "predator-prey/ssa": {
+   "verdict_sha256": "56d067ea75e398f2d43147249789997fe8b8635e82e05787e287e7832baf9f55"
+  },
+  "predator-prey/validate": {
+   "verdict_sha256": "953d093dfc6a3fbc537782db5dcf471be3b11ade10d36ce0c9cf94fe62fe949b"
+  },
+  "predator-prey/verify": {
+   "verdict_sha256": "3f75362da2e0238f9fd4fe67bc26f163b6a9ce016f96d4d69c22bd0804d332ae"
+  },
+  "producer-consumer/check": {
+   "verdict_sha256": "02f0bd67900647c31d17c8e951b637ee6a87f1aa0e45a4e0398d491a41e2f81b"
+  },
+  "producer-consumer/incidence": {
+   "verdict_sha256": "5cb0dd826fd65b38392ddd5718e51de842933ee8e38800369253a6614d546438"
+  },
+  "producer-consumer/invariants": {
+   "verdict_sha256": "26bd58b5e38ed2406b02ae68b9e041d36d2c6b6bc1b24fbdbc441bce2f9e30e6"
+  },
+  "producer-consumer/reachability": {
+   "verdict_sha256": "68340db97978cf37e7b858e1f72cc34f2cfe8d7abbd263b8328732e6d5f6c8f8"
+  },
+  "producer-consumer/sde": {
+   "refusal": "sde refused: this model constrains firing in ways continuous diffusion cannot express, so the SDE would silently model an unconstrained system. Use the discrete engine (Simulate). Specifically: capacity is declared on [buffer consumed produced slots] but is a post-firing bound, which has no continuous analogue"
+  },
+  "producer-consumer/simulate": {
+   "verdict_sha256": "7d928ee083d2ece4b8877e8a7288980badd5a1aeae787e5e4f8ff3a3148d1ccc"
+  },
+  "producer-consumer/ssa": {
+   "verdict_sha256": "f46de3cd2bb77259a831fea297fdb10ed4740b67d8ca7498fbf7b32a2e79114e"
+  },
+  "producer-consumer/validate": {
+   "verdict_sha256": "a987640c26ac5105c89fca93404a6b12ad9f82a011ae8b4e5c59d6e08c23ae3f"
+  },
+  "producer-consumer/verify": {
+   "verdict_sha256": "928054258377bff2ac5052b499e2877bc4c5642d67bad53d4684d6167a658ef7"
+  },
+  "sir/check": {
+   "verdict_sha256": "63677738de4c6d0182b7f233c137488423aedbf648b2fe1adb87b52c8f1970c6"
+  },
+  "sir/fire": {
+   "verdict_sha256": "56644f64f1a8fd78725a0d36256dfe5ac205f8114721a8498f808482fcdd48c9"
+  },
+  "sir/incidence": {
+   "verdict_sha256": "bb7cc200bde3268690186b2077059c3dc04fb4bca96ccc7873acfcda3ad8b246"
+  },
+  "sir/invariants": {
+   "verdict_sha256": "c4c44a6104867f543623e0a51f23a4ec819a63acd67f3da0eb8c562cd6fd6962"
+  },
+  "sir/reachability": {
+   "verdict_sha256": "69a7068fb3974dfe16000dba2b566597404633e39782d1f510db40106e260092"
+  },
+  "sir/sde": {
+   "verdict_sha256": "cfeb69a8b21b39ab2675bfce4d20b2f8d487de9777318a40a6ae639bd582350f"
+  },
+  "sir/simulate": {
+   "verdict_sha256": "efeb26eccb58e0caa063fb243fc5d9a01cf1d243b8b71b25290187d99fb7c812"
+  },
+  "sir/ssa": {
+   "verdict_sha256": "a209cf94c40091d5f013fc35280dd6383daf59578ae739226d78ac9e69f6985f"
+  },
+  "sir/validate": {
+   "verdict_sha256": "a58ff3ebf11e19c3452707f8940dd800088bd9638de707a618e930126df1ee08"
+  },
+  "sir/verify": {
+   "verdict_sha256": "288daac47c55e01b6afa07f5b63adfafaac02c82bf7ea71af395591032494f3d"
+  },
+  "tie/check": {
+   "verdict_sha256": "649a0a59c99161e9228073911ac9e69c6f05d135d02df1e397c3a80793481978"
+  },
+  "tie/incidence": {
+   "verdict_sha256": "a6764637d1388fac26cca220b4b5a3fc74b014ba20c73cd2aedb019527f2aa03"
+  },
+  "tie/invariants": {
+   "verdict_sha256": "4ec55ef8588b80a2735dba14031a606de028961d8315fd0b161e42ea49d6621c"
+  },
+  "tie/reachability": {
+   "verdict_sha256": "85e218143c5ce3e0a0c83747a53d64d9c286f69e6ac48576fc143e6feaa7d71a"
+  },
+  "tie/sde": {
+   "verdict_sha256": "0b5f1d72c86ba563c0f3090c84ee4da32e561f1c03e0579aa73b98b693292ff6"
+  },
+  "tie/simulate": {
+   "verdict_sha256": "bb86bc801853af829472056d7c41a2941c5b7f2259aa483388bc373cb79fb293"
+  },
+  "tie/ssa": {
+   "verdict_sha256": "336b98f8ff2f5cb1f976330b95f94eb6c0eb3c7e65562a7391956e5aa32f9051"
+  },
+  "tie/validate": {
+   "verdict_sha256": "7eca4a51dac4225dcc1af9856f7aa9923326819948a1cbf79f528c2b1b34a0b8"
+  },
+  "tie/verify": {
+   "verdict_sha256": "a5bb62c6bc06f67dc15820ae10dc8862e9b4eb7dbaed084e7369e62efc467b28"
+  },
+  "with-rates/check": {
+   "verdict_sha256": "ee95937149ed1f2107a376e33b07c8043ba13a017d33a43d84025d78ef0e05c1"
+  },
+  "with-rates/incidence": {
+   "verdict_sha256": "85c394c535ba2135c601a9483bd4fc2bc3f3ee2c97849e7e397e57f917071dab"
+  },
+  "with-rates/invariants": {
+   "verdict_sha256": "ea5bf75b1b5ac47b075d7f3168e3f44b9abcf85dace9e14dcad390e8be376b7e"
+  },
+  "with-rates/reachability": {
+   "verdict_sha256": "badd63dfc607e84305a8032004f2008e90526731c1b23923aa30ce702e04226c"
+  },
+  "with-rates/sde": {
+   "refusal": "sde refused: this model constrains firing in ways continuous diffusion cannot express, so the SDE would silently model an unconstrained system. Use the discrete engine (Simulate). Specifically: capacity is declared on [CoffeeBeans.brown ServedCoffee.red WaitingCustomers.red] but is a post-firing bound, which has no continuous analogue"
+  },
+  "with-rates/simulate": {
+   "verdict_sha256": "39d99293223bcb023acfb55aaefb823a23503de4e2d366640da6835fb591dec4"
+  },
+  "with-rates/ssa": {
+   "verdict_sha256": "ccc4be7c5908fcd75462684c714d56ff0772c77429f13689067c13a819b213b6"
+  },
+  "with-rates/validate": {
+   "verdict_sha256": "eddbf874cb4ac963a90be5bb24b909c825ee266361867865e6d49915bb4c8433"
+  },
+  "with-rates/verify": {
+   "verdict_sha256": "a4e8790a64d1112cdd1d92057485e0e221760d41301b3550209820f2f53dbf2f"
+  }
+ }
+}

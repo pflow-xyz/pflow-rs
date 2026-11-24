@@ -1,0 +1,66 @@
+{
+  "dirty": false,
+  "engine": "pflow-engine",
+  "engine_sha256": "db0fc985a2aba582c1e9e3e6a6f18444badc2c9525209ae78eddc7fd8a4bc119",
+  "engine_version": "0.3.0",
+  "files": {
+    "pflow_engine.d.ts": {
+      "sha256": "a98ad1e7104061552e6f1f9b64798b7e8079da825522574a3b92c46bf2d2245f",
+      "size": 3143
+    },
+    "pflow_engine.js": {
+      "sha256": "068b13fc8f90bc52ba840b9b57edef416463aaee8068e40d0cf9ddbcff00a6a6",
+      "size": 16342
+    },
+    "pflow_engine_bg.wasm": {
+      "sha256": "db0fc985a2aba582c1e9e3e6a6f18444badc2c9525209ae78eddc7fd8a4bc119",
+      "size": 2241622
+    },
+    "pflow_engine_bg.wasm.d.ts": {
+      "sha256": "5b446d477c06ff911e93706bcf9fc26c42be8ea9aaa58df1c814582e093548aa",
+      "size": 1060
+    }
+  },
+  "flags": {
+    "build_scripts_in_tree": [
+      "generic-array",
+      "proc-macro2",
+      "quote",
+      "serde",
+      "serde_core",
+      "serde_json",
+      "syn",
+      "thiserror",
+      "wasm-bindgen",
+      "wasm-bindgen-shared",
+      "zmij"
+    ],
+    "cargo": "cargo build --locked --lib --profile engine-repro --target wasm32-unknown-unknown -p pflow-engine",
+    "profile": {
+      "codegen-units": 1,
+      "debug": false,
+      "incremental": false,
+      "lto": "fat",
+      "opt-level": "z",
+      "panic": "abort",
+      "strip": true
+    },
+    "rustc_wrapper": "scripts/rustc-host-independent.sh (-C metadata from crate name, source path, crate type, edition, cfgs)",
+    "rustflags": "--remap-path-prefix=<CARGO_HOME>=/cargo --remap-path-prefix=<sysroot>=/rust --remap-path-prefix=<checkout>=/pflow-rs --remap-path-prefix=<target>=/target",
+    "wasm_bindgen": "--target web --out-name pflow_engine --remove-name-section --remove-producers-section",
+    "wasm_opt": "-Oz --enable-bulk-memory --enable-mutable-globals --enable-nontrapping-float-to-int --enable-reference-types --enable-sign-ext --enable-multivalue --strip-debug --strip-producers"
+  },
+  "pflow_rs_commit": "662ca90814edd1cc7b502128cc6e2c1b9f98c7f4",
+  "source_date_epoch": 1795499174,
+  "toolchain": {
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+    "file": "crates/pflow-engine/rust-toolchain.toml",
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "target": "wasm32-unknown-unknown"
+  },
+  "tools": {
+    "binaryen_release": "version_132",
+    "wasm_bindgen": "0.2.129",
+    "wasm_opt": "wasm-opt version 132 (version_132)"
+  }
+}
